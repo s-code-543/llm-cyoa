@@ -1,0 +1,84 @@
+version: "3.9"
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+
+  # === GPU Faster-Whisper via Speaches =======================================
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
+    container_name: speaches-whisper
+    restart: unless-stopped
+    ports:
+      # internal port for debugging / direct curl from LAN if you want
+      - "18000:8000"
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+      # Whisper / faster-whisper config
+      WHISPER__INFERENCE_DEVICE: "cuda"
+      WHISPER__COMPUTE_TYPE: "float16"
+      # Preload the big model so first call isn't slow (didn't work the first time)
+      PRELOAD_MODELS: '["deepdml/faster-whisper-large-v3-turbo-ct2"]'
+      # Keep the STT model pinned in VRAM (no TTL)
+      STT_MODEL_TTL: "-1"
+      # Simple local API key – Open WebUI just has to send *something*
+      API_KEY: "local-whisper"
+    volumes:
+      # Hugging Face cache (tune path to taste and I think you have to download the model here)
+      - /mnt/data/speaches/hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:cuda
+    container_name: open-webui
+    depends_on:
+      - ollama
+      - speaches
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      - webui-data:/app/backend/data
+      - webui-logs:/app/backend/logs
+    gpus: all
+    environment:
+      OLLAMA_BASE_URL: "http://ollama:11434"
+      WEBUI_SECRET_KEY: "change-me-to-a-long-random-string"
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+      ANTHROPIC_API_KEY: $ANTHROPIC_API_KEY
+
+      # === External Whisper / STT via Speaches ===============================
+      AUDIO_STT_ENGINE: "openai"
+      AUDIO_STT_OPENAI_API_BASE_URL: "http://speaches:8000/v1"
+      AUDIO_STT_OPENAI_API_KEY: "local-whisper"
+      AUDIO_STT_MODEL: "deepdml/faster-whisper-large-v3-turbo-ct2"
+
+  openwebui-ssl:
+    image: nginx:alpine
+    container_name: openwebui-ssl
+    restart: unless-stopped
+    depends_on:
+      - open-webui
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/certs:ro
+
+volumes:
+  ollama-data:
+  webui-data:
+  webui-logs:
+
