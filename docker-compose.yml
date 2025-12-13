@@ -65,6 +65,19 @@ services:
       AUDIO_STT_OPENAI_API_KEY: "local-whisper"
       AUDIO_STT_MODEL: "deepdml/faster-whisper-large-v3-turbo-ct2"
 
+  cyoa-game-server:
+    build: ./cyoa-game-server
+    container_name: cyoa-game-server
+    restart: unless-stopped
+    ports:
+      - "8001:8000"  # Django server
+      - "5678:5678"  # debugpy
+    environment:
+      ANTHROPIC_API_KEY: $ANTHROPIC_API_KEY
+      DJANGO_SECRET_KEY: "your-secret-key-here"
+    volumes:
+      - ./cyoa-game-server:/app
+
   openwebui-ssl:
     image: nginx:alpine
     container_name: openwebui-ssl

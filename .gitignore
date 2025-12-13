@@ -2,3 +2,5 @@ test*
 ssl/*
 *backup*
 .env
+*.pyc
+__pycache__/
