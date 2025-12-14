@@ -15,11 +15,25 @@ def list_models(request):
     """
     models = [
         {
-            "id": "gameserver-cyoa-dual-claude",
+            "id": "gameserver-cyoa",
             "object": "model",
             "created": int(time.time()),
             "owned_by": "cyoa-game-server",
-            "description": "Dual-LLM: Storyteller + Judge (uses Claude API)"
+            "description": "Production: Combined storyteller + judge (single call, no cache)"
+        },
+        {
+            "id": "gameserver-cyoa-base",
+            "object": "model",
+            "created": int(time.time()),
+            "owned_by": "cyoa-game-server",
+            "description": "Base storyteller only (stores to cache for comparison)"
+        },
+        {
+            "id": "gameserver-cyoa-moderated",
+            "object": "model",
+            "created": int(time.time()),
+            "owned_by": "cyoa-game-server",
+            "description": "Judge only - retrieves from cache and moderates (for comparison)"
         },
         {
             "id": "gameserver-cyoa-test",

@@ -91,26 +91,48 @@ def call_ollama(messages, system_prompt=None, model="qwen3:30b"):
         "stream": False,
         "options": {
             "temperature": 0.7,
-            "top_p": 0.8,
-            "top_k": 20,
-            "repeat_penalty": 1.05,
-            "num_predict": 1200
+            "top_p": 0.9,  # Slightly higher for more creative variety
+            "top_k": 40,   # Increased from 20 for better creative writing
+            "repeat_penalty": 1.1,  # Slightly higher to prevent repetitive phrasing
         }
     }
     
     try:
+        print(f"[OLLAMA] Calling {OLLAMA_BASE_URL}/api/chat with model={model}")
+        print(f"[OLLAMA] Payload: {len(ollama_messages)} messages, system={len(system_prompt) if system_prompt else 0} chars")
+        
         response = requests.post(
             f"{OLLAMA_BASE_URL}/api/chat",
             json=payload,
-            timeout=(3.05, 120)
+            timeout=(3.05, 30)  # 30 second read timeout
         )
         
+        print(f"[OLLAMA] Response status: {response.status_code}")
+        
         if response.status_code != 200:
+            print(f"[OLLAMA] Error response: {response.text}")
             raise Exception(f"HTTP Error {response.status_code}: {response.text}")
         
         res = response.json()
-        return res.get("message", {}).get("content", "")
+        content = res.get("message", {}).get("content", "")
+        thinking = res.get("message", {}).get("thinking", "")
+        
+        print(f"[OLLAMA] Got response: {len(content)} chars content, {len(thinking)} chars thinking")
+        
+        # Qwen models sometimes only output to 'thinking' field instead of 'content'
+        if len(content) == 0 and len(thinking) > 0:
+            print(f"[OLLAMA] ⚠ Content empty but thinking present - model is reasoning but not outputting")
+            print(f"[OLLAMA] This is a prompt design issue - the judge prompt needs to force output")
+            print(f"[OLLAMA] Full response JSON: {res}")
+            # Don't use thinking as content - it's internal reasoning, not the answer
+            return ""
+        
+        if len(content) == 0:
+            print(f"[OLLAMA] ✗ EMPTY RESPONSE!")
+            print(f"[OLLAMA] Full response JSON: {res}")
+        
+        return content
     
     except requests.exceptions.RequestException as e:
-        print(f"Ollama API request failed: {e}")
+        print(f"[OLLAMA] API request failed: {e}")
         raise

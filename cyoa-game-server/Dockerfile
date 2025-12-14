@@ -17,5 +17,8 @@ COPY . .
 # Expose debugpy port and Django port
 EXPOSE 5678 8000
 
+# Force unbuffered Python output so logs appear immediately
+ENV PYTHONUNBUFFERED=1
+
 # Run with debugpy for remote debugging (attach at your convenience)
-CMD ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["python", "-Xfrozen_modules=off", "-m", "debugpy", "--listen", "0.0.0.0:5678", "manage.py", "runserver", "0.0.0.0:8000"]
