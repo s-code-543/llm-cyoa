@@ -11,6 +11,28 @@ from .file_utils import load_prompt_file
 from .anthropic_utils import call_anthropic
 from .ollama_utils import call_ollama
 from .cache_utils import response_cache
+from .models import Prompt, AuditLog
+
+
+def get_active_judge_prompt():
+    """
+    Retrieve the active judge prompt from database.
+    Falls back to file if no active prompt exists.
+    
+    Returns:
+        Tuple of (prompt_text, prompt_instance)
+    """
+    try:
+        prompt = Prompt.objects.filter(prompt_type='judge', is_active=True).first()
+        if prompt:
+            return prompt.prompt_text, prompt
+        else:
+            # Fallback to file if no active prompt (should only happen before migration)
+            print("[WARNING] No active judge prompt in database, falling back to file")
+            return load_prompt_file('judge_prompt.txt'), None
+    except Exception as e:
+        print(f"[ERROR] Failed to load judge prompt from database: {e}")
+        return load_prompt_file('judge_prompt.txt'), None
 
 
 def call_llm(messages, system_prompt=None, model="qwen3:30b"):
@@ -194,7 +216,7 @@ def chat_completions(request):
             ]
             
             try:
-                judge_prompt = load_prompt_file('judge_prompt.txt')
+                judge_prompt, active_prompt_obj = get_active_judge_prompt()
                 print(f"[MODERATED] Judge prompt loaded: {len(judge_prompt)} chars")
                 print(f"[MODERATED] Judge message content: {judge_messages[0]['content'][:300]}...")
                 
@@ -213,6 +235,16 @@ def chat_completions(request):
                     raise Exception(error_msg)
                     
                 print(f"[MODERATED] Preview: {final_turn[:150]}...")
+                
+                # Log the correction to audit log
+                was_modified = story_turn.strip() != final_turn.strip()
+                AuditLog.objects.create(
+                    original_text=story_turn,
+                    refined_text=final_turn,
+                    was_modified=was_modified,
+                    prompt_used=active_prompt_obj
+                )
+                print(f"[MODERATED] ✓ Logged to audit (modified={was_modified})")
             except Exception as e:
                 print(f"[MODERATED] ✗ JUDGE FAILURE: {e}")
                 import traceback
@@ -286,7 +318,7 @@ def chat_completions(request):
             ]
             
             try:
-                judge_prompt = load_prompt_file('judge_prompt.txt')
+                judge_prompt, active_prompt_obj = get_active_judge_prompt()
                 print(f"[PRODUCTION] Judge prompt loaded: {len(judge_prompt)} chars")
                 
                 final_turn = call_llm(
@@ -303,6 +335,17 @@ def chat_completions(request):
                     raise Exception(error_msg)
                     
                 print(f"Preview: {final_turn[:200]}...")
+                
+                # Log the correction to audit log
+                was_modified = story_turn.strip() != final_turn.strip()
+                AuditLog.objects.create(
+                    original_text=story_turn,
+                    refined_text=final_turn,
+                    was_modified=was_modified,
+                    prompt_used=active_prompt_obj
+                )
+                print(f"[PRODUCTION] ✓ Logged to audit (modified={was_modified})")
+                
             except Exception as e:
                 print(f"[PRODUCTION] ✗ JUDGE FAILURE: {e}")
                 import traceback

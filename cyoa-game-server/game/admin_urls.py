@@ -1,0 +1,17 @@
+"""
+URL configuration for admin interface.
+"""
+from django.urls import path
+from . import admin_views
+
+app_name = 'admin'
+
+urlpatterns = [
+    path('dashboard/', admin_views.dashboard, name='dashboard'),
+    path('audit/', admin_views.audit_log, name='audit_log'),
+    path('audit/<int:log_id>/', admin_views.audit_detail, name='audit_detail'),
+    path('prompts/', admin_views.prompt_list, name='prompt_list'),
+    path('prompts/new/', admin_views.prompt_editor, name='prompt_new'),
+    path('prompts/<int:prompt_id>/', admin_views.prompt_editor, name='prompt_editor'),
+    path('api/preview-markdown/', admin_views.preview_markdown, name='preview_markdown'),
+]

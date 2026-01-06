@@ -34,21 +34,24 @@ services:
       # Increase max recording time (in seconds, default is 30)
       AUDIO_MAX_RECORDING_TIME: "600"
 
-  # CYOA Game Server - Commented out for initial testing
-  # Uncomment after verifying Open Web UI works
-  # cyoa-game-server:
-  #   build: ./cyoa-game-server
-  #   container_name: cyoa-game-server
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8001:8000"  # Django server
-  #     - "5678:5678"  # debugpy
-  #   environment:
-  #     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-  #     DJANGO_SECRET_KEY: "your-secret-key-here"
-  #     PYTHONUNBUFFERED: "1"
-  #   volumes:
-  #     - ./cyoa-game-server:/app
+  # CYOA Game Server
+  cyoa-game-server:
+    build: ./cyoa-game-server
+    container_name: cyoa-game-server
+    restart: unless-stopped
+    ports:
+      - "8001:8000"  # Django server
+      - "5678:5678"  # debugpy remote debugging
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-to-a-long-random-string}
+      DJANGO_DEBUG: "1"
+      PYTHONUNBUFFERED: "1"
+      # Allow connections from host for debugging
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,cyoa-game-server,host.docker.internal"
+    volumes:
+      - ./cyoa-game-server:/app
+      - cyoa-db:/app/db  # Persist SQLite database
 
   openwebui-ssl:
     image: nginx:alpine
@@ -65,3 +68,4 @@ services:
 volumes:
   webui-data:
   webui-logs:
+  cyoa-db:  # SQLite database persistence
