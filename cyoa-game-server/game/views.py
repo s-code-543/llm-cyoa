@@ -51,7 +51,7 @@ def get_active_judge_prompt():
         return load_prompt_file('judge_prompt.txt'), None
 
 
-def call_llm(messages, system_prompt=None, model="qwen3:30b"):
+def call_llm(messages, system_prompt=None, model="qwen3:30b", timeout=30):
     """
     Universal LLM caller - routes to appropriate backend based on model name.
     This function receives the BACKEND model name (e.g., qwen3:4b, claude-opus-3)
@@ -61,6 +61,7 @@ def call_llm(messages, system_prompt=None, model="qwen3:30b"):
         messages: List of message dicts
         system_prompt: Optional system prompt
         model: Backend model identifier (from Configuration.storyteller_model or judge_model)
+        timeout: Timeout in seconds for LLM calls (default: 30)
     
     Returns:
         String response from the LLM
@@ -70,16 +71,12 @@ def call_llm(messages, system_prompt=None, model="qwen3:30b"):
     """
     from .ollama_utils import get_ollama_models
     
-    print(f"[ROUTING] Routing backend model: {model}")
-    
     # Route to Ollama if model has ollama/ prefix
     if model.startswith("ollama/"):
-        print(f"[ROUTING] {model} -> Ollama (explicit ollama/ prefix)")
-        return call_ollama(messages, system_prompt, model)
+        return call_ollama(messages, system_prompt, model, timeout=timeout)
     
     # Check if model name pattern suggests Anthropic
     if model.startswith("claude"):
-        print(f"[ROUTING] {model} -> Anthropic (claude prefix)")
         return call_anthropic(messages, system_prompt, model)
     
     # Check if this model is available in Ollama
@@ -87,28 +84,21 @@ def call_llm(messages, system_prompt=None, model="qwen3:30b"):
         ollama_models = get_ollama_models()
         ollama_model_names = [m['name'] for m in ollama_models]
         
-        print(f"[ROUTING] Available Ollama models: {ollama_model_names}")
-        
         # Route to Ollama if model name matches
         if model in ollama_model_names:
-            print(f"[ROUTING] {model} -> Ollama (found in available models)")
-            return call_ollama(messages, system_prompt, model)
+            return call_ollama(messages, system_prompt, model, timeout=timeout)
         else:
-            print(f"[ROUTING] Model '{model}' not found in Ollama, checking name patterns...")
             # Check if it looks like an Ollama model (has : for version tag or common Ollama model patterns)
             if ":" in model or model.startswith(("qwen", "llama", "mistral", "gemma", "phi", "deepseek")):
-                print(f"[ROUTING] {model} -> Ollama (model name pattern suggests Ollama)")
-                return call_ollama(messages, system_prompt, model)
+                return call_ollama(messages, system_prompt, model, timeout=timeout)
     except Exception as e:
-        print(f"[ROUTING] Failed to check Ollama models: {e}")
         # If we can't check Ollama, but model looks like an Ollama model, try Ollama anyway
         if ":" in model or model.startswith(("qwen", "llama", "mistral", "gemma", "phi", "deepseek", "ollama")):
-            print(f"[ROUTING] {model} -> Ollama (fallback based on model name pattern)")
-            return call_ollama(messages, system_prompt, model)
+            return call_ollama(messages, system_prompt, model, timeout=timeout)
     
     # Cannot route - raise error instead of defaulting
-    error_msg = f"Cannot route model '{model}' to any backend. Model must either: start with 'claude' (Anthropic), start with 'ollama/' (Ollama), exist in Ollama's model list, or match Ollama naming patterns (qwen*, llama*, etc.)"
-    print(f"[ROUTING] ERROR: {error_msg}")
+    error_msg = f"Cannot route model '{model}' to any backend"
+    print(f"[ERROR] {error_msg}")
     raise ValueError(error_msg)
 
 
@@ -184,35 +174,31 @@ def chat_completions(request):
         # Check for BASE mode (unmodified storyteller output)
         if "cyoa-base" in model_name:
             backend_model = config.storyteller_model
-            
-            print(f"\n{'='*60}")
-            print(f"[BASE] Adventure: {config.adventure_prompt.description}")
-            print(f"[BASE] Received {len(filtered_messages)} filtered messages")
-            
-            # Generate cache key FIRST
             cache_key = ResponseCache.generate_key(filtered_messages, system_message)
             
-            print(f"\n{'='*60}")
-            print(f"[BASE] Unmodified Storyteller Mode")
-            print(f"[BASE] Backend: {backend_model}")
-            print(f"[BASE] Messages: {len(filtered_messages)}")
-            print(f"[BASE] Cache Key: {cache_key}")
-            print(f"{'='*60}")
+            # Check Ollama status if using Ollama
+            if ":" in backend_model or backend_model.startswith(("qwen", "llama", "mistral", "gemma", "phi", "deepseek")):
+                from .ollama_utils import check_ollama_status
+                status = check_ollama_status()
+                if not status["available"]:
+                    print(f"[BASE] WARNING: Ollama not responding, request will likely fail")
+                elif status["loaded_models"] and backend_model not in status["loaded_models"]:
+                    print(f"[BASE] WARNING: {backend_model} not loaded, first request may be slower")
+            
+            print(f"\n[BASE] Storyteller: {backend_model} | Timeout: {config.storyteller_timeout}s")
             
             # Call storyteller
-            print(f"\n[BASE] Calling storyteller...")
+            storyteller_timeout = config.storyteller_timeout if config else 30
             story_turn = call_llm(
                 messages=filtered_messages,
                 system_prompt=system_message,
-                model=backend_model
+                model=backend_model,
+                timeout=storyteller_timeout
             )
-            print(f"[BASE] ✓ Response: {len(story_turn)} chars")
-            print(f"[BASE] Preview: {story_turn[:150]}...\n")
+            print(f"[BASE] ✓ Got {len(story_turn)} chars, cached for moderated mode\n")
             
             # Cache the response in database for moderated mode to use
             ResponseCache.set_response(cache_key, story_turn)
-            print(f"[BASE] ✓ Cached in database for moderated mode")
-            print(f"{'='*60}\n")
             
             return JsonResponse({
                 "id": f"chatcmpl-{int(time.time())}",
@@ -239,34 +225,24 @@ def chat_completions(request):
         
         # Check for MODERATED mode (wait for base, then judge)
         if "cyoa-moderated" in model_name:
-            print(f"\n{'='*60}")
-            print(f"[MODERATED] Judge: {config.judge_prompt.description or f'v{config.judge_prompt.version}'}")
-            print(f"[MODERATED] Judge Model: {config.judge_model}")
-            print(f"[MODERATED] Received {len(filtered_messages)} filtered messages")
-            
-            # Generate cache key FIRST
             cache_key = ResponseCache.generate_key(filtered_messages, system_message)
             
-            print(f"[MODERATED] Cache Key: {cache_key}")
-            print(f"{'='*60}")
+            print(f"\n[MODERATED] Judge: {config.judge_model} | Timeout: {config.judge_timeout}s")
             
             # Wait for base mode to populate cache (database-backed)
-            print(f"\n[MODERATED] Waiting for base response in database (timeout: 30s)...")
-            story_turn = ResponseCache.wait_for_response(cache_key, timeout=30.0)
+            judge_timeout = config.judge_timeout if config else 30
+            print(f"[MODERATED] Waiting for base response (cache key: {cache_key})...")
+            story_turn = ResponseCache.wait_for_response(cache_key, timeout=float(judge_timeout))
             
             if story_turn is None:
-                error_msg = "Timeout waiting for base response. Did you call cyoa-base first?"
+                error_msg = f"Timeout ({judge_timeout}s) waiting for base response. Ensure cyoa-base is called first."
                 print(f"[MODERATED] ✗ ERROR: {error_msg}")
                 return JsonResponse(
-                    {"error": error_msg},
+                    {"error": error_msg, "cache_key": cache_key},
                     status=408  # Request Timeout
                 )
             
-            print(f"[MODERATED] ✓ Retrieved from cache: {len(story_turn)} chars")
-            
-            # Now call judge to moderate it
-            print(f"\n[MODERATED] Calling judge...")
-            print(f"[MODERATED] Story turn preview: {story_turn[:200]}...")
+            print(f"[MODERATED] ✓ Got base response ({len(story_turn)} chars), calling judge...")
             judge_messages = [
                 {
                     "role": "user",
@@ -276,24 +252,17 @@ def chat_completions(request):
             
             try:
                 judge_prompt = config.judge_prompt.prompt_text
-                print(f"[MODERATED] Judge prompt loaded: {len(judge_prompt)} chars")
-                print(f"[MODERATED] Judge message content: {judge_messages[0]['content'][:300]}...")
+                judge_timeout_llm = config.judge_timeout if config else 30
                 
                 final_turn = call_llm(
                     messages=judge_messages,
                     system_prompt=judge_prompt,
-                    model=config.judge_model
+                    model=config.judge_model,
+                    timeout=judge_timeout_llm
                 )
                 
-                print(f"[MODERATED] ✓ Judge returned: {len(final_turn)} chars")
-                
                 if len(final_turn) == 0:
-                    error_msg = f"CRITICAL ERROR: Judge returned empty response for {config.judge_model}"
-                    print(f"[MODERATED] ✗ {error_msg}")
-                    print(f"[MODERATED] Judge input was: {repr(judge_messages)}")
-                    raise Exception(error_msg)
-                    
-                print(f"[MODERATED] Preview: {final_turn[:150]}...")
+                    raise Exception(f"Judge {config.judge_model} returned empty response")
                 
                 # Log the correction to audit log
                 was_modified = story_turn.strip() != final_turn.strip()
@@ -303,19 +272,29 @@ def chat_completions(request):
                     was_modified=was_modified,
                     prompt_used=config.judge_prompt
                 )
-                print(f"[MODERATED] ✓ Logged to audit (modified={was_modified})")
+                print(f"[MODERATED] ✓ Judge returned {len(final_turn)} chars (modified={was_modified})\n")
             except Exception as e:
-                print(f"[MODERATED] ✗ JUDGE FAILURE: {e}")
-                import traceback
-                traceback.print_exc()
-                return JsonResponse({
-                    "error": "Judge LLM call failed",
-                    "details": str(e),
-                    "backend_model": backend_model,
-                    "story_turn_length": len(story_turn)
-                }, status=500)
-            
-            print(f"{'='*60}\n")
+                error_details = str(e)
+                print(f"[MODERATED] ✗ JUDGE FAILED: {error_details}\n")
+                
+                # If timeout, just pass through the story without judgment
+                if "timeout" in error_details.lower() or "timed out" in error_details.lower():
+                    print(f"[MODERATED] → Timeout detected, passing through original story\n")
+                    final_turn = story_turn
+                    
+                    # Still log it, but mark as passed through
+                    AuditLog.objects.create(
+                        original_text=story_turn,
+                        refined_text=story_turn,
+                        was_modified=False,
+                        prompt_used=config.judge_prompt
+                    )
+                else:
+                    # Non-timeout errors should still fail
+                    return JsonResponse({
+                        "error": f"Judge failed: {error_details}",
+                        "judge_model": config.judge_model,
+                    }, status=500)
             
             return JsonResponse({
                 "id": f"chatcmpl-{int(time.time())}",
@@ -402,15 +381,18 @@ def chat_completions(request):
                 print(f"[PRODUCTION] ✓ Logged to audit (modified={was_modified})")
                 
             except Exception as e:
-                print(f"[PRODUCTION] ✗ JUDGE FAILURE: {e}")
-                import traceback
-                traceback.print_exc()
-                return JsonResponse({
-                    "error": "Judge LLM call failed in production mode",
-                    "details": str(e),
-                    "backend_model": backend_model,
-                    "story_turn_length": len(story_turn)
-                }, status=500)
+                error_msg = str(e)
+                print(f"[PRODUCTION] ✗ JUDGE FAILURE: {error_msg}")
+                
+                # If timeout, pass through story
+                if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                    print(f"[PRODUCTION] → Timeout, using original story\n")
+                    final_turn = story_turn
+                else:
+                    return JsonResponse({
+                        "error": f"Judge failed: {error_msg}",
+                        "backend_model": backend_model
+                    }, status=500)
             
             # Step 3: Return OpenAI-compatible response with moderated output
             print(f"\n[STEP 3] Returning final moderated response to Open WebUI")
@@ -465,10 +447,9 @@ def chat_completions(request):
         }, status=400)
     
     except Exception as e:
-        print(f"ERROR in chat_completions: {e}")
-        import traceback
-        traceback.print_exc()
+        error_msg = str(e)
+        print(f"ERROR in chat_completions: {error_msg}")
         return JsonResponse(
-            {"error": str(e)},
+            {"error": error_msg},
             status=500
         )

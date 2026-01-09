@@ -116,6 +116,10 @@ class Configuration(models.Model):
         max_length=100,
         help_text="Model to use for story generation (e.g., qwen3:4b)"
     )
+    storyteller_timeout = models.IntegerField(
+        default=30,
+        help_text="Timeout in seconds for storyteller generation (default: 30)"
+    )
     judge_prompt = models.ForeignKey(
         Prompt,
         on_delete=models.PROTECT,
@@ -126,6 +130,10 @@ class Configuration(models.Model):
     judge_model = models.CharField(
         max_length=100,
         help_text="Model to use for judge validation (e.g., claude-haiku-4-5)"
+    )
+    judge_timeout = models.IntegerField(
+        default=30,
+        help_text="Timeout in seconds for judge validation (default: 30)"
     )
     is_active = models.BooleanField(
         default=False,
@@ -189,12 +197,22 @@ class ResponseCache(models.Model):
     def generate_key(cls, messages, system_prompt=None):
         """
         Generate a cache key from messages.
-        Uses hash of first user message plus turn number.
+        Uses hash of all message content to ensure unique keys per conversation state.
         """
-        first_msg = messages[0].get('content', '') if messages else ''
-        session_hash = hashlib.sha256(first_msg.encode()).hexdigest()[:8]
-        turn = len(messages)
-        return f"{session_hash}-{turn}"
+        # Combine all message content into a single string
+        content_parts = []
+        for msg in messages:
+            role = msg.get('role', '')
+            content = msg.get('content', '')
+            content_parts.append(f"{role}:{content}")
+        
+        # Include system prompt if provided to differentiate adventures
+        if system_prompt:
+            content_parts.append(f"system:{system_prompt}")
+        
+        combined = "|".join(content_parts)
+        cache_hash = hashlib.sha256(combined.encode()).hexdigest()[:12]
+        return cache_hash
     
     @classmethod
     def set_response(cls, cache_key, response_text):

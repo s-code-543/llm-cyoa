@@ -261,8 +261,10 @@ def config_editor(request, config_id=None):
             description = request.POST.get('description', '').strip()
             adventure_prompt_id = request.POST.get('adventure_prompt')
             storyteller_model = request.POST.get('storyteller_model')
+            storyteller_timeout = request.POST.get('storyteller_timeout', '30')
             judge_prompt_id = request.POST.get('judge_prompt')
             judge_model = request.POST.get('judge_model')
+            judge_timeout = request.POST.get('judge_timeout', '30')
             
             if not all([name, adventure_prompt_id, storyteller_model, judge_prompt_id, judge_model]):
                 messages.error(request, 'All fields are required')
@@ -270,6 +272,8 @@ def config_editor(request, config_id=None):
                 try:
                     adventure_prompt = Prompt.objects.get(pk=adventure_prompt_id)
                     judge_prompt = Prompt.objects.get(pk=judge_prompt_id)
+                    storyteller_timeout_int = int(storyteller_timeout)
+                    judge_timeout_int = int(judge_timeout)
                     
                     if config:
                         # Update existing
@@ -277,8 +281,10 @@ def config_editor(request, config_id=None):
                         config.description = description
                         config.adventure_prompt = adventure_prompt
                         config.storyteller_model = storyteller_model
+                        config.storyteller_timeout = storyteller_timeout_int
                         config.judge_prompt = judge_prompt
                         config.judge_model = judge_model
+                        config.judge_timeout = judge_timeout_int
                         config.save()
                         messages.success(request, f'Configuration "{name}" updated')
                     else:
@@ -288,8 +294,10 @@ def config_editor(request, config_id=None):
                             description=description,
                             adventure_prompt=adventure_prompt,
                             storyteller_model=storyteller_model,
+                            storyteller_timeout=storyteller_timeout_int,
                             judge_prompt=judge_prompt,
                             judge_model=judge_model,
+                            judge_timeout=judge_timeout_int,
                             is_active=False
                         )
                         messages.success(request, f'Configuration "{name}" created')
@@ -297,6 +305,8 @@ def config_editor(request, config_id=None):
                     return redirect('admin:config_editor', config_id=config.id)
                 except Prompt.DoesNotExist:
                     messages.error(request, 'Invalid prompt selection')
+                except ValueError:
+                    messages.error(request, 'Invalid timeout value')
     
     context = {
         'config': config,

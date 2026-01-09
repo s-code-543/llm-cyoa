@@ -9,6 +9,25 @@ import os
 OLLAMA_BASE_URL = os.getenv('OLLAMA_URL', 'http://localhost:11434')
 
 
+def check_ollama_status():
+    """
+    Check if Ollama is responsive and what models are loaded.
+    
+    Returns:
+        dict with 'available' (bool) and 'loaded_models' (list)
+    """
+    try:
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/ps", timeout=2)
+        if response.status_code == 200:
+            data = response.json()
+            loaded_models = [m.get("name", "") for m in data.get("models", [])]
+            return {"available": True, "loaded_models": loaded_models}
+        return {"available": False, "loaded_models": []}
+    except Exception as e:
+        print(f"[OLLAMA] Status check failed: {e}")
+        return {"available": False, "loaded_models": []}
+
+
 def get_ollama_models():
     """
     Discover available models from the Ollama server.
@@ -42,7 +61,7 @@ def get_ollama_models():
         return []
 
 
-def call_ollama(messages, system_prompt=None, model="qwen3:4b"):
+def call_ollama(messages, system_prompt=None, model="qwen3:4b", timeout=30):
     """
     Call Ollama API with the given messages.
     
@@ -50,6 +69,7 @@ def call_ollama(messages, system_prompt=None, model="qwen3:4b"):
         messages: List of message dicts with 'role' and 'content'
         system_prompt: Optional system prompt string
         model: Ollama model to use (default: qwen3:4b)
+        timeout: Read timeout in seconds (default: 30)
     
     Returns:
         String response from the model
@@ -99,41 +119,38 @@ def call_ollama(messages, system_prompt=None, model="qwen3:4b"):
     }
     
     try:
-        print(f"[OLLAMA] Calling {OLLAMA_BASE_URL}/api/chat with model={model}")
-        print(f"[OLLAMA] Payload: {len(ollama_messages)} messages, system={len(system_prompt) if system_prompt else 0} chars")
+        print(f"[OLLAMA] {model} | timeout={timeout}s")
         
         response = requests.post(
             f"{OLLAMA_BASE_URL}/api/chat",
             json=payload,
-            timeout=(3.05, 30)  # 30 second read timeout
+            timeout=(3.05, timeout)  # configurable read timeout
         )
         
-        print(f"[OLLAMA] Response status: {response.status_code}")
-        
         if response.status_code != 200:
-            print(f"[OLLAMA] Error response: {response.text}")
-            raise Exception(f"HTTP Error {response.status_code}: {response.text}")
+            error_msg = f"HTTP {response.status_code}: {response.text}"
+            print(f"[OLLAMA] Error: {error_msg}")
+            raise Exception(error_msg)
         
         res = response.json()
         content = res.get("message", {}).get("content", "")
         thinking = res.get("message", {}).get("thinking", "")
         
-        print(f"[OLLAMA] Got response: {len(content)} chars content, {len(thinking)} chars thinking")
-        
         # Qwen models sometimes only output to 'thinking' field instead of 'content'
         if len(content) == 0 and len(thinking) > 0:
-            print(f"[OLLAMA] ⚠ Content empty but thinking present - model is reasoning but not outputting")
-            print(f"[OLLAMA] This is a prompt design issue - the judge prompt needs to force output")
-            print(f"[OLLAMA] Full response JSON: {res}")
-            # Don't use thinking as content - it's internal reasoning, not the answer
+            print(f"[OLLAMA] Warning: Model outputting to 'thinking' field only - check prompt design")
             return ""
         
         if len(content) == 0:
-            print(f"[OLLAMA] ✗ EMPTY RESPONSE!")
-            print(f"[OLLAMA] Full response JSON: {res}")
+            print(f"[OLLAMA] Error: Empty response from {model}")
+            print(f"[OLLAMA] Full response: {res}")
         
         return content
     
+    except requests.exceptions.Timeout as e:
+        print(f"[OLLAMA] Timeout after {timeout}s - model may be overloaded or too slow")
+        print(f"[OLLAMA] Suggestion: Increase timeout in config or reduce concurrent requests")
+        raise
     except requests.exceptions.RequestException as e:
-        print(f"[OLLAMA] API request failed: {e}")
+        print(f"[OLLAMA] Request failed: {e}")
         raise
