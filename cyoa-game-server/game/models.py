@@ -45,7 +45,7 @@ class Prompt(models.Model):
     
     def __str__(self):
         active = " [ACTIVE]" if self.is_active else ""
-        return f"{self.get_prompt_type_display()} v{self.version}{active}"
+        return f"{self.prompt_type} v{self.version}{active}"
     
     def save(self, *args, **kwargs):
         # If this prompt is being set as active, deactivate all other prompts of the same type

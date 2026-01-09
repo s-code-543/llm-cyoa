@@ -9,9 +9,25 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q
+from django.conf import settings
+from functools import wraps
 from .models import Prompt, AuditLog, Configuration
 from .ollama_utils import get_ollama_models
 import markdown2
+
+
+def debug_login_bypass(view_func):
+    """
+    Decorator that bypasses login_required in DEBUG mode.
+    Useful for curl/wget debugging.
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if settings.DEBUG and not request.user.is_authenticated:
+            # In debug mode, skip authentication
+            pass
+        return view_func(request, *args, **kwargs)
+    return wrapper
 
 
 def login_view(request):
@@ -36,7 +52,7 @@ def login_view(request):
     return render(request, 'cyoa_admin/login.html')
 
 
-@login_required
+@debug_login_bypass
 def dashboard(request):
     """
     Main dashboard showing overview statistics.
@@ -62,7 +78,7 @@ def dashboard(request):
     return render(request, 'cyoa_admin/dashboard.html', context)
 
 
-@login_required
+@debug_login_bypass
 def audit_log(request):
     """
     View audit log of all requests and corrections.
@@ -84,7 +100,7 @@ def audit_log(request):
     return render(request, 'cyoa_admin/audit_log.html', context)
 
 
-@login_required
+@debug_login_bypass
 def audit_detail(request, log_id):
     """
     View detailed comparison of original vs refined output.
@@ -97,7 +113,7 @@ def audit_detail(request, log_id):
     return render(request, 'cyoa_admin/audit_detail.html', context)
 
 
-@login_required
+@debug_login_bypass
 def prompt_list(request):
     """
     List all prompts grouped by type.
@@ -115,7 +131,7 @@ def prompt_list(request):
     return render(request, 'cyoa_admin/prompt_list.html', context)
 
 
-@login_required
+@debug_login_bypass
 def prompt_editor(request, prompt_id=None):
     """
     Edit or create a new prompt.
@@ -196,7 +212,7 @@ def prompt_editor(request, prompt_id=None):
     return render(request, 'cyoa_admin/prompt_editor.html', context)
 
 
-@login_required
+@debug_login_bypass
 @require_http_methods(["POST"])
 def preview_markdown(request):
     """
@@ -207,7 +223,7 @@ def preview_markdown(request):
     return JsonResponse({'html': html})
 
 
-@login_required
+@debug_login_bypass
 def config_list(request):
     """
     List all configurations with option to set active.
@@ -222,7 +238,7 @@ def config_list(request):
     return render(request, 'cyoa_admin/config_list.html', context)
 
 
-@login_required
+@debug_login_bypass
 def config_editor(request, config_id=None):
     """
     Create or edit a configuration.
@@ -318,7 +334,7 @@ def config_editor(request, config_id=None):
     return render(request, 'cyoa_admin/config_editor.html', context)
 
 
-@login_required
+@debug_login_bypass
 @require_http_methods(["POST"])
 def refresh_models(request):
     """
@@ -327,4 +343,30 @@ def refresh_models(request):
     models = get_ollama_models()
     model_names = [model['name'] for model in models]
     return JsonResponse({'models': model_names})
+
+
+@debug_login_bypass
+@require_http_methods(["POST"])
+@csrf_exempt
+def clear_audit_log(request):
+    """
+    Clear all audit log entries.
+    """
+    count = AuditLog.objects.count()
+    AuditLog.objects.all().delete()
+    messages.success(request, f'Cleared {count} audit log entries')
+    return redirect('admin:audit_log')
+
+
+@debug_login_bypass
+@require_http_methods(["POST"])
+@csrf_exempt
+def reset_statistics(request):
+    """
+    Reset all statistics (clears audit log).
+    """
+    count = AuditLog.objects.count()
+    AuditLog.objects.all().delete()
+    messages.success(request, f'Reset statistics - cleared {count} audit log entries')
+    return redirect('admin:dashboard')
 

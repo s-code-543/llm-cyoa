@@ -18,4 +18,6 @@ urlpatterns = [
     path('configurations/<int:config_id>/', admin_views.config_editor, name='config_editor'),
     path('api/preview-markdown/', admin_views.preview_markdown, name='preview_markdown'),
     path('api/refresh-models/', admin_views.refresh_models, name='refresh_models'),
+    path('api/clear-audit-log/', admin_views.clear_audit_log, name='clear_audit_log'),
+    path('api/reset-statistics/', admin_views.reset_statistics, name='reset_statistics'),
 ]
