@@ -2,10 +2,11 @@
 Ollama API utilities for calling local LLM models.
 """
 import requests
+import os
 
 
-# Ollama server runs in docker-compose network
-OLLAMA_BASE_URL = "http://ollama:11434"
+# Ollama server URL - use localhost when running outside Docker, ollama when inside
+OLLAMA_BASE_URL = os.getenv('OLLAMA_URL', 'http://localhost:11434')
 
 
 def get_ollama_models():
@@ -28,8 +29,8 @@ def get_ollama_models():
         for model in data.get("models", []):
             model_name = model.get("name", "")
             models.append({
-                "id": f"gameserver-ollama/{model_name}",
-                "name": f"gameserver-{model_name}",
+                "id": model_name,
+                "name": model_name,
                 "size": model.get("size", 0),
                 "modified": model.get("modified_at", "")
             })

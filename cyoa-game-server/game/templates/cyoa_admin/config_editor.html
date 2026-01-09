@@ -1,0 +1,179 @@
+{% extends "cyoa_admin/base.html" %}
+
+{% block title %}{% if config %}Edit{% else %}New{% endif %} Configuration{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-900">{% if config %}Edit Configuration{% else %}New Configuration{% endif %}</h1>
+</div>
+
+<div class="bg-white shadow-md rounded-lg p-6">
+    <form method="POST" class="space-y-6">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save">
+        
+        <div>
+            <label for="name" class="block text-sm font-medium text-gray-700 mb-2">Configuration Name *</label>
+            <input type="text" name="name" id="name" required
+                   value="{% if config %}{{ config.name }}{% endif %}"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        
+        <div>
+            <label for="description" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <textarea name="description" id="description" rows="2"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">{% if config %}{{ config.description }}{% endif %}</textarea>
+        </div>
+        
+        <div class="border-t border-gray-200 pt-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Adventure Settings</h3>
+            
+            <div class="mb-4">
+                <label for="adventure_prompt" class="block text-sm font-medium text-gray-700 mb-2">Adventure Prompt *</label>
+                <select name="adventure_prompt" id="adventure_prompt" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Select Adventure --</option>
+                    {% for prompt in adventure_prompts %}
+                    <option value="{{ prompt.id }}"
+                            {% if config and config.adventure_prompt.id == prompt.id %}selected{% endif %}>
+                        {{ prompt.description }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label for="storyteller_model" class="block text-sm font-medium text-gray-700 mb-2">
+                    Storyteller Model *
+                    <button type="button" onclick="refreshModels()" class="ml-2 text-blue-600 hover:text-blue-800 text-xs">
+                        ↻ Refresh
+                    </button>
+                </label>
+                <select name="storyteller_model" id="storyteller_model" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Select Model --</option>
+                    <optgroup label="Local Models (Ollama)">
+                        {% for model in ollama_models %}
+                        <option value="{{ model }}"
+                                {% if config and config.storyteller_model == model %}selected{% endif %}>
+                            {{ model }}
+                        </option>
+                        {% endfor %}
+                    </optgroup>
+                    <optgroup label="Cloud Models">
+                        {% for model in cloud_models %}
+                        <option value="{{ model }}" disabled style="color: #999;">
+                            {{ model }}
+                        </option>
+                        {% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+        </div>
+        
+        <div class="border-t border-gray-200 pt-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Judge Settings</h3>
+            
+            <div class="mb-4">
+                <label for="judge_prompt" class="block text-sm font-medium text-gray-700 mb-2">Judge Prompt *</label>
+                <select name="judge_prompt" id="judge_prompt" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Select Judge Prompt --</option>
+                    {% for prompt in judge_prompts %}
+                    <option value="{{ prompt.id }}"
+                            {% if config and config.judge_prompt.id == prompt.id %}selected{% endif %}>
+                        Judge v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label for="judge_model" class="block text-sm font-medium text-gray-700 mb-2">
+                    Judge Model *
+                    <button type="button" onclick="refreshModels()" class="ml-2 text-blue-600 hover:text-blue-800 text-xs">
+                        ↻ Refresh
+                    </button>
+                </label>
+                <select name="judge_model" id="judge_model" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Select Model --</option>
+                    <optgroup label="Local Models (Ollama)">
+                        {% for model in ollama_models %}
+                        <option value="{{ model }}"
+                                {% if config and config.judge_model == model %}selected{% endif %}>
+                            {{ model }}
+                        </option>
+                        {% endfor %}
+                    </optgroup>
+                    <optgroup label="Cloud Models">
+                        {% for model in cloud_models %}
+                        <option value="{{ model }}" disabled style="color: #999;">
+                            {{ model }}
+                        </option>
+                        {% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+        </div>
+        
+        <div class="flex justify-between pt-6 border-t border-gray-200">
+            <a href="{% url 'admin:config_list' %}" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                Cancel
+            </a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                Save Configuration
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+async function refreshModels() {
+    const storytellerSelect = document.getElementById('storyteller_model');
+    const judgeSelect = document.getElementById('judge_model');
+    const currentStoryteller = storytellerSelect.value;
+    const currentJudge = judgeSelect.value;
+    
+    try {
+        const response = await fetch('{% url "admin:refresh_models" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        });
+        
+        if (!response.ok) throw new Error('Failed to refresh models');
+        
+        const data = await response.json();
+        
+        // Update storyteller dropdown
+        const storytellerOllama = storytellerSelect.querySelector('optgroup[label="Local Models (Ollama)"]');
+        storytellerOllama.innerHTML = '';
+        data.models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            if (model === currentStoryteller) option.selected = true;
+            storytellerOllama.appendChild(option);
+        });
+        
+        // Update judge dropdown
+        const judgeOllama = judgeSelect.querySelector('optgroup[label="Local Models (Ollama)"]');
+        judgeOllama.innerHTML = '';
+        data.models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            if (model === currentJudge) option.selected = true;
+            judgeOllama.appendChild(option);
+        });
+        
+        alert('Models refreshed successfully!');
+    } catch (error) {
+        alert('Error refreshing models: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

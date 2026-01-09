@@ -13,5 +13,9 @@ urlpatterns = [
     path('prompts/', admin_views.prompt_list, name='prompt_list'),
     path('prompts/new/', admin_views.prompt_editor, name='prompt_new'),
     path('prompts/<int:prompt_id>/', admin_views.prompt_editor, name='prompt_editor'),
+    path('configurations/', admin_views.config_list, name='config_list'),
+    path('configurations/new/', admin_views.config_editor, name='config_new'),
+    path('configurations/<int:config_id>/', admin_views.config_editor, name='config_editor'),
     path('api/preview-markdown/', admin_views.preview_markdown, name='preview_markdown'),
+    path('api/refresh-models/', admin_views.refresh_models, name='refresh_models'),
 ]

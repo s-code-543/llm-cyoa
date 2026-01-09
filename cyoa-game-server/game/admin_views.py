@@ -9,7 +9,8 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q
-from .models import Prompt, AuditLog
+from .models import Prompt, AuditLog, Configuration
+from .ollama_utils import get_ollama_models
 import markdown2
 
 
@@ -45,8 +46,8 @@ def dashboard(request):
     total_corrections = AuditLog.objects.filter(was_modified=True).count()
     correction_rate = (total_corrections / total_requests * 100) if total_requests > 0 else 0
     
-    # Get active prompts
-    active_prompts = Prompt.objects.filter(is_active=True)
+    # Get active configuration
+    active_config = Configuration.objects.filter(is_active=True).first()
     
     # Recent corrections
     recent_corrections = AuditLog.objects.filter(was_modified=True)[:10]
@@ -55,7 +56,7 @@ def dashboard(request):
         'total_requests': total_requests,
         'total_corrections': total_corrections,
         'correction_rate': f'{correction_rate:.1f}',
-        'active_prompts': active_prompts,
+        'active_config': active_config,
         'recent_corrections': recent_corrections,
     }
     return render(request, 'cyoa_admin/dashboard.html', context)
@@ -101,11 +102,12 @@ def prompt_list(request):
     """
     List all prompts grouped by type.
     """
-    prompt_types = Prompt.PROMPT_TYPES
+    # Get all unique prompt types dynamically
+    prompt_types = Prompt.objects.values_list('prompt_type', flat=True).distinct().order_by('prompt_type')
     prompts_by_type = {}
     
-    for type_code, type_name in prompt_types:
-        prompts_by_type[type_name] = Prompt.objects.filter(prompt_type=type_code)
+    for prompt_type in prompt_types:
+        prompts_by_type[prompt_type] = Prompt.objects.filter(prompt_type=prompt_type).order_by('-version')
     
     context = {
         'prompts_by_type': prompts_by_type,
@@ -183,10 +185,13 @@ def prompt_editor(request, prompt_id=None):
     if prompt:
         versions = Prompt.objects.filter(prompt_type=prompt.prompt_type)
     
+    # Get all unique prompt types for the dropdown
+    prompt_types = Prompt.objects.values_list('prompt_type', flat=True).distinct().order_by('prompt_type')
+    
     context = {
         'prompt': prompt,
         'versions': versions,
-        'prompt_types': Prompt.PROMPT_TYPES,
+        'prompt_types': list(prompt_types),
     }
     return render(request, 'cyoa_admin/prompt_editor.html', context)
 
@@ -200,3 +205,116 @@ def preview_markdown(request):
     text = request.POST.get('text', '')
     html = markdown2.markdown(text, extras=['fenced-code-blocks', 'tables'])
     return JsonResponse({'html': html})
+
+
+@login_required
+def config_list(request):
+    """
+    List all configurations with option to set active.
+    """
+    configurations = Configuration.objects.all()
+    active_config = Configuration.objects.filter(is_active=True).first()
+    
+    context = {
+        'configurations': configurations,
+        'active_config': active_config,
+    }
+    return render(request, 'cyoa_admin/config_list.html', context)
+
+
+@login_required
+def config_editor(request, config_id=None):
+    """
+    Create or edit a configuration.
+    """
+    config = get_object_or_404(Configuration, pk=config_id) if config_id else None
+    
+    # Get available models
+    ollama_models = [model['name'] for model in get_ollama_models()]
+    cloud_models = ['Claude - coming soon']
+    
+    # Get available prompts
+    adventure_prompts = Prompt.objects.exclude(prompt_type='judge').order_by('prompt_type', '-version')
+    judge_prompts = Prompt.objects.filter(prompt_type='judge').order_by('-version')
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'set_active':
+            config.is_active = True
+            config.save()
+            messages.success(request, f'Configuration "{config.name}" is now active')
+            return redirect('admin:config_list')
+        
+        if action == 'delete':
+            if config and not config.is_active:
+                config_name = config.name
+                config.delete()
+                messages.success(request, f'Configuration "{config_name}" deleted')
+                return redirect('admin:config_list')
+            else:
+                messages.error(request, 'Cannot delete active configuration')
+                return redirect('admin:config_list')
+        
+        if action == 'save':
+            name = request.POST.get('name', '').strip()
+            description = request.POST.get('description', '').strip()
+            adventure_prompt_id = request.POST.get('adventure_prompt')
+            storyteller_model = request.POST.get('storyteller_model')
+            judge_prompt_id = request.POST.get('judge_prompt')
+            judge_model = request.POST.get('judge_model')
+            
+            if not all([name, adventure_prompt_id, storyteller_model, judge_prompt_id, judge_model]):
+                messages.error(request, 'All fields are required')
+            else:
+                try:
+                    adventure_prompt = Prompt.objects.get(pk=adventure_prompt_id)
+                    judge_prompt = Prompt.objects.get(pk=judge_prompt_id)
+                    
+                    if config:
+                        # Update existing
+                        config.name = name
+                        config.description = description
+                        config.adventure_prompt = adventure_prompt
+                        config.storyteller_model = storyteller_model
+                        config.judge_prompt = judge_prompt
+                        config.judge_model = judge_model
+                        config.save()
+                        messages.success(request, f'Configuration "{name}" updated')
+                    else:
+                        # Create new
+                        config = Configuration.objects.create(
+                            name=name,
+                            description=description,
+                            adventure_prompt=adventure_prompt,
+                            storyteller_model=storyteller_model,
+                            judge_prompt=judge_prompt,
+                            judge_model=judge_model,
+                            is_active=False
+                        )
+                        messages.success(request, f'Configuration "{name}" created')
+                    
+                    return redirect('admin:config_editor', config_id=config.id)
+                except Prompt.DoesNotExist:
+                    messages.error(request, 'Invalid prompt selection')
+    
+    context = {
+        'config': config,
+        'ollama_models': ollama_models,
+        'cloud_models': cloud_models,
+        'adventure_prompts': adventure_prompts,
+        'judge_prompts': judge_prompts,
+    }
+    return render(request, 'cyoa_admin/config_editor.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def refresh_models(request):
+    """
+    API endpoint to refresh Ollama models list.
+    """
+    models = get_ollama_models()
+    model_names = [model['name'] for model in models]
+    return JsonResponse({'models': model_names})
+

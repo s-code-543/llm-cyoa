@@ -228,14 +228,15 @@ docker compose -f docker-compose.mac.yml logs -f cyoa-game-server
 
 ### 2. Initialize the Database
 
-Run migrations and load the initial judge prompt:
+Run migrations and load prompts:
 
 ```bash
 # Run database migrations
 docker compose -f docker-compose.mac.yml exec cyoa-game-server python manage.py migrate
 
-# Load the initial judge prompt into the database
+# Load the judge prompt and adventure stories
 docker compose -f docker-compose.mac.yml exec cyoa-game-server python manage.py load_initial_prompts
+docker compose -f docker-compose.mac.yml exec cyoa-game-server python manage.py load_story_prompts
 
 # Create an admin user (you'll be prompted for password)
 docker compose -f docker-compose.mac.yml exec cyoa-game-server python manage.py createsuperuser --username admin --email admin@example.com
@@ -254,83 +255,20 @@ The initial judge prompt is loaded as version 1 and set as active by default.
 
 ### 4. Configure Open Web UI to Use CYOA Server
 
-1. Open Open Web UI: https://localhost (or http://localhost:3000)
+1. Open Open Web UI: https://localhost
 2. Go to **Admin Panel → Settings → Connections**
 3. Add a new **OpenAI API** connection:
    - **API Base URL:** `http://cyoa-game-server:8000/v1`
-   - **API Key:** (leave blank or use any value)
+   - **API Key:** (leave blank)
    - **Enable:** ✓
 
-4. The following models will appear:
-   - **gameserver-cyoa** (Production - storyteller + judge)
-   - **gameserver-cyoa-base** (Storyteller only - for comparison)
-   - **gameserver-cyoa-moderated** (Judge only - processes cached base output)
+### 5. Workshopping the game master prompt
 
-### 5. Configure Backend Model
-
-By default, the game server uses `qwen3:4b` from Ollama. To change the backend storyteller:
-
-Edit your chat message to include the backend model:
-```json
-{
-  "model": "gameserver-cyoa",
-  "backend_model": "mistral:22b"
-}
-```
-
-Or configure it in a custom Open WebUI function/pipe.
-
-### 6. Using the Game
-
-1. Start a new chat in Open Web UI
-2. Select the `gameserver-cyoa` model
-3. Provide your game scenario as the first message
-4. The server will:
-   - Generate a story turn using your chosen backend model
-   - Pass it through the judge for validation
-   - Return the final (possibly corrected) output
-   - Log everything to the database for analysis
-
-### 7. Tuning the Judge Prompt
-
-As you play and see corrections (or missed issues):
-
-1. Go to the admin interface → **Prompts**
-2. Click on **Judge Prompt v1**
-3. Edit the prompt text (full markdown editor with preview)
-4. Either:
-   - **Save Changes:** Update version 1
-   - **Save as New Version:** Create version 2, 3, etc.
-5. **Set as Active:** Make your preferred version active for the API
-
-Check the **Audit Log** to see correction rates and compare outputs before/after judge processing.
-
-### API Endpoints
-
-- **POST /v1/chat/completions** - OpenAI-compatible chat endpoint
-- **GET /v1/models** - List available models
-- **GET /admin/dashboard/** - Admin dashboard
-- **GET /admin/prompts/** - Prompt management
-- **GET /admin/audit/** - Audit log
-
-### Environment Variables
-
-Configure in `docker-compose.mac.yml`:
-
-```yaml
-ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}  # For Claude models
-DJANGO_SECRET_KEY: "change-me-in-production"
-DJANGO_DEBUG: "1"  # Set to "0" in production
-```
-
-### Debugging
-
-VS Code debug configuration is included. To debug locally:
-
-1. Stop the Docker container
-2. Press F5 in VS Code
-3. Select "Django: Run with debugpy (conda)"
-4. Set breakpoints in `game/views.py` or `game/admin_views.py`
+1. Open the admin interface in one tab: http://localhost:8001/admin/login/
+2. Start a new chat in Open Web UI
+3. Add **both** `gameserver-cyoa-base` and `gameserver-cyoa-moderated` models to the same chat for side-by-side comparison
+4. Provide your game scenario and watch the unmoderated output vs the judge-corrected output
+5. Tune the judge prompt in the admin interface based on what you see
 
 ---
 
