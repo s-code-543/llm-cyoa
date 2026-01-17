@@ -11,7 +11,10 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-key-change-in-produ
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['cyoa.mac.stargate.lan', 'localhost', '127.0.0.1', 'cyoa-game-server', 'host.docker.internal', '*']
+
+# Proxy SSL awareness
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 INSTALLED_APPS = [
     'django.contrib.admin',

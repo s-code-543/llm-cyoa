@@ -5,6 +5,29 @@ Handles death probability calculations and game-ending logic.
 import random
 
 
+def calculate_phase_ends(max_turns):
+    """
+    Calculate phase end turns for story pacing.
+    
+    Args:
+        max_turns: Total turns in the game
+    
+    Returns:
+        Dictionary with phase1_end, phase2_end, phase3_end, phase4_end
+    """
+    phase1_end = max(2, int(max_turns * 0.25))  # First 25%
+    phase2_end = max(phase1_end + 1, int(max_turns * 0.50))  # 50%
+    phase3_end = max(phase2_end + 1, int(max_turns * 0.75))  # 75%
+    phase4_end = max(phase3_end + 1, max_turns - 1)  # 100% minus final turn
+    
+    return {
+        'phase1_end': phase1_end,
+        'phase2_end': phase2_end,
+        'phase3_end': phase3_end,
+        'phase4_end': phase4_end
+    }
+
+
 def calculate_turn_number(filtered_messages):
     """
     Calculate which turn this is by counting user messages.
@@ -54,7 +77,7 @@ def should_trigger_death(turn_number, max_turns, difficulty_profile, game_sessio
     
     # Get death probability for this turn
     print(f"[DIFFICULTY] Evaluating death for turn {turn_number}...")
-    death_probability = difficulty_profile.get_death_probability(turn_number, max_turns)
+    death_probability = difficulty_profile.evaluate(turn_number, max_turns)
     
     # Roll for death
     roll = random.random()

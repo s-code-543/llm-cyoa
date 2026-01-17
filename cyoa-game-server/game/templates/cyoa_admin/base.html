@@ -22,6 +22,7 @@
                         </div>
                         <div class="hidden md:block">
                             <div class="ml-10 flex items-baseline space-x-4">
+                                <a href="/chat/" class="{% if '/chat/' in request.path %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Chat</a>
                                 <a href="{% url 'admin:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Dashboard</a>
                                 <a href="{% url 'admin:config_list' %}" class="{% if 'config' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Configurations</a>
                                 <a href="{% url 'admin:difficulty_list' %}" class="{% if 'difficulty' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Difficulty</a>
@@ -29,12 +30,6 @@
                                 <a href="{% url 'admin:prompt_list' %}" class="{% if 'prompt' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Prompts</a>
                                 <a href="{% url 'admin:audit_log' %}" class="{% if request.resolver_match.url_name == 'audit_log' or request.resolver_match.url_name == 'audit_detail' %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Audit Log</a>
                             </div>
-                        </div>
-                    </div>
-                    <div class="hidden md:block">
-                        <div class="ml-4 flex items-center md:ml-6">
-                            <span class="text-white text-sm mr-4">{{ request.user.username }}</span>
-                            <a href="{% url 'logout' %}" class="text-white hover:text-indigo-200 text-sm font-medium">Logout</a>
                         </div>
                     </div>
                 </div>

@@ -1,12 +1,9 @@
 {% extends "cyoa_admin/base.html" %}
 
 {% block title %}{% if config %}Edit{% else %}New{% endif %} Configuration{% endblock %}
+{% block page_title %}{% if config %}Edit Configuration{% else %}New Configuration{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <h1 class="text-3xl font-bold text-gray-900">{% if config %}Edit Configuration{% else %}New Configuration{% endif %}</h1>
-</div>
-
 <div class="bg-white shadow-md rounded-lg p-6">
     <form method="POST" class="space-y-6">
         {% csrf_token %}

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>CYOA Adventure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        html, body { 
+            height: 100%; 
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body class="h-full">
+<div
+  x-data="chatApp()"
+  x-init="init()"
+  class="h-full flex flex-col bg-white"
+>
+  <!-- Fixed Top: Navigation + Game State -->
+  <div class="flex-none border-b border-gray-300 bg-white">
+    <!-- Navigation Bar -->
+    <div class="flex items-center justify-between px-2 py-1 border-b border-gray-200">
+      <a href="/" class="flex items-center gap-1 px-2 py-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+        <span>←</span>
+        <span>Home</span>
+      </a>
+      <div class="flex-1 text-center">
+        <h1 class="text-sm font-bold text-gray-800">Choose Your Own Adventure</h1>
+      </div>
+      <button
+        @click="newConversation()"
+        class="px-2 py-1 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700"
+        title="Start new adventure"
+      >
+        New Adventure
+      </button>
+    </div>
+
+    <!-- Game State -->
+    <div class="px-2 py-1 flex items-center gap-2">
+      <!-- Inventory -->
+      <div class="flex-1 min-w-0">
+        <div class="text-[10px] text-gray-500 uppercase tracking-wide leading-none mb-0.5">Inventory</div>
+        <div class="flex gap-1 overflow-x-auto">
+          <template x-if="inventoryItems.length === 0">
+            <span class="text-xs text-gray-500">Empty</span>
+          </template>
+          <template x-for="(item, idx) in inventoryItems" :key="idx">
+            <span class="text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-800 rounded border border-gray-200 whitespace-nowrap">
+              <span x-text="item"></span>
+            </span>
+          </template>
+        </div>
+      </div>
+
+      <!-- Turn Counter (only show if game started) -->
+      <div x-show="gameStarted" class="flex-none text-right leading-tight">
+        <div class="text-[10px] text-gray-500 uppercase tracking-wide leading-none">Turn</div>
+        <div class="text-sm text-gray-800 font-medium" x-text="`${turnCurrent}/${turnMax}`"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scrollable Chat Messages (fills remaining space) -->
+  <div class="flex-1 overflow-y-auto px-2 py-2 space-y-1.5" x-ref="messagesContainer">
+    <template x-for="(message, index) in messages" :key="index">
+      <div>
+        <div
+          :class="message.role === 'user' ? 'bg-indigo-600 text-white text-right' : 'bg-gray-100 text-gray-900'"
+          class="w-full px-2 py-1.5 rounded-lg"
+        >
+          <div class="whitespace-pre-wrap text-[14px] leading-snug" x-text="message.content"></div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Loading indicator -->
+    <div x-show="isLoading">
+      <div class="bg-gray-100 text-gray-900 w-full px-2 py-1.5 rounded-lg">
+        <div class="flex items-center gap-1.5">
+          <div class="flex gap-1">
+            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error display -->
+    <div x-show="errorMessage" class="p-2 bg-red-50 border border-red-200 rounded">
+      <p class="text-red-800 text-xs" x-text="errorMessage"></p>
+    </div>
+  </div>
+
+  <!-- Fixed Bottom: Controls -->
+  <div class="flex-none border-t border-gray-300 bg-gray-50 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom,0px)+6px)]">
+    <!-- Start game button (before game starts) -->
+    <div x-show="!gameStarted" class="flex items-center gap-2 mb-1.5">
+      <button
+        @click="startGame()"
+        :disabled="isLoading"
+        class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-sm whitespace-nowrap"
+      >
+        Start a new game
+      </button>
+      <span class="text-xs text-gray-600">or write your own opening below</span>
+    </div>
+
+    <!-- Choice buttons (after game starts) -->
+    <div x-show="gameStarted" class="grid grid-cols-2 gap-1.5 mb-1.5">
+      <button
+        @click="sendChoice(1)"
+        :disabled="isLoading || !choice1Text.trim()"
+        class="w-full px-2 py-1.5 rounded border border-gray-300 bg-white hover:bg-gray-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-left text-xs truncate"
+        title="Choice 1"
+        x-text="choice1Text || 'Waiting for choices…'"
+      >
+      </button>
+
+      <button
+        @click="sendChoice(2)"
+        :disabled="isLoading || !choice2Text.trim()"
+        class="w-full px-2 py-1.5 rounded border border-gray-300 bg-white hover:bg-gray-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-left text-xs truncate"
+        title="Choice 2"
+        x-text="choice2Text || 'Waiting for choices…'"
+      >
+      </button>
+    </div>
+
+    <!-- Text input row -->
+    <div class="flex gap-1.5">
+      <textarea
+        x-model="inputMessage"
+        @keydown.enter.prevent="sendMessage()"
+        @input="autoResize($event.target)"
+        x-ref="messageInput"
+        :disabled="isLoading"
+        placeholder="Type your action…"
+        rows="1"
+        class="flex-1 px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-transparent text-sm resize-none overflow-hidden"
+        style="min-height: 34px; max-height: 130px;"
+      ></textarea>
+
+      <button
+        @click="sendMessage()"
+        :disabled="isLoading || !inputMessage.trim()"
+        class="px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-sm"
+      >
+        Send
+      </button>
+
+      <button
+        class="px-2 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+        title="Record audio (coming soon)"
+        disabled
+      >
+        🎤
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function chatApp() {
+  return {
+    conversationId: null,
+    conversationTitle: 'New Conversation',
+    messages: [],
+    inputMessage: '',
+    isLoading: false,
+    errorMessage: '',
+    gameStarted: false,
+
+    // Game-state placeholders (wire to backend later)
+    inventoryItems: [],
+    turnCurrent: 0,
+    turnMax: 20,
+
+    // Choice placeholders (wire to backend extraction later)
+    choice1Text: '',
+    choice2Text: '',
+
+    init() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const convId = urlParams.get('conversation_id');
+
+      if (convId) {
+        this.loadConversation(convId);
+      } else {
+        this.newConversation();
+      }
+    },
+
+    async newConversation() {
+      try {
+        // Get config_id from URL if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const configId = urlParams.get('config');
+        
+        const body = configId ? JSON.stringify({ config_id: parseInt(configId) }) : JSON.stringify({});
+        
+        const response = await fetch('/chat/api/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: body
+        });
+
+        const data = await response.json();
+
+        if (data.conversation_id) {
+          this.conversationId = data.conversation_id;
+          this.conversationTitle = data.title;
+          this.messages = [];
+          this.errorMessage = '';
+
+          // Reset game state for new run
+          this.inventoryItems = [];
+          this.turnCurrent = 0;
+          this.choice1Text = '';
+          this.choice2Text = '';
+          this.gameStarted = false;
+
+          window.history.pushState({}, '', `/chat/?conversation_id=${this.conversationId}`);
+        }
+      } catch (error) {
+        this.errorMessage = 'Failed to create new conversation: ' + error.message;
+      }
+    },
+
+    async loadConversation(convId) {
+      try {
+        const response = await fetch(`/chat/api/conversation/${convId}`);
+        const data = await response.json();
+
+        if (data.conversation_id) {
+          this.conversationId = data.conversation_id;
+          this.conversationTitle = data.title;
+          this.messages = data.messages || [];
+          this.scrollToBottom();
+
+          // If your backend starts returning these, you can assign them here:
+          // this.inventoryItems = data.inventory || [];
+          // this.turnCurrent = data.turn_current ?? this.turnCurrent;
+          // this.turnMax = data.turn_max ?? this.turnMax;
+          // this.choice1Text = data.choice1 ?? '';
+          // this.choice2Text = data.choice2 ?? '';
+        }
+      } catch (error) {
+        this.errorMessage = 'Failed to load conversation: ' + error.message;
+      }
+    },
+
+    async startGame() {
+      this.inputMessage = 'Start';
+      await this.sendMessage();
+    },
+
+    async sendChoice(which) {
+      const text = (which === 1 ? this.choice1Text : this.choice2Text).trim();
+      if (!text || this.isLoading) return;
+      this.inputMessage = text;
+      await this.sendMessage();
+    },
+
+    async sendMessage() {
+      if (!this.inputMessage.trim() || this.isLoading) return;
+
+      const userMessage = this.inputMessage.trim();
+      this.inputMessage = '';
+      
+      // Reset textarea height
+      if (this.$refs.messageInput) {
+        this.$refs.messageInput.style.height = '34px';
+        this.$refs.messageInput.style.overflowY = 'hidden';
+      }
+      
+      this.isLoading = true;
+      this.errorMessage = '';
+
+      this.messages.push({
+        role: 'user',
+        content: userMessage,
+        created_at: new Date().toISOString()
+      });
+
+      this.scrollToBottom();
+
+      try {
+        const response = await fetch('/chat/api/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversation_id: this.conversationId,
+            message: userMessage
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          this.errorMessage = data.error;
+        } else if (data.message) {
+          this.messages.push(data.message);
+          this.scrollToBottom();
+
+          // Mark game as started once we get a response
+          this.gameStarted = true;
+
+          // If backend returns state, update it here (recommended contract):
+          // data.state = { inventory: [...], turn_current: 3, turn_max: 20, choice1: "...", choice2: "..." }
+          if (data.state) {
+            if (Array.isArray(data.state.inventory)) this.inventoryItems = data.state.inventory;
+            if (typeof data.state.turn_current === 'number') this.turnCurrent = data.state.turn_current;
+            if (typeof data.state.turn_max === 'number') this.turnMax = data.state.turn_max;
+            if (typeof data.state.choice1 === 'string') this.choice1Text = data.state.choice1;
+            if (typeof data.state.choice2 === 'string') this.choice2Text = data.state.choice2;
+          }
+        }
+      } catch (error) {
+        this.errorMessage = 'Failed to send message: ' + error.message;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    scrollToBottom() {
+      this.$nextTick(() => {
+        const container = this.$refs.messagesContainer;
+        container.scrollTop = container.scrollHeight;
+      });
+    },
+
+    autoResize(textarea) {
+      // Reset height to get accurate scrollHeight
+      textarea.style.height = '34px';
+      
+      // Calculate new height (max 5 lines ~130px)
+      const newHeight = Math.min(textarea.scrollHeight, 130);
+      textarea.style.height = newHeight + 'px';
+      
+      // Enable scrolling if content exceeds max height
+      if (textarea.scrollHeight > 130) {
+        textarea.style.overflowY = 'auto';
+      } else {
+        textarea.style.overflowY = 'hidden';
+      }
+    }
+  }
+}
+</script>
+</body>
+</html>

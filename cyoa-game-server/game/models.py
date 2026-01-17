@@ -606,3 +606,82 @@ class GameSession(models.Model):
         status = "ENDED" if self.game_over else f"Turn {self.turn_number}/{self.max_turns}"
         return f"Session {self.session_id[:8]}... - {status}"
 
+
+class ChatConversation(models.Model):
+    """
+    Represents a chat conversation with UUID and metadata.
+    """
+    conversation_id = models.CharField(
+        max_length=36,
+        unique=True,
+        db_index=True,
+        help_text="UUID for this conversation"
+    )
+    
+    title = models.CharField(
+        max_length=255,
+        blank=True,
+        default="New Conversation",
+        help_text="Human-readable title for this conversation"
+    )
+    
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional metadata (inventory, game state, etc.)"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-updated_at']
+    
+    def __str__(self):
+        return f"{self.title} ({self.conversation_id[:8]}...)"
+
+
+class ChatMessage(models.Model):
+    """
+    Individual message within a conversation.
+    """
+    ROLE_CHOICES = [
+        ('user', 'User'),
+        ('assistant', 'Assistant'),
+        ('system', 'System'),
+    ]
+    
+    conversation = models.ForeignKey(
+        ChatConversation,
+        on_delete=models.CASCADE,
+        related_name='messages',
+        help_text="The conversation this message belongs to"
+    )
+    
+    role = models.CharField(
+        max_length=10,
+        choices=ROLE_CHOICES,
+        help_text="Who sent this message"
+    )
+    
+    content = models.TextField(
+        help_text="The message content"
+    )
+    
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional metadata for this message"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['conversation', 'created_at']),
+        ]
+    
+    def __str__(self):
+        preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
+        return f"{self.role}: {preview}"

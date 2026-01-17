@@ -2,19 +2,22 @@
 URL configuration for cyoa_server project.
 """
 from django.urls import path, include
-from django.contrib.auth import views as auth_views
-from django.views.generic import RedirectView
-from game.admin_views import login_view
+from game import chat_views
 
 urlpatterns = [
-    # Root redirect to admin
-    path('', RedirectView.as_view(url='/admin/dashboard/', permanent=False)),
+    # Home page
+    path('', chat_views.home_page, name='home'),
     
     # API endpoints
     path('v1/', include('game.urls')),
     
+    # Chat interface
+    path('chat/', chat_views.chat_page, name='chat_page'),
+    path('chat/api/new', chat_views.chat_api_new_conversation, name='chat_api_new'),
+    path('chat/api/send', chat_views.chat_api_send_message, name='chat_api_send'),
+    path('chat/api/conversation/<str:conversation_id>', chat_views.chat_api_get_conversation, name='chat_api_get'),
+    path('chat/api/conversations', chat_views.chat_api_list_conversations, name='chat_api_list'),
+    
     # Admin interface
-    path('admin/login/', login_view, name='login'),
-    path('admin/logout/', auth_views.LogoutView.as_view(next_page='/admin/login/'), name='logout'),
-    path('admin/', include(('game.admin_urls', 'admin'), namespace='admin')),
+    path('admin/', include(('game.admin_urls', 'app'), namespace='admin')),
 ]
