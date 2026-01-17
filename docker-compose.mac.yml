@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # Ollama runs natively on Mac via `brew install ollama`
   # Access at: http://host.docker.internal:11434

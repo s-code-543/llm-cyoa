@@ -75,48 +75,6 @@
         </div>
     </div>
 
-    <!-- Active Configuration -->
-    <div class="bg-white shadow rounded-lg mb-8">
-        <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
-            <h3 class="text-lg font-medium leading-6 text-gray-900">Active Configuration</h3>
-        </div>
-        <div class="px-4 py-5 sm:p-6">
-            {% if active_config %}
-            <div class="space-y-4">
-                <div>
-                    <p class="text-sm font-medium text-gray-900">{{ active_config.name }}</p>
-                    <p class="text-sm text-gray-500 mt-1">{{ active_config.description|default:"No description" }}</p>
-                </div>
-                <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-                    <div>
-                        <p class="text-xs font-medium text-gray-500 uppercase">Adventure</p>
-                        <p class="text-sm text-gray-900 mt-1">{{ active_config.adventure_prompt.prompt_type }} v{{ active_config.adventure_prompt.version }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs font-medium text-gray-500 uppercase">Storyteller Model</p>
-                        <p class="text-sm text-gray-900 mt-1">{{ active_config.storyteller_model }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs font-medium text-gray-500 uppercase">Judge Prompt</p>
-                        <p class="text-sm text-gray-900 mt-1">{{ active_config.judge_prompt.prompt_type }} v{{ active_config.judge_prompt.version }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs font-medium text-gray-500 uppercase">Judge Model</p>
-                        <p class="text-sm text-gray-900 mt-1">{{ active_config.judge_model }}</p>
-                    </div>
-                </div>
-                <div class="pt-4">
-                    <a href="{% url 'admin:config_editor' active_config.pk %}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
-                        Edit Configuration →
-                    </a>
-                </div>
-            </div>
-            {% else %}
-            <p class="text-gray-500 text-sm">No active configuration. <a href="{% url 'admin:config_list' %}" class="text-indigo-600 hover:text-indigo-900">Create a configuration →</a></p>
-            {% endif %}
-        </div>
-    </div>
-
     <!-- Recent Corrections -->
     <div class="bg-white shadow rounded-lg">
         <div class="px-4 py-5 sm:px-6 border-b border-gray-200 flex justify-between items-center">

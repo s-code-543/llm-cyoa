@@ -9,9 +9,6 @@ urlpatterns = [
     # Home page
     path('', chat_views.home_page, name='home'),
     
-    # API endpoints
-    path('v1/', include('game.urls')),
-    
     # Chat interface
     path('chat/', chat_views.chat_page, name='chat_page'),
     path('chat/api/new', chat_views.chat_api_new_conversation, name='chat_api_new'),

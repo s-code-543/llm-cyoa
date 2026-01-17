@@ -6,15 +6,17 @@ from .models import Configuration
 
 def get_active_configuration():
     """
-    Retrieve the active configuration from database.
+    Retrieve the most recently updated configuration from database.
+    Used as a fallback when no specific configuration is requested.
     
     Returns:
         Configuration instance or None
     """
     try:
-        config = Configuration.objects.filter(is_active=True).first()
+        # Fallback to the most recently updated configuration since implicit 'active' is removed
+        config = Configuration.objects.order_by('-updated_at').first()
         if not config:
-            print("[WARNING] No active configuration found in database")
+            print("[WARNING] No configurations found in database")
         return config
     except Exception as e:
         print(f"[ERROR] Failed to load configuration from database: {e}")

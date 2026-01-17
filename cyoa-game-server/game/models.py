@@ -143,7 +143,7 @@ class Configuration(models.Model):
         limit_choices_to={'prompt_type': 'game-ending'},
         null=True,
         blank=True,
-        help_text="Prompt to use when game ends due to death/failure (optional, uses active if not set)"
+        help_text="Prompt to use when game ends due to death/failure"
     )
     difficulty = models.ForeignKey(
         'DifficultyProfile',
@@ -173,23 +173,14 @@ class Configuration(models.Model):
         default=1,
         help_text="Turns for Phase 4: Finale/Conclusion Setup"
     )
-    is_active = models.BooleanField(
-        default=False,
-        db_index=True,
-        help_text="Whether this configuration is currently active"
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['-is_active', '-updated_at']
-        indexes = [
-            models.Index(fields=['is_active']),
-        ]
+        ordering = ['-updated_at']
     
     def __str__(self):
-        active = " [ACTIVE]" if self.is_active else ""
-        return f"{self.name}{active}"
+        return self.name
     
     @staticmethod
     def get_default_pacing(total_turns):
@@ -218,93 +209,9 @@ class Configuration(models.Model):
             'PHASE3_END': self.phase1_turns + self.phase2_turns + self.phase3_turns,
             'PHASE4_END': self.total_turns,
         }
-    
-    def save(self, *args, **kwargs):
-        # If this configuration is being set as active, deactivate all others
-        if self.is_active:
-            Configuration.objects.filter(
-                is_active=True
-            ).exclude(pk=self.pk).update(is_active=False)
-        super().save(*args, **kwargs)
 
 
-class ResponseCache(models.Model):
-    """
-    Database-backed cache for synchronizing base and moderated responses.
-    Replaces in-memory cache for persistence and multi-instance support.
-    """
-    cache_key = models.CharField(
-        max_length=255,
-        unique=True,
-        db_index=True,
-        help_text="Cache key (session_hash-turn_number)"
-    )
-    response_text = models.TextField(
-        help_text="The cached response from the base storyteller"
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        db_index=True,
-        help_text="When this cache entry was created"
-    )
-    
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['cache_key', 'created_at']),
-        ]
-    
-    def __str__(self):
-        age = (timezone.now() - self.created_at).total_seconds()
-        preview = self.response_text[:50] + "..." if len(self.response_text) > 50 else self.response_text
-        return f"{self.cache_key} ({age:.1f}s ago) - {preview}"
-    
-    @classmethod
-    def generate_key(cls, messages, system_prompt=None):
-        """
-        Generate a cache key from messages.
-        Uses hash of all message content to ensure unique keys per conversation state.
-        """
-        # Combine all message content into a single string
-        content_parts = []
-        for msg in messages:
-            role = msg.get('role', '')
-            content = msg.get('content', '')
-            content_parts.append(f"{role}:{content}")
-        
-        # Include system prompt if provided to differentiate adventures
-        if system_prompt:
-            content_parts.append(f"system:{system_prompt}")
-        
-        combined = "|".join(content_parts)
-        cache_hash = hashlib.sha256(combined.encode()).hexdigest()[:12]
-        return cache_hash
-    
-    @classmethod
-    def set_response(cls, cache_key, response_text):
-        """Store or update a cached response."""
-        cls.objects.update_or_create(
-            cache_key=cache_key,
-            defaults={'response_text': response_text}
-        )
-    
-    @classmethod
-    def get_response(cls, cache_key, max_age_seconds=60):
-        """
-        Retrieve a cached response if it exists and isn't too old.
-        Returns None if not found or expired.
-        """
-        try:
-            cache_entry = cls.objects.get(cache_key=cache_key)
-            age = (timezone.now() - cache_entry.created_at).total_seconds()
-            if age > max_age_seconds:
-                print(f"[CACHE] Entry {cache_key} expired ({age:.1f}s > {max_age_seconds}s)")
-                cache_entry.delete()
-                return None
-            return cache_entry.response_text
-        except cls.DoesNotExist:
-            return None
-    
+
     @classmethod
     def wait_for_response(cls, cache_key, timeout=30.0, poll_interval=0.5):
         """

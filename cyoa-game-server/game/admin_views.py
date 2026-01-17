@@ -65,9 +65,6 @@ def dashboard(request):
     total_corrections = AuditLog.objects.filter(was_modified=True).count()
     correction_rate = (total_corrections / total_requests * 100) if total_requests > 0 else 0
     
-    # Get active configuration
-    active_config = Configuration.objects.filter(is_active=True).first()
-    
     # Recent corrections
     recent_corrections = AuditLog.objects.filter(was_modified=True)[:10]
     
@@ -75,7 +72,6 @@ def dashboard(request):
         'total_requests': total_requests,
         'total_corrections': total_corrections,
         'correction_rate': f'{correction_rate:.1f}',
-        'active_config': active_config,
         'recent_corrections': recent_corrections,
     }
     return render(request, 'cyoa_admin/dashboard.html', context)
@@ -229,14 +225,12 @@ def preview_markdown(request):
 @debug_login_bypass
 def config_list(request):
     """
-    List all configurations with option to set active.
+    List all configurations.
     """
     configurations = Configuration.objects.all()
-    active_config = Configuration.objects.filter(is_active=True).first()
     
     context = {
         'configurations': configurations,
-        'active_config': active_config,
     }
     return render(request, 'cyoa_admin/config_list.html', context)
 
@@ -258,7 +252,7 @@ def config_editor(request, config_id=None):
     ).select_related('provider')
     
     # Get available prompts
-    adventure_prompts = Prompt.objects.exclude(prompt_type='judge').order_by('prompt_type', '-version')
+    adventure_prompts = Prompt.objects.exclude(prompt_type__in=['judge', 'game-ending']).order_by('prompt_type', '-version')
     judge_prompts = Prompt.objects.filter(prompt_type='judge').order_by('-version')
     game_ending_prompts = Prompt.objects.filter(prompt_type='game-ending').order_by('-version')
     
@@ -269,20 +263,11 @@ def config_editor(request, config_id=None):
     if request.method == 'POST':
         action = request.POST.get('action')
         
-        if action == 'set_active':
-            config.is_active = True
-            config.save()
-            messages.success(request, f'Configuration "{config.name}" is now active')
-            return redirect('admin:config_list')
-        
         if action == 'delete':
-            if config and not config.is_active:
+            if config:
                 config_name = config.name
                 config.delete()
                 messages.success(request, f'Configuration "{config_name}" deleted')
-                return redirect('admin:config_list')
-            else:
-                messages.error(request, 'Cannot delete active configuration')
                 return redirect('admin:config_list')
         
         if action == 'save':
@@ -294,7 +279,7 @@ def config_editor(request, config_id=None):
             judge_prompt_id = request.POST.get('judge_prompt')
             judge_model = request.POST.get('judge_model')
             judge_timeout = request.POST.get('judge_timeout', '30')
-            game_ending_prompt_id = request.POST.get('game_ending_prompt') or None
+            game_ending_prompt_id = request.POST.get('game_ending_prompt')
             difficulty_id = request.POST.get('difficulty') or None
             total_turns = request.POST.get('total_turns', '10')
             phase1_turns = request.POST.get('phase1_turns', '3')
@@ -302,13 +287,13 @@ def config_editor(request, config_id=None):
             phase3_turns = request.POST.get('phase3_turns', '3')
             phase4_turns = request.POST.get('phase4_turns', '1')
             
-            if not all([name, adventure_prompt_id, storyteller_model, judge_prompt_id, judge_model]):
+            if not all([name, adventure_prompt_id, storyteller_model, judge_prompt_id, judge_model, game_ending_prompt_id]):
                 messages.error(request, 'All fields are required')
             else:
                 try:
                     adventure_prompt = Prompt.objects.get(pk=adventure_prompt_id)
                     judge_prompt = Prompt.objects.get(pk=judge_prompt_id)
-                    game_ending_prompt = Prompt.objects.get(pk=game_ending_prompt_id) if game_ending_prompt_id else None
+                    game_ending_prompt = Prompt.objects.get(pk=game_ending_prompt_id)
                     difficulty = DifficultyProfile.objects.get(pk=difficulty_id) if difficulty_id else None
                     storyteller_timeout_int = int(storyteller_timeout)
                     judge_timeout_int = int(judge_timeout)
@@ -354,8 +339,7 @@ def config_editor(request, config_id=None):
                             phase1_turns=phase1_turns_int,
                             phase2_turns=phase2_turns_int,
                             phase3_turns=phase3_turns_int,
-                            phase4_turns=phase4_turns_int,
-                            is_active=False
+                            phase4_turns=phase4_turns_int
                         )
                         messages.success(request, f'Configuration "{name}" created')
                     
