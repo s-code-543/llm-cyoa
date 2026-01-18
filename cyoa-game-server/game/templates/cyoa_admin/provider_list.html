@@ -7,12 +7,14 @@
 {% block content %}
 <div class="flex justify-between items-center mb-6">
     <div>
-        <h2 class="text-xl text-gray-600">Manage external LLM providers</h2>
-        <p class="text-sm text-gray-500 mt-1">Connect to external Ollama servers and cloud APIs like Anthropic</p>
+        <h2 class="text-xl text-gray-600">Manage LLM providers</h2>
+        <p class="text-sm text-gray-500 mt-1">Connect to Ollama servers (local or remote) and cloud APIs like Anthropic</p>
     </div>
-    <a href="{% url 'admin:provider_new' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-        + Add Provider
-    </a>
+    <div>
+        <a href="{% url 'admin:provider_new' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+            + Add Provider
+        </a>
+    </div>
 </div>
 
 <div class="bg-white shadow-md rounded-lg overflow-hidden">

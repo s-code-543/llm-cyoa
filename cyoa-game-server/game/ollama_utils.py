@@ -1,23 +1,32 @@
 """
-Ollama API utilities for calling local LLM models.
+Ollama API utilities for calling LLM models (local or external Ollama servers).
+Consolidated from ollama_utils and external_ollama_utils.
 """
 import requests
 import os
 
 
-# Ollama server URL - use localhost when running outside Docker, ollama when inside
-OLLAMA_BASE_URL = os.getenv('OLLAMA_URL', 'http://localhost:11434')
+# Default Ollama server URL for local connection - use host.docker.internal when in Docker to access host machine
+DEFAULT_OLLAMA_BASE_URL = os.getenv('OLLAMA_URL', 'http://host.docker.internal:11434')
 
 
-def check_ollama_status():
+def check_ollama_status(base_url=None):
     """
     Check if Ollama is responsive and what models are loaded.
+    
+    Args:
+        base_url: Base URL of Ollama server (defaults to local)
     
     Returns:
         dict with 'available' (bool) and 'loaded_models' (list)
     """
+    if base_url is None:
+        base_url = DEFAULT_OLLAMA_BASE_URL
+    
+    base_url = base_url.rstrip('/')
+    
     try:
-        response = requests.get(f"{OLLAMA_BASE_URL}/api/ps", timeout=2)
+        response = requests.get(f"{base_url}/api/ps", timeout=2)
         if response.status_code == 200:
             data = response.json()
             loaded_models = [m.get("name", "") for m in data.get("models", [])]
@@ -28,15 +37,75 @@ def check_ollama_status():
         return {"available": False, "loaded_models": []}
 
 
-def get_ollama_models():
+def test_ollama_connection(base_url=None, timeout=5):
+    """
+    Test connection to Ollama server.
+    
+    Args:
+        base_url: Base URL of Ollama server (defaults to local)
+        timeout: Connection timeout in seconds
+    
+    Returns:
+        dict with 'success' (bool) and 'message' (str)
+    """
+    if base_url is None:
+        base_url = DEFAULT_OLLAMA_BASE_URL
+    
+    base_url = base_url.rstrip('/')
+    
+    try:
+        response = requests.get(
+            f"{base_url}/api/tags",
+            timeout=timeout
+        )
+        
+        if response.status_code == 200:
+            models = response.json().get('models', [])
+            return {
+                'success': True,
+                'message': f"Connected successfully. Found {len(models)} models."
+            }
+        else:
+            return {
+                'success': False,
+                'message': f"HTTP {response.status_code}: {response.text}"
+            }
+    
+    except requests.exceptions.Timeout:
+        return {
+            'success': False,
+            'message': f"Connection timeout after {timeout}s"
+        }
+    except requests.exceptions.ConnectionError:
+        return {
+            'success': False,
+            'message': f"Cannot connect to {base_url}. Check URL and network."
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'message': f"Error: {str(e)}"
+        }
+
+
+def get_ollama_models(base_url=None, timeout=10):
     """
     Discover available models from the Ollama server.
+    
+    Args:
+        base_url: Base URL of Ollama server (defaults to local)
+        timeout: Request timeout in seconds
     
     Returns:
         List of model dicts with 'id' and 'name' keys
     """
+    if base_url is None:
+        base_url = DEFAULT_OLLAMA_BASE_URL
+    
+    base_url = base_url.rstrip('/')
+    
     try:
-        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+        response = requests.get(f"{base_url}/api/tags", timeout=timeout)
         
         if response.status_code != 200:
             print(f"Failed to get Ollama models: {response.status_code}")
@@ -61,26 +130,27 @@ def get_ollama_models():
         return []
 
 
-def call_ollama(messages, system_prompt=None, model="qwen3:4b", timeout=30):
+def call_ollama(messages, system_prompt=None, model=None, base_url=None, timeout=30):
     """
     Call Ollama API with the given messages.
     
     Args:
         messages: List of message dicts with 'role' and 'content'
         system_prompt: Optional system prompt string
-        model: Ollama model to use (default: qwen3:4b)
+        model: Ollama model to use (required)
+        base_url: Base URL of Ollama server (defaults to local)
         timeout: Read timeout in seconds (default: 30)
     
     Returns:
         String response from the model
     """
-    # Remove "gameserver-ollama/" or "ollama/" prefix if present
-    if model.startswith("gameserver-ollama/"):
-        model = model[18:]
-    elif model.startswith("ollama/"):
-        model = model[7:]
-    elif model.startswith("gameserver-"):
-        model = model[11:]
+    if not model:
+        raise ValueError("Model parameter is required for call_ollama")
+    
+    if base_url is None:
+        base_url = DEFAULT_OLLAMA_BASE_URL
+    
+    base_url = base_url.rstrip('/')
     
     # Convert messages to Ollama format
     ollama_messages = []
@@ -119,10 +189,10 @@ def call_ollama(messages, system_prompt=None, model="qwen3:4b", timeout=30):
     }
     
     try:
-        print(f"[OLLAMA] {model} | timeout={timeout}s")
+        print(f"[OLLAMA] {base_url} | {model} | timeout={timeout}s")
         
         response = requests.post(
-            f"{OLLAMA_BASE_URL}/api/chat",
+            f"{base_url}/api/chat",
             json=payload,
             timeout=(3.05, timeout)  # configurable read timeout
         )

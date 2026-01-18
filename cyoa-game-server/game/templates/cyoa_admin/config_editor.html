@@ -90,7 +90,7 @@
                 <p class="text-xs text-gray-500 mt-2">Total: <span id="pacing_total" class="font-semibold">10</span> turns</p>
             </div>
             
-            <div>
+            <div class="mb-4">
                 <label for="storyteller_model" class="block text-sm font-medium text-gray-700 mb-2">
                     Storyteller Model *
                     <button type="button" class="refresh-models-btn ml-2 text-blue-600 hover:text-blue-800 text-xs">
@@ -100,28 +100,21 @@
                 <select name="storyteller_model" id="storyteller_model" required
                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">-- Select Model --</option>
-                    <optgroup label="Local Models (Ollama)">
-                        {% for model in ollama_models %}
-                        <option value="{{ model }}"
-                                {% if config and config.storyteller_model == model %}selected{% endif %}>
-                            {{ model }}
-                        </option>
-                        {% endfor %}
-                    </optgroup>
-                    {% if external_models %}
-                    <optgroup label="External Models">
-                        {% for model in external_models %}
-                        <option value="{{ model.model_identifier }}"
-                                {% if config and config.storyteller_model == model.model_identifier %}selected{% endif %}>
+                    {% regroup all_models by provider as models_by_provider %}
+                    {% for provider_group in models_by_provider %}
+                    <optgroup label="{{ provider_group.grouper.name }}">
+                        {% for model in provider_group.list %}
+                        <option value="{{ model.id }}"
+                                {% if config and config.storyteller_model.id == model.id %}selected{% endif %}>
                             {{ model.name }}
                         </option>
                         {% endfor %}
                     </optgroup>
-                    {% endif %}
+                    {% endfor %}
                 </select>
             </div>
             
-            <div class="mt-4">
+            <div class="mb-4">
                 <label for="storyteller_timeout" class="block text-sm font-medium text-gray-700 mb-2">
                     Storyteller Timeout (seconds) *
                 </label>
@@ -130,67 +123,8 @@
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <p class="mt-1 text-sm text-gray-500">How long to wait for story generation (1-300 seconds)</p>
             </div>
-        </div>
-        
-        <div class="border-t border-gray-200 pt-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Judge Settings</h3>
             
             <div class="mb-4">
-                <label for="judge_prompt" class="block text-sm font-medium text-gray-700 mb-2">Judge Prompt *</label>
-                <select name="judge_prompt" id="judge_prompt" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">-- Select Judge Prompt --</option>
-                    {% for prompt in judge_prompts %}
-                    <option value="{{ prompt.id }}"
-                            {% if config and config.judge_prompt.id == prompt.id %}selected{% endif %}>
-                        Judge v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div>
-                <label for="judge_model" class="block text-sm font-medium text-gray-700 mb-2">
-                    Judge Model *
-                    <button type="button" class="refresh-models-btn ml-2 text-blue-600 hover:text-blue-800 text-xs">
-                        ↻ Refresh
-                    </button>
-                </label>
-                <select name="judge_model" id="judge_model" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">-- Select Model --</option>
-                    <optgroup label="Local Models (Ollama)">
-                        {% for model in ollama_models %}
-                        <option value="{{ model }}"
-                                {% if config and config.judge_model == model %}selected{% endif %}>
-                            {{ model }}
-                        </option>
-                        {% endfor %}
-                    </optgroup>
-                    {% if external_models %}
-                    <optgroup label="External Models">
-                        {% for model in external_models %}
-                        <option value="{{ model.model_identifier }}"
-                                {% if config and config.judge_model == model.model_identifier %}selected{% endif %}>
-                            {{ model.name }}
-                        </option>
-                        {% endfor %}
-                    </optgroup>
-                    {% endif %}
-                </select>
-            </div>
-            
-            <div class="mt-4">
-                <label for="judge_timeout" class="block text-sm font-medium text-gray-700 mb-2">
-                    Judge Timeout (seconds) *
-                </label>
-                <input type="number" name="judge_timeout" id="judge_timeout" required min="1" max="300"
-                       value="{% if config %}{{ config.judge_timeout }}{% else %}30{% endif %}"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <p class="mt-1 text-sm text-gray-500">How long to wait for judge validation (1-300 seconds)</p>
-            </div>
-            
-            <div class="mt-4">
                 <label for="difficulty" class="block text-sm font-medium text-gray-700 mb-2">
                     Difficulty Profile
                 </label>
@@ -210,7 +144,7 @@
                 </p>
             </div>
             
-            <div class="mt-4">
+            <div>
                 <label for="game_ending_prompt" class="block text-sm font-medium text-gray-700 mb-2">
                     Game Ending Prompt *
                 </label>
@@ -227,6 +161,140 @@
                 <p class="mt-1 text-sm text-gray-500">
                     Prompt used when difficulty system triggers death/failure.
                 </p>
+            </div>
+        </div>
+        
+        <div class="border-t border-gray-200 pt-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">🚫 Refusal Detection & Turn Correction</h3>
+            
+            <div class="mb-4">
+                <label class="flex items-center">
+                    <input type="checkbox" name="enable_refusal_detection" id="enable_refusal_detection" value="1"
+                           {% if not config or config.enable_refusal_detection %}checked{% endif %}
+                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <span class="ml-2 text-sm font-medium text-gray-700">
+                        Enable automatic refusal detection & correction
+                    </span>
+                </label>
+                <p class="mt-1 ml-6 text-sm text-gray-500">
+                    Automatically detect when the storyteller refuses to generate a valid turn and regenerate a corrected replacement.
+                </p>
+            </div>
+            
+            <div id="refusal-settings" style="{% if config and not config.enable_refusal_detection %}display: none;{% endif %}">
+                <div class="mb-4 pl-6 border-l-4 border-blue-200">
+                    <h4 class="text-sm font-semibold text-gray-900 mb-3">Classification Settings</h4>
+                    
+                    <div class="mb-4">
+                        <label for="classifier_prompt" class="block text-sm font-medium text-gray-700 mb-2">
+                            Classifier Prompt
+                        </label>
+                        <select name="classifier_prompt" id="classifier_prompt"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">-- Select Classifier Prompt --</option>
+                            {% for prompt in classifier_prompts %}
+                            <option value="{{ prompt.id }}"
+                                    {% if config and config.classifier_prompt_id == prompt.id %}selected{% endif %}>
+                                Classifier v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <p class="mt-1 text-sm text-gray-500">
+                            Prompt used to classify responses as refusals or valid turns.
+                        </p>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="classifier_model" class="block text-sm font-medium text-gray-700 mb-2">
+                            Classifier Model
+                            <button type="button" class="refresh-models-btn ml-2 text-blue-600 hover:text-blue-800 text-xs">
+                                ↻ Refresh
+                            </button>
+                        </label>
+                        <select name="classifier_model" id="classifier_model"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">-- Select Model --</option>
+                            {% regroup all_models by provider as models_by_provider %}
+                            {% for provider_group in models_by_provider %}
+                            <optgroup label="{{ provider_group.grouper.name }}">
+                                {% for model in provider_group.list %}
+                                <option value="{{ model.id }}"
+                                        {% if config and config.classifier_model and config.classifier_model.id == model.id %}selected{% endif %}>
+                                    {{ model.name }}
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                        </select>
+                        <p class="mt-1 text-sm text-gray-500">
+                            Fast, lightweight model for binary classification (e.g., gemma3:270m).
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label for="classifier_timeout" class="block text-sm font-medium text-gray-700 mb-2">
+                            Classifier Timeout (seconds)
+                        </label>
+                        <input type="number" name="classifier_timeout" id="classifier_timeout" min="1" max="60"
+                               value="{% if config %}{{ config.classifier_timeout }}{% else %}10{% endif %}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-sm text-gray-500">
+                            Classification should be fast (1-60 seconds). Use a small model for best performance.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="pl-6 border-l-4 border-blue-200">
+                    <h4 class="text-sm font-semibold text-gray-900 mb-3">Turn Correction Settings</h4>
+                    
+                    <div class="mb-4">
+                        <label for="turn_correction_prompt" class="block text-sm font-medium text-gray-700 mb-2">Turn Correction Prompt *</label>
+                        <select name="turn_correction_prompt" id="turn_correction_prompt" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">-- Select Turn Correction Prompt --</option>
+                            {% for prompt in turn_correction_prompts %}
+                            <option value="{{ prompt.id }}"
+                                    {% if config and config.turn_correction_prompt.id == prompt.id %}selected{% endif %}>
+                                Turn Correction v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="turn_correction_model" class="block text-sm font-medium text-gray-700 mb-2">
+                            Turn Correction Model *
+                            <button type="button" class="refresh-models-btn ml-2 text-blue-600 hover:text-blue-800 text-xs">
+                                ↻ Refresh
+                            </button>
+                        </label>
+                        <select name="turn_correction_model" id="turn_correction_model" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">-- Select Model --</option>
+                            {% regroup all_models by provider as models_by_provider %}
+                            {% for provider_group in models_by_provider %}
+                            <optgroup label="{{ provider_group.grouper.name }}">
+                                {% for model in provider_group.list %}
+                                <option value="{{ model.id }}"
+                                        {% if config and config.turn_correction_model.id == model.id %}selected{% endif %}>
+                                    {{ model.name }}
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="turn_correction_timeout" class="block text-sm font-medium text-gray-700 mb-2">
+                            Turn Correction Timeout (seconds) *
+                        </label>
+                        <input type="number" name="turn_correction_timeout" id="turn_correction_timeout" required min="1" max="300"
+                               value="{% if config %}{{ config.turn_correction_timeout }}{% else %}30{% endif %}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-sm text-gray-500">How long to wait for turn correction (1-300 seconds)</p>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -248,6 +316,12 @@ const pacingDefaults = {
     15: {phase1: 4, phase2: 5, phase3: 4, phase4: 2},
     20: {phase1: 5, phase2: 6, phase3: 6, phase4: 3}
 };
+
+// Toggle refusal detection settings
+document.getElementById('enable_refusal_detection').addEventListener('change', function() {
+    const settings = document.getElementById('refusal-settings');
+    settings.style.display = this.checked ? 'block' : 'none';
+});
 
 function updatePacingDefaults() {
     const totalTurns = parseInt(document.getElementById('total_turns').value);
@@ -319,9 +393,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function refreshModels() {
     const storytellerSelect = document.getElementById('storyteller_model');
-    const judgeSelect = document.getElementById('judge_model');
+    const turnCorrectionSelect = document.getElementById('turn_correction_model');
+    const classifierSelect = document.getElementById('classifier_model');
     const currentStoryteller = storytellerSelect.value;
-    const currentJudge = judgeSelect.value;
+    const currentTurnCorrection = turnCorrectionSelect.value;
+    const currentClassifier = classifierSelect ? classifierSelect.value : '';
     
     try {
         const response = await fetch('{% url "admin:refresh_models" %}', {

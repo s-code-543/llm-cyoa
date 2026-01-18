@@ -13,8 +13,7 @@ from django.conf import settings
 from django.utils import timezone
 from functools import wraps
 from .models import Prompt, AuditLog, Configuration, APIProvider, LLMModel
-from .ollama_utils import get_ollama_models
-from .external_ollama_utils import test_external_ollama_connection, get_external_ollama_models
+from .ollama_utils import get_ollama_models, test_ollama_connection
 from .external_anthropic_utils import test_anthropic_connection, get_anthropic_models
 import markdown2
 
@@ -245,16 +244,16 @@ def config_editor(request, config_id=None):
     # Get available models
     ollama_models = [model['name'] for model in get_ollama_models()]
     
-    # Get external models from database (imported from providers)
+    # Get all models from database (imported from providers)
     external_models = LLMModel.objects.filter(
-        source='external',
         is_available=True
     ).select_related('provider')
     
     # Get available prompts
-    adventure_prompts = Prompt.objects.exclude(prompt_type__in=['judge', 'game-ending']).order_by('prompt_type', '-version')
-    judge_prompts = Prompt.objects.filter(prompt_type='judge').order_by('-version')
+    adventure_prompts = Prompt.objects.exclude(prompt_type__in=['turn-correction', 'game-ending', 'classifier']).order_by('prompt_type', '-version')
+    turn_correction_prompts = Prompt.objects.filter(prompt_type='turn-correction').order_by('-version')
     game_ending_prompts = Prompt.objects.filter(prompt_type='game-ending').order_by('-version')
+    classifier_prompts = Prompt.objects.filter(prompt_type='classifier').order_by('-version')
     
     # Get difficulty profiles
     from .models import DifficultyProfile
@@ -274,11 +273,11 @@ def config_editor(request, config_id=None):
             name = request.POST.get('name', '').strip()
             description = request.POST.get('description', '').strip()
             adventure_prompt_id = request.POST.get('adventure_prompt')
-            storyteller_model = request.POST.get('storyteller_model')
+            storyteller_model_id = request.POST.get('storyteller_model')
             storyteller_timeout = request.POST.get('storyteller_timeout', '30')
-            judge_prompt_id = request.POST.get('judge_prompt')
-            judge_model = request.POST.get('judge_model')
-            judge_timeout = request.POST.get('judge_timeout', '30')
+            turn_correction_prompt_id = request.POST.get('turn_correction_prompt')
+            turn_correction_model_id = request.POST.get('turn_correction_model')
+            turn_correction_timeout = request.POST.get('turn_correction_timeout', '30')
             game_ending_prompt_id = request.POST.get('game_ending_prompt')
             difficulty_id = request.POST.get('difficulty') or None
             total_turns = request.POST.get('total_turns', '10')
@@ -286,17 +285,26 @@ def config_editor(request, config_id=None):
             phase2_turns = request.POST.get('phase2_turns', '3')
             phase3_turns = request.POST.get('phase3_turns', '3')
             phase4_turns = request.POST.get('phase4_turns', '1')
+            enable_refusal_detection = request.POST.get('enable_refusal_detection') == '1'
+            classifier_prompt_id = request.POST.get('classifier_prompt') or None
+            classifier_model_id = request.POST.get('classifier_model') or None
+            classifier_timeout = request.POST.get('classifier_timeout', '10')
             
-            if not all([name, adventure_prompt_id, storyteller_model, judge_prompt_id, judge_model, game_ending_prompt_id]):
+            if not all([name, adventure_prompt_id, storyteller_model_id, turn_correction_prompt_id, turn_correction_model_id, game_ending_prompt_id]):
                 messages.error(request, 'All fields are required')
             else:
                 try:
                     adventure_prompt = Prompt.objects.get(pk=adventure_prompt_id)
-                    judge_prompt = Prompt.objects.get(pk=judge_prompt_id)
+                    turn_correction_prompt = Prompt.objects.get(pk=turn_correction_prompt_id)
                     game_ending_prompt = Prompt.objects.get(pk=game_ending_prompt_id)
+                    storyteller_model = LLMModel.objects.get(pk=storyteller_model_id)
+                    turn_correction_model = LLMModel.objects.get(pk=turn_correction_model_id)
+                    classifier_prompt = Prompt.objects.get(pk=classifier_prompt_id) if classifier_prompt_id else None
+                    classifier_model = LLMModel.objects.get(pk=classifier_model_id) if classifier_model_id else None
                     difficulty = DifficultyProfile.objects.get(pk=difficulty_id) if difficulty_id else None
                     storyteller_timeout_int = int(storyteller_timeout)
-                    judge_timeout_int = int(judge_timeout)
+                    turn_correction_timeout_int = int(turn_correction_timeout)
+                    classifier_timeout_int = int(classifier_timeout)
                     total_turns_int = int(total_turns)
                     phase1_turns_int = int(phase1_turns)
                     phase2_turns_int = int(phase2_turns)
@@ -310,9 +318,9 @@ def config_editor(request, config_id=None):
                         config.adventure_prompt = adventure_prompt
                         config.storyteller_model = storyteller_model
                         config.storyteller_timeout = storyteller_timeout_int
-                        config.judge_prompt = judge_prompt
-                        config.judge_model = judge_model
-                        config.judge_timeout = judge_timeout_int
+                        config.turn_correction_prompt = turn_correction_prompt
+                        config.turn_correction_model = turn_correction_model
+                        config.turn_correction_timeout = turn_correction_timeout_int
                         config.game_ending_prompt = game_ending_prompt
                         config.difficulty = difficulty
                         config.total_turns = total_turns_int
@@ -320,6 +328,10 @@ def config_editor(request, config_id=None):
                         config.phase2_turns = phase2_turns_int
                         config.phase3_turns = phase3_turns_int
                         config.phase4_turns = phase4_turns_int
+                        config.enable_refusal_detection = enable_refusal_detection
+                        config.classifier_prompt = classifier_prompt
+                        config.classifier_model = classifier_model
+                        config.classifier_timeout = classifier_timeout_int
                         config.save()
                         messages.success(request, f'Configuration "{name}" updated')
                     else:
@@ -330,32 +342,38 @@ def config_editor(request, config_id=None):
                             adventure_prompt=adventure_prompt,
                             storyteller_model=storyteller_model,
                             storyteller_timeout=storyteller_timeout_int,
-                            judge_prompt=judge_prompt,
-                            judge_model=judge_model,
-                            judge_timeout=judge_timeout_int,
+                            turn_correction_prompt=turn_correction_prompt,
+                            turn_correction_model=turn_correction_model,
+                            turn_correction_timeout=turn_correction_timeout_int,
                             game_ending_prompt=game_ending_prompt,
                             difficulty=difficulty,
                             total_turns=total_turns_int,
                             phase1_turns=phase1_turns_int,
                             phase2_turns=phase2_turns_int,
                             phase3_turns=phase3_turns_int,
-                            phase4_turns=phase4_turns_int
+                            phase4_turns=phase4_turns_int,
+                            enable_refusal_detection=enable_refusal_detection,
+                            classifier_prompt=classifier_prompt,
+                            classifier_model=classifier_model,
+                            classifier_timeout=classifier_timeout_int
                         )
                         messages.success(request, f'Configuration "{name}" created')
                     
                     return redirect('admin:config_editor', config_id=config.id)
                 except Prompt.DoesNotExist:
                     messages.error(request, 'Invalid prompt selection')
+                except LLMModel.DoesNotExist:
+                    messages.error(request, 'Invalid model selection')
                 except ValueError:
                     messages.error(request, 'Invalid timeout value')
     
     context = {
         'config': config,
-        'ollama_models': ollama_models,
-        'external_models': external_models,
+        'all_models': LLMModel.objects.all().order_by('provider__name', 'name'),
         'adventure_prompts': adventure_prompts,
-        'judge_prompts': judge_prompts,
+        'turn_correction_prompts': turn_correction_prompts,
         'game_ending_prompts': game_ending_prompts,
+        'classifier_prompts': classifier_prompts,
         'difficulties': difficulties,
     }
     return render(request, 'cyoa_admin/config_editor.html', context)
@@ -496,7 +514,7 @@ def test_provider_connection(request):
     api_key = data.get('api_key', '').strip()
     
     if provider_type == 'ollama':
-        result = test_external_ollama_connection(base_url)
+        result = test_ollama_connection(base_url)
     elif provider_type == 'anthropic':
         result = test_anthropic_connection(api_key)
     else:
@@ -541,7 +559,7 @@ def browse_provider_models(request, provider_id):
     # Fetch models from provider
     available_models = []
     if provider.provider_type == 'ollama':
-        available_models = get_external_ollama_models(provider.base_url)
+        available_models = get_ollama_models(provider.base_url)
     elif provider.provider_type == 'anthropic':
         available_models = get_anthropic_models(provider.api_key)
     
@@ -582,7 +600,7 @@ def import_models(request):
         
         # Fetch full model list from provider
         if provider.provider_type == 'ollama':
-            available_models = get_external_ollama_models(provider.base_url)
+            available_models = get_ollama_models(provider.base_url)
         elif provider.provider_type == 'anthropic':
             available_models = get_anthropic_models(provider.api_key)
         else:
@@ -598,7 +616,6 @@ def import_models(request):
                     model_identifier=model_data['id'],
                     defaults={
                         'name': f"{provider.name}: {model_data['name']}",
-                        'source': 'external',
                         'is_available': True,
                         'capabilities': {
                             'description': model_data.get('description', ''),

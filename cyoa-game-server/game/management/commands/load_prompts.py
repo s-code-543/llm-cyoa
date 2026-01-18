@@ -2,9 +2,10 @@
 Management command to load or reload all prompts from the cyoa_prompts directory.
 Loads using a directory structure:
     cyoa_prompts/
-        story_prompts/       -> prompt_type = filename (minus .txt)
-        judge_prompts/       -> prompt_type = 'judge'
-        game_ending_prompts/ -> prompt_type = 'game-ending'
+        story_prompts/              -> prompt_type = filename (minus .txt)
+        turn_correction_prompts/    -> prompt_type = 'turn-correction'
+        game_ending_prompts/        -> prompt_type = 'game-ending'
+        classifier_prompts/         -> prompt_type = 'classifier'
 """
 from django.core.management.base import BaseCommand
 from game.models import Prompt
@@ -46,14 +47,14 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.WARNING(f"Story dir missing: {stories_dir}"))
 
-        # 2. Judge Prompts
-        judge_dir = os.path.join(base_dir, 'judge_prompts')
-        if os.path.exists(judge_dir):
-            c, u = self.process_directory(judge_dir, default_type='judge', is_system=True)
+        # 2. Turn Correction Prompts
+        turn_correction_dir = os.path.join(base_dir, 'turn_correction_prompts')
+        if os.path.exists(turn_correction_dir):
+            c, u = self.process_directory(turn_correction_dir, default_type='turn-correction', is_system=True)
             total_created += c
             total_updated += u
         else:
-            self.stdout.write(self.style.WARNING(f"Judge dir missing: {judge_dir}"))
+            self.stdout.write(self.style.WARNING(f"Turn correction dir missing: {turn_correction_dir}"))
 
         # 3. Game Ending Prompts
         ending_dir = os.path.join(base_dir, 'game_ending_prompts')
@@ -63,6 +64,15 @@ class Command(BaseCommand):
             total_updated += u
         else:
             self.stdout.write(self.style.WARNING(f"Ending dir missing: {ending_dir}"))
+
+        # 4. Classifier Prompts
+        classifier_dir = os.path.join(base_dir, 'classifier_prompts')
+        if os.path.exists(classifier_dir):
+            c, u = self.process_directory(classifier_dir, default_type='classifier', is_system=True)
+            total_created += c
+            total_updated += u
+        else:
+            self.stdout.write(self.style.WARNING(f"Classifier dir missing: {classifier_dir}"))
 
         self.stdout.write(self.style.SUCCESS(f"\nAll prompts processed! Created: {total_created}, Updated: {total_updated}"))
 

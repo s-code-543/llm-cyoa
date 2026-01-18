@@ -20,7 +20,11 @@
             <div>
                 <p class="text-sm font-medium text-gray-500">Status</p>
                 <p class="mt-1">
-                    {% if log.was_modified %}
+                    {% if log.was_refusal %}
+                    <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                        🚫 Refusal Detected
+                    </span>
+                    {% elif log.was_modified %}
                     <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
                         Modified by Judge
                     </span>
@@ -43,6 +47,12 @@
                     {% endif %}
                 </p>
             </div>
+            {% if log.was_refusal %}
+            <div>
+                <p class="text-sm font-medium text-gray-500">Classifier Response</p>
+                <p class="mt-1 text-sm text-gray-900">{{ log.classifier_response|default:"N/A" }}</p>
+            </div>
+            {% endif %}
         </div>
     </div>
 

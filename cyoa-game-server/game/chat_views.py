@@ -9,10 +9,11 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import ChatConversation, ChatMessage, GameSession, Configuration
+from .models import ChatConversation, ChatMessage, GameSession, Configuration, AuditLog
 from .llm_router import call_llm
 from .config_utils import get_active_configuration, apply_pacing_template
 from .difficulty_utils import calculate_phase_ends, calculate_turn_number, should_trigger_death
+from .refusal_detector import process_potential_refusal
 
 
 def home_page(request):
@@ -231,27 +232,64 @@ def chat_api_send_message(request):
                 print(f"[CHAT] Applied pacing template to adventure prompt")
         
         # Determine model to use
-        model = config.storyteller_model if config else "qwen3:30b"
+        if not config or not config.storyteller_model:
+            return JsonResponse({'error': 'No storyteller model configured'}, status=500)
         
-        print(f"[CHAT] Calling LLM with model: {model}")
+        print(f"[CHAT] Calling LLM with model: {config.storyteller_model.name}")
         
         # Call LLM (using storyteller model from config)
         llm_response = call_llm(
             messages=messages,
             system_prompt=system_prompt,
-            model=model,
+            llm_model=config.storyteller_model,
             timeout=60
         )
         
-        # Save assistant response
+        # Process potential refusal (only if not a game-ending turn)
+        final_response = llm_response
+        refusal_info = {
+            'was_refusal': False,
+            'classifier_response': '',
+            'was_corrected': False
+        }
+        
+        if not use_game_ending_prompt and config:
+            refusal_result = process_potential_refusal(
+                messages=messages,
+                story_turn=llm_response,
+                config=config,
+                user_message=user_message
+            )
+            
+            final_response = refusal_result['final_turn']
+            refusal_info = {
+                'was_refusal': refusal_result['was_refusal'],
+                'classifier_response': refusal_result['classifier_response'],
+                'was_corrected': refusal_result['was_corrected']
+            }
+            
+            # Log to audit if refusal was detected
+            if refusal_info['was_refusal']:
+                AuditLog.objects.create(
+                    original_text=llm_response,
+                    refined_text=final_response,
+                    was_modified=refusal_info['was_corrected'],
+                    was_refusal=True,
+                    classifier_response=refusal_info['classifier_response'],
+                    prompt_used=config.classifier_prompt,
+                    correction_prompt_used=config.turn_correction_prompt if refusal_info['was_corrected'] else None
+                )
+                print(f"[CHAT] Refusal logged to audit (corrected={refusal_info['was_corrected']})")
+        
+        # Save assistant response (using final response after refusal processing)
         assistant_msg = ChatMessage.objects.create(
             conversation=conversation,
             role='assistant',
-            content=llm_response
+            content=final_response
         )
         
         # Extract game state from response
-        game_state = extract_game_state(llm_response)
+        game_state = extract_game_state(final_response)
         
         # Mark game as complete if we've reached max turns or game ending
         if game_state['turn_current'] >= game_session.max_turns or game_session.game_over:

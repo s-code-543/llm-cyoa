@@ -81,6 +81,23 @@ class AuditLog(models.Model):
         blank=True,
         help_text="Which judge prompt was active during this request"
     )
+    # Refusal detection fields
+    was_refusal = models.BooleanField(
+        default=False,
+        help_text="True if this was detected as a refusal"
+    )
+    classifier_response = models.TextField(
+        blank=True,
+        help_text="Raw response from classifier model"
+    )
+    correction_prompt_used = models.ForeignKey(
+        Prompt,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='correction_logs',
+        help_text="Judge prompt used for correction (if refusal was detected)"
+    )
     
     class Meta:
         ordering = ['-timestamp']
@@ -113,28 +130,34 @@ class Configuration(models.Model):
         related_name='configs_as_adventure',
         help_text="Adventure/story prompt to use (any non-judge prompt)"
     )
-    storyteller_model = models.CharField(
-        max_length=100,
-        help_text="Model to use for story generation (e.g., qwen3:4b)"
+    storyteller_model = models.ForeignKey(
+        'LLMModel',
+        on_delete=models.PROTECT,
+        related_name='configs_as_storyteller',
+        null=True,
+        help_text="Model to use for story generation"
     )
     storyteller_timeout = models.IntegerField(
         default=30,
         help_text="Timeout in seconds for storyteller generation (default: 30)"
     )
-    judge_prompt = models.ForeignKey(
+    turn_correction_prompt = models.ForeignKey(
         Prompt,
         on_delete=models.PROTECT,
-        related_name='configs_as_judge',
-        limit_choices_to={'prompt_type': 'judge'},
-        help_text="Judge prompt to use for validation"
+        related_name='configs_as_turn_correction',
+        limit_choices_to={'prompt_type': 'turn-correction'},
+        help_text="Turn correction prompt for regenerating refused or problematic turns"
     )
-    judge_model = models.CharField(
-        max_length=100,
-        help_text="Model to use for judge validation (e.g., claude-haiku-4-5)"
+    turn_correction_model = models.ForeignKey(
+        'LLMModel',
+        on_delete=models.PROTECT,
+        related_name='configs_as_turn_correction',
+        null=True,
+        help_text="Model to use for turn correction"
     )
-    judge_timeout = models.IntegerField(
+    turn_correction_timeout = models.IntegerField(
         default=30,
-        help_text="Timeout in seconds for judge validation (default: 30)"
+        help_text="Timeout in seconds for turn correction (default: 30)"
     )
     game_ending_prompt = models.ForeignKey(
         Prompt,
@@ -172,6 +195,32 @@ class Configuration(models.Model):
     phase4_turns = models.IntegerField(
         default=1,
         help_text="Turns for Phase 4: Finale/Conclusion Setup"
+    )
+    # Refusal detection system
+    enable_refusal_detection = models.BooleanField(
+        default=True,
+        help_text="Enable automatic refusal detection and correction"
+    )
+    classifier_model = models.ForeignKey(
+        'LLMModel',
+        on_delete=models.PROTECT,
+        related_name='configs_as_classifier',
+        null=True,
+        blank=True,
+        help_text="Model to use for refusal classification"
+    )
+    classifier_prompt = models.ForeignKey(
+        Prompt,
+        on_delete=models.PROTECT,
+        related_name='configs_as_classifier',
+        limit_choices_to={'prompt_type': 'classifier'},
+        null=True,
+        blank=True,
+        help_text="Prompt to use for detecting refusals"
+    )
+    classifier_timeout = models.IntegerField(
+        default=10,
+        help_text="Timeout in seconds for classifier (default: 10)"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -276,6 +325,10 @@ class APIProvider(models.Model):
         blank=True,
         help_text="API key for authentication (if required)"
     )
+    is_local = models.BooleanField(
+        default=False,
+        help_text="True if this connects to localhost (use localhost instead of docker network name)"
+    )
     is_active = models.BooleanField(
         default=True,
         help_text="Whether this provider is currently active"
@@ -303,13 +356,9 @@ class APIProvider(models.Model):
 
 class LLMModel(models.Model):
     """
-    Registered LLM models (local or external) with routing information.
+    Registered LLM models (from any provider) with routing information.
     Replaces name-based routing logic with explicit database configuration.
     """
-    MODEL_SOURCES = [
-        ('local_ollama', 'Local Ollama'),
-        ('external', 'External Provider'),
-    ]
     
     name = models.CharField(
         max_length=200,
@@ -320,17 +369,10 @@ class LLMModel(models.Model):
         max_length=200,
         help_text="Backend model identifier (e.g., 'qwen3:4b', 'claude-opus-4')"
     )
-    source = models.CharField(
-        max_length=50,
-        choices=MODEL_SOURCES,
-        help_text="Where this model is hosted"
-    )
     provider = models.ForeignKey(
         APIProvider,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        help_text="External provider (if source is 'external')"
+        help_text="Provider hosting this model"
     )
     is_available = models.BooleanField(
         default=True,
@@ -345,31 +387,33 @@ class LLMModel(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['source', 'name']
+        ordering = ['provider__name', 'name']
     
     def __str__(self):
         status = "✓" if self.is_available else "✗"
-        source_icon = "🖥️" if self.source == 'local_ollama' else "🌐"
-        return f"{source_icon} {self.name} {status}"
+        return f"{self.provider.name}: {self.name} {status}"
     
     def get_routing_info(self):
         """
         Return routing information for call_llm to use.
         """
-        if self.source == 'local_ollama':
+        if not self.provider:
+            raise ValueError(f"Model {self.name} has no provider configured")
+        
+        if self.provider.provider_type == 'ollama':
             return {
-                'type': 'local_ollama',
-                'model': self.model_identifier
-            }
-        elif self.source == 'external' and self.provider:
-            return {
-                'type': self.provider.provider_type,
+                'type': 'ollama',
                 'model': self.model_identifier,
-                'base_url': self.provider.base_url,
+                'base_url': self.provider.base_url
+            }
+        elif self.provider.provider_type == 'anthropic':
+            return {
+                'type': 'anthropic',
+                'model': self.model_identifier,
                 'api_key': self.provider.api_key
             }
         else:
-            raise ValueError(f"Cannot determine routing for model {self.name}")
+            raise ValueError(f"Unknown provider type: {self.provider.provider_type}")
 
 
 class DifficultyProfile(models.Model):
