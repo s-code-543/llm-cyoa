@@ -44,12 +44,24 @@
                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
                         🤖 Anthropic
                     </span>
+                    {% elif provider.provider_type == 'openai' %}
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        ⚡ OpenAI
+                    </span>
+                    {% elif provider.provider_type == 'openrouter' %}
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                        🌐 OpenRouter
+                    </span>
                     {% endif %}
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500">
                     {% if provider.provider_type == 'ollama' %}
                         {{ provider.base_url|truncatechars:40 }}
                     {% elif provider.provider_type == 'anthropic' %}
+                        <span class="text-gray-400">API Key: {{ provider.api_key|slice:":10" }}...</span>
+                    {% elif provider.provider_type == 'openai' %}
+                        <span class="text-gray-400">API Key: {{ provider.api_key|slice:":10" }}...</span>
+                    {% elif provider.provider_type == 'openrouter' %}
                         <span class="text-gray-400">API Key: {{ provider.api_key|slice:":10" }}...</span>
                     {% endif %}
                 </td>

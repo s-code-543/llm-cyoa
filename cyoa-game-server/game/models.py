@@ -431,6 +431,8 @@ class APIProvider(models.Model):
     PROVIDER_TYPES = [
         ('ollama', 'Ollama Server'),
         ('anthropic', 'Anthropic (Claude)'),
+        ('openai', 'OpenAI (GPT)'),
+        ('openrouter', 'OpenRouter'),
     ]
     
     name = models.CharField(
@@ -537,6 +539,18 @@ class LLMModel(models.Model):
         elif self.provider.provider_type == 'anthropic':
             return {
                 'type': 'anthropic',
+                'model': self.model_identifier,
+                'api_key': self.provider.api_key
+            }
+        elif self.provider.provider_type == 'openai':
+            return {
+                'type': 'openai',
+                'model': self.model_identifier,
+                'api_key': self.provider.api_key
+            }
+        elif self.provider.provider_type == 'openrouter':
+            return {
+                'type': 'openrouter',
                 'model': self.model_identifier,
                 'api_key': self.provider.api_key
             }

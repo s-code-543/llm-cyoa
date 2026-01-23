@@ -15,6 +15,8 @@ from functools import wraps
 from .models import Prompt, AuditLog, Configuration, APIProvider, LLMModel, JudgeStep
 from .ollama_utils import get_ollama_models, test_ollama_connection
 from .external_anthropic_utils import test_anthropic_connection, get_anthropic_models
+from .openai_utils import test_openai_connection, get_openai_models
+from .openrouter_utils import test_openrouter_connection, get_openrouter_models
 import markdown2
 
 
@@ -630,9 +632,13 @@ def provider_editor(request, provider_id=None):
             api_key = request.POST.get('api_key', '').strip()
             
             if provider_type == 'ollama':
-                result = test_external_ollama_connection(base_url)
+                result = test_ollama_connection(base_url)
             elif provider_type == 'anthropic':
                 result = test_anthropic_connection(api_key)
+            elif provider_type == 'openai':
+                result = test_openai_connection(api_key)
+            elif provider_type == 'openrouter':
+                result = test_openrouter_connection(api_key)
             else:
                 result = {'success': False, 'message': 'Unknown provider type'}
             
@@ -697,6 +703,10 @@ def test_provider_connection(request):
         result = test_ollama_connection(base_url)
     elif provider_type == 'anthropic':
         result = test_anthropic_connection(api_key)
+    elif provider_type == 'openai':
+        result = test_openai_connection(api_key)
+    elif provider_type == 'openrouter':
+        result = test_openrouter_connection(api_key)
     else:
         result = {'success': False, 'message': 'Unknown provider type'}
     
@@ -730,6 +740,33 @@ def model_list(request):
 
 
 @debug_login_bypass
+@require_http_methods(["POST"])
+def delete_model(request, model_id):
+    """
+    Delete a single model.
+    """
+    try:
+        model = LLMModel.objects.get(pk=model_id)
+        model_name = model.name
+        model.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Model "{model_name}" deleted successfully'
+        })
+    except LLMModel.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Model not found'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error deleting model: {str(e)}'
+        })
+
+
+@debug_login_bypass
 def browse_provider_models(request, provider_id):
     """
     Browse available models from a provider and select which to import.
@@ -742,6 +779,10 @@ def browse_provider_models(request, provider_id):
         available_models = get_ollama_models(provider.base_url)
     elif provider.provider_type == 'anthropic':
         available_models = get_anthropic_models(provider.api_key)
+    elif provider.provider_type == 'openai':
+        available_models = get_openai_models(provider.api_key)
+    elif provider.provider_type == 'openrouter':
+        available_models = get_openrouter_models(provider.api_key)
     
     # Get already imported models for this provider
     imported_model_ids = set(
@@ -753,9 +794,14 @@ def browse_provider_models(request, provider_id):
     for model in available_models:
         model['imported'] = model['id'] in imported_model_ids
     
+    # Serialize models to JSON for template
+    import json
+    models_json = json.dumps(available_models)
+    
     context = {
         'provider': provider,
         'available_models': available_models,
+        'models_json': models_json,
     }
     return render(request, 'cyoa_admin/browse_models.html', context)
 
@@ -783,6 +829,10 @@ def import_models(request):
             available_models = get_ollama_models(provider.base_url)
         elif provider.provider_type == 'anthropic':
             available_models = get_anthropic_models(provider.api_key)
+        elif provider.provider_type == 'openai':
+            available_models = get_openai_models(provider.api_key)
+        elif provider.provider_type == 'openrouter':
+            available_models = get_openrouter_models(provider.api_key)
         else:
             return JsonResponse({'success': False, 'message': 'Unknown provider type'})
         
@@ -866,6 +916,10 @@ def sync_provider_models(request, provider_id):
             available_models = get_ollama_models(provider.base_url)
         elif provider.provider_type == 'anthropic':
             available_models = get_anthropic_models(provider.api_key)
+        elif provider.provider_type == 'openai':
+            available_models = get_openai_models(provider.api_key)
+        elif provider.provider_type == 'openrouter':
+            available_models = get_openrouter_models(provider.api_key)
         else:
             return JsonResponse({'success': False, 'message': 'Unknown provider type'})
         

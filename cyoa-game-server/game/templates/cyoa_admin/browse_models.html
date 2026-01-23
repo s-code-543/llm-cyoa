@@ -22,13 +22,57 @@
                     Ollama server: {{ provider.base_url }}
                 {% elif provider.provider_type == 'anthropic' %}
                     Anthropic Claude models
+                {% elif provider.provider_type == 'openai' %}
+                    OpenAI GPT models
+                {% elif provider.provider_type == 'openrouter' %}
+                    OpenRouter unified API - access to models from multiple providers
                 {% endif %}
             </p>
         </div>
     </div>
 </div>
 
-<div x-data="modelBrowser()" class="space-y-6">
+<div x-data="modelBrowser()" class="space-y-6" style="padding-bottom: 100px;">
+    <!-- Filter and Sort Controls -->
+    <div class="bg-white shadow-md rounded-lg p-4">
+        <div class="flex gap-4 items-center">
+            <div class="flex-1">
+                <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search Models</label>
+                <input type="text" 
+                       id="search"
+                       x-model="searchQuery"
+                       autocomplete="off"
+                       placeholder="Type to filter models (e.g., 'gpt-4', 'claude', 'llama')..."
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            
+            <div class="w-64">
+                <label for="sort" class="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
+                <select id="sort"
+                        x-model="sortBy"
+                        autocomplete="off"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="name-asc">Name (A-Z)</option>
+                    <option value="name-desc">Name (Z-A)</option>
+                    {% if provider.provider_type == 'openrouter' %}
+                    <option value="price-asc">Price (Low to High)</option>
+                    <option value="price-desc">Price (High to Low)</option>
+                    <option value="context-desc">Context Length (Large to Small)</option>
+                    <option value="context-asc">Context Length (Small to Large)</option>
+                    {% endif %}
+                    {% if provider.provider_type == 'ollama' %}
+                    <option value="size-asc">Size (Small to Large)</option>
+                    <option value="size-desc">Size (Large to Small)</option>
+                    {% endif %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="mt-2 text-sm text-gray-500">
+            Showing <span x-text="filteredModels.length"></span> of <span x-text="allModels.length"></span> models
+        </div>
+    </div>
+
     <!-- Model Selection -->
     <div class="bg-white shadow-md rounded-lg overflow-hidden">
         <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
@@ -43,45 +87,48 @@
         </div>
         
         <div class="divide-y divide-gray-200">
-            {% for model in available_models %}
-            <div class="px-6 py-4 hover:bg-gray-50 transition">
-                <label class="flex items-start cursor-pointer">
-                    <input type="checkbox" 
-                           value="{{ model.id }}"
-                           {% if model.imported %}checked{% endif %}
-                           x-on:change="toggleModel('{{ model.id }}', {{ model.imported|lower }})"
-                           class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                    
-                    <div class="ml-3 flex-1">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <div class="text-sm font-medium text-gray-900">
-                                    {{ model.name }}
-                                    {% if model.imported %}
-                                    <span class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                        ✓ Already Imported
-                                    </span>
-                                    {% endif %}
-                                </div>
-                                
-                                {% if model.description %}
-                                <p class="text-sm text-gray-500 mt-1">{{ model.description }}</p>
-                                {% endif %}
-                                
-                                <div class="mt-1 flex items-center space-x-3 text-xs text-gray-400">
-                                    <span>ID: <code class="bg-gray-100 px-1 rounded">{{ model.id }}</code></span>
-                                    {% if model.size %}
-                                    <span>Size: {{ model.size }} bytes</span>
-                                    {% endif %}
+            <template x-for="model in filteredModels" :key="model.id">
+                <div class="px-6 py-4 hover:bg-gray-50 transition">
+                    <label class="flex items-start cursor-pointer">
+                        <input type="checkbox" 
+                               :value="model.id"
+                               :checked="model.imported"
+                               x-on:change="toggleModel(model.id, model.imported)"
+                               class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                        
+                        <div class="ml-3 flex-1">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-gray-900">
+                                        <span x-text="model.name"></span>
+                                        <span x-show="model.imported" class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                            ✓ Already Imported
+                                        </span>
+                                    </div>
+                                    
+                                    <p x-show="model.description" x-text="model.description" class="text-sm text-gray-500 mt-1"></p>
+                                    
+                                    <div class="mt-1 flex items-center space-x-3 text-xs text-gray-400">
+                                        <span>ID: <code class="bg-gray-100 px-1 rounded" x-text="model.id"></code></span>
+                                        <span x-show="model.size" x-text="'Size: ' + formatSize(model.size)"></span>
+                                        <span x-show="model.context_length" x-text="'Context: ' + model.context_length.toLocaleString() + ' tokens'"></span>
+                                        <span x-show="model.pricing && model.pricing.prompt" x-text="'$' + model.pricing.prompt + '/M prompt'"></span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </label>
-            </div>
-            {% empty %}
-            <div class="px-6 py-8 text-center text-gray-500">
+                    </label>
+                </div>
+            </template>
+            
+            <div x-show="filteredModels.length === 0" class="px-6 py-8 text-center text-gray-500">
                 <div class="text-lg mb-2">No models found</div>
+                <p class="text-sm">Try adjusting your search filter</p>
+            </div>
+            
+            {% if not available_models %}
+            <div class="px-6 py-8 text-center text-gray-500">
+                <div class="text-lg mb-2">No models available</div>
                 <p class="text-sm">
                     {% if provider.provider_type == 'ollama' %}
                         Make sure the Ollama server is running and accessible
@@ -90,37 +137,49 @@
                     {% endif %}
                 </p>
             </div>
-            {% endfor %}
+            {% endif %}
         </div>
     </div>
 
-    <!-- Import Button -->
+    <!-- Sticky Action Bar -->
     {% if available_models %}
-    <div class="flex justify-between items-center">
-        <a href="{% url 'admin:provider_editor' provider.id %}" 
-           class="text-gray-600 hover:text-gray-900">
-            ← Back to Provider
-        </a>
-        
-        <div class="space-x-2">
-            <button x-on:click="syncModels()" 
-                    x-bind:disabled="syncing"
-                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg disabled:opacity-50">
-                <span x-show="!syncing">🔄 Scan & Sync</span>
-                <span x-show="syncing">Syncing...</span>
-            </button>
-            
-            <button x-on:click="selectAll()" 
-                    class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
-                Select All Available
-            </button>
-            
-            <button x-on:click="applyChanges()" 
-                    x-bind:disabled="!hasChanges || applying"
-                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg disabled:opacity-50">
-                <span x-show="!applying">Apply Changes</span>
-                <span x-show="applying">Applying...</span>
-            </button>
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <a href="{% url 'admin:provider_editor' provider.id %}" 
+                       class="text-gray-600 hover:text-gray-900">
+                        ← Back to Provider
+                    </a>
+                    <span class="text-sm text-gray-500" x-text="selectedCount + ' models selected'"></span>
+                </div>
+                
+                <div class="flex space-x-2">
+                    <button x-on:click="syncModels()" 
+                            x-bind:disabled="syncing"
+                            class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg disabled:opacity-50 transition">
+                        <span x-show="!syncing">🔄 Scan & Sync</span>
+                        <span x-show="syncing">Syncing...</span>
+                    </button>
+                    
+                    <button x-on:click="selectAllFiltered()" 
+                            class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition">
+                        Select All Visible
+                    </button>
+                    
+                    <button x-on:click="deselectAll()" 
+                            class="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded-lg transition">
+                        Deselect All
+                    </button>
+                    
+                    <button x-on:click="applyChanges()" 
+                            x-bind:disabled="!hasChanges || applying"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg disabled:opacity-50 transition">
+                        <span x-show="!applying">💾 Apply Changes</span>
+                        <span x-show="applying">Applying...</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     {% endif %}
@@ -158,7 +217,8 @@
     "importModelsUrl": "{% url 'admin:import_models' %}",
     "removeModelsUrl": "{% url 'admin:remove_models' %}",
     "syncModelsUrl": "{% url 'admin:sync_provider_models' provider.id %}",
-    "csrfToken": "{{ csrf_token }}"
+    "csrfToken": "{{ csrf_token }}",
+    "models": {{ models_json|safe }}
 }
 </script>
 
@@ -166,13 +226,10 @@
 function modelBrowser() {
     const config = JSON.parse(document.getElementById('browse-models-data').textContent);
     
-    // Track initial state of checkboxes
-    const initialState = new Map();
-    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        initialState.set(cb.value, cb.checked);
-    });
-    
     return {
+        allModels: config.models,
+        searchQuery: '',
+        sortBy: 'name-asc',
         toImport: [],
         toRemove: [],
         applying: false,
@@ -180,12 +237,76 @@ function modelBrowser() {
         statusMessage: null,
         statusSuccess: false,
         
+        get filteredModels() {
+            let filtered = this.allModels;
+            
+            // Apply search filter
+            if (this.searchQuery.trim()) {
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(model => 
+                    model.name.toLowerCase().includes(query) ||
+                    model.id.toLowerCase().includes(query) ||
+                    (model.description && model.description.toLowerCase().includes(query))
+                );
+            }
+            
+            // Apply sorting
+            const sorted = [...filtered];
+            switch (this.sortBy) {
+                case 'name-asc':
+                    sorted.sort((a, b) => a.name.localeCompare(b.name));
+                    break;
+                case 'name-desc':
+                    sorted.sort((a, b) => b.name.localeCompare(a.name));
+                    break;
+                case 'price-asc':
+                    sorted.sort((a, b) => {
+                        const priceA = a.pricing?.prompt || 0;
+                        const priceB = b.pricing?.prompt || 0;
+                        return priceA - priceB;
+                    });
+                    break;
+                case 'price-desc':
+                    sorted.sort((a, b) => {
+                        const priceA = a.pricing?.prompt || 0;
+                        const priceB = b.pricing?.prompt || 0;
+                        return priceB - priceA;
+                    });
+                    break;
+                case 'context-desc':
+                    sorted.sort((a, b) => (b.context_length || 0) - (a.context_length || 0));
+                    break;
+                case 'context-asc':
+                    sorted.sort((a, b) => (a.context_length || 0) - (b.context_length || 0));
+                    break;
+                case 'size-asc':
+                    sorted.sort((a, b) => (a.size || 0) - (b.size || 0));
+                    break;
+                case 'size-desc':
+                    sorted.sort((a, b) => (b.size || 0) - (a.size || 0));
+                    break;
+            }
+            
+            return sorted;
+        },
+        
         get hasChanges() {
             return this.toImport.length > 0 || this.toRemove.length > 0;
         },
         
         get selectedCount() {
-            return document.querySelectorAll('input[type="checkbox"]:checked').length;
+            return this.allModels.filter(m => {
+                const checkbox = document.querySelector(`input[value="${m.id}"]`);
+                return checkbox && checkbox.checked;
+            }).length;
+        },
+        
+        formatSize(bytes) {
+            if (!bytes || bytes === 0) return '';
+            const gb = bytes / (1024 * 1024 * 1024);
+            if (gb >= 1) return gb.toFixed(2) + ' GB';
+            const mb = bytes / (1024 * 1024);
+            return mb.toFixed(2) + ' MB';
         },
         
         toggleModel(modelId, wasImported) {
@@ -206,13 +327,25 @@ function modelBrowser() {
             }
         },
         
-        selectAll() {
+        selectAllFiltered() {
+            this.filteredModels.forEach(model => {
+                const checkbox = document.querySelector(`input[value="${model.id}"]`);
+                if (checkbox && !checkbox.checked) {
+                    checkbox.checked = true;
+                    this.toggleModel(model.id, model.imported);
+                }
+            });
+        },
+        
+        deselectAll() {
             const checkboxes = document.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(cb => {
-                if (!cb.checked) {
-                    cb.checked = true;
-                    const wasImported = initialState.get(cb.value) || false;
-                    this.toggleModel(cb.value, wasImported);
+                if (cb.checked) {
+                    const model = this.allModels.find(m => m.id === cb.value);
+                    if (model) {
+                        cb.checked = false;
+                        this.toggleModel(model.id, model.imported);
+                    }
                 }
             });
         },

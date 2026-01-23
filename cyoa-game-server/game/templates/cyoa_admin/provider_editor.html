@@ -33,6 +33,8 @@
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                     <option value="ollama" {% if provider.provider_type == 'ollama' %}selected{% endif %}>Ollama Server</option>
                     <option value="anthropic" {% if provider.provider_type == 'anthropic' %}selected{% endif %}>Anthropic (Claude)</option>
+                    <option value="openai" {% if provider.provider_type == 'openai' %}selected{% endif %}>OpenAI (GPT)</option>
+                    <option value="openrouter" {% if provider.provider_type == 'openrouter' %}selected{% endif %}>OpenRouter</option>
                 </select>
             </div>
 
@@ -57,16 +59,18 @@
             </div>
 
             <!-- API Key (for Anthropic) -->
-            <div x-show="providerType === 'anthropic'" x-cloak>
+            <div x-show="providerType === 'anthropic' || providerType === 'openai' || providerType === 'openrouter'" x-cloak>
                 <label for="api_key" class="block text-sm font-medium text-gray-700">API Key</label>
                 <input type="password" 
                        name="api_key" 
                        id="api_key" 
                        value="{{ provider.api_key|default:'' }}"
-                       x-bind:required="providerType === 'anthropic'"
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                       placeholder="sk-ant-...">
-                <p class="mt-1 text-sm text-gray-500">Your Anthropic API key</p>
+                       x-bind:required="providerType === 'anthropic' || providerType === 'openai' || providerType === 'openrouter'"
+                       x-bind:placeholder="providerType === 'anthropic' ? 'sk-ant-...' : (providerType === 'openai' ? 'sk-...' : 'sk-or-v1-...')"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                <p class="mt-1 text-sm text-gray-500" x-show="providerType === 'anthropic'">Your Anthropic API key</p>
+                <p class="mt-1 text-sm text-gray-500" x-show="providerType === 'openai'">Your OpenAI API key (get one at <a href="https://platform.openai.com/api-keys" target="_blank" class="text-blue-600 hover:underline">platform.openai.com/api-keys</a>)</p>
+                <p class="mt-1 text-sm text-gray-500" x-show="providerType === 'openrouter'">Your OpenRouter API key (get one at <a href="https://openrouter.ai/keys" target="_blank" class="text-blue-600 hover:underline">openrouter.ai/keys</a>)</p>
             </div>
 
             <!-- Test Status Display -->
