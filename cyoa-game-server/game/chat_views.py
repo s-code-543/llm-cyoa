@@ -14,6 +14,7 @@ from .llm_router import call_llm
 from .config_utils import get_active_configuration, apply_pacing_template
 from .difficulty_utils import calculate_phase_ends, calculate_turn_number, should_trigger_death
 from .refusal_detector import process_potential_refusal
+from .judge_pipeline import run_judge_pipeline
 
 
 def home_page(request):
@@ -346,13 +347,32 @@ def chat_api_send_message(request):
                     'game_blocked': True
                 })
             
-        # Save assistant response (using final response after refusal processing)
+        # Run judge pipeline (post-refusal corrections)
+        judge_info = None
+        if config:
+            judge_input_turn = final_response
+            judge_result = run_judge_pipeline(messages, final_response, config)
+            if judge_result.get('steps'):
+                final_response = judge_result['final_turn']
+                judge_info = judge_result
+                judge_steps = list(config.judge_steps.all().order_by('order', 'id'))
+                AuditLog.objects.create(
+                    original_text=judge_input_turn,
+                    refined_text=final_response,
+                    was_modified=judge_result.get('was_modified', False),
+                    was_refusal=False,
+                    prompt_used=judge_steps[0].judge_prompt if judge_steps else None,
+                    details=judge_result
+                )
+
+        # Save assistant response (using final response after refusal/judge processing)
         assistant_msg = ChatMessage.objects.create(
             conversation=conversation,
             role='assistant',
             content=final_response,
             metadata={
-                'refusal_info': refusal_info if refusal_info['was_refusal'] else None
+                'refusal_info': refusal_info if refusal_info['was_refusal'] else None,
+                'judge_info': judge_info
             }
         )
         
@@ -370,7 +390,8 @@ def chat_api_send_message(request):
                 'role': assistant_msg.role,
                 'content': assistant_msg.content,
                 'created_at': assistant_msg.created_at.isoformat(),
-                'refusal_info': refusal_info if refusal_info['was_refusal'] else None
+                'refusal_info': refusal_info if refusal_info['was_refusal'] else None,
+                'judge_info': judge_info
             },
             'state': game_state
         })

@@ -12,7 +12,7 @@ from django.db.models import Count, Q
 from django.conf import settings
 from django.utils import timezone
 from functools import wraps
-from .models import Prompt, AuditLog, Configuration, APIProvider, LLMModel
+from .models import Prompt, AuditLog, Configuration, APIProvider, LLMModel, JudgeStep
 from .ollama_utils import get_ollama_models, test_ollama_connection
 from .external_anthropic_utils import test_anthropic_connection, get_anthropic_models
 import markdown2
@@ -232,6 +232,7 @@ def prompt_editor(request, prompt_id=None):
         ('turn-correction', 'Turn Correction Prompt'),
         ('game-ending', 'Game Ending Prompt'),
         ('classifier', 'Classifier Prompt'),
+        ('judge', 'Judge Prompt'),
     ]
     
     context = {
@@ -263,6 +264,7 @@ def save_prompt_to_disk(prompt):
         'turn-correction': 'turn_correction_prompts',
         'game-ending': 'game_ending_prompts',
         'classifier': 'classifier_prompts',
+        'judge': 'judge_prompts',
     }
     
     dir_name = type_to_dir.get(prompt.prompt_type)
@@ -332,6 +334,7 @@ def config_editor(request, config_id=None):
     turn_correction_prompts = Prompt.objects.filter(prompt_type='turn-correction').order_by('name', '-version')
     game_ending_prompts = Prompt.objects.filter(prompt_type='game-ending').order_by('name', '-version')
     classifier_prompts = Prompt.objects.filter(prompt_type='classifier').order_by('name', '-version')
+    judge_prompts = Prompt.objects.filter(prompt_type='judge').order_by('name', '-version')
     
     # Get difficulty profiles
     from .models import DifficultyProfile
@@ -369,6 +372,34 @@ def config_editor(request, config_id=None):
             classifier_model_id = request.POST.get('classifier_model') or None
             classifier_timeout = request.POST.get('classifier_timeout', '10')
             classifier_question = request.POST.get('classifier_question', 'Is this a content policy refusal?')
+
+            judge_steps_count = int(request.POST.get('judge_steps_count', '0') or 0)
+            judge_steps_data = []
+            for idx in range(judge_steps_count):
+                prefix = f"judge_steps-{idx}-"
+                step_id = request.POST.get(prefix + 'id') or None
+                deleted = request.POST.get(prefix + 'deleted') == '1'
+                if deleted:
+                    judge_steps_data.append({'id': step_id, 'deleted': True})
+                    continue
+                judge_steps_data.append({
+                    'id': step_id,
+                    'deleted': False,
+                    'order': idx,
+                    'name': request.POST.get(prefix + 'name', '').strip() or f"Step {idx + 1}",
+                    'enabled': request.POST.get(prefix + 'enabled') == '1',
+                    'judge_prompt_id': request.POST.get(prefix + 'judge_prompt') or None,
+                    'judge_model_id': request.POST.get(prefix + 'judge_model') or None,
+                    'judge_timeout': request.POST.get(prefix + 'judge_timeout', '15'),
+                    'rewrite_prompt_id': request.POST.get(prefix + 'rewrite_prompt') or None,
+                    'rewrite_model_id': request.POST.get(prefix + 'rewrite_model') or None,
+                    'rewrite_timeout': request.POST.get(prefix + 'rewrite_timeout', '30'),
+                    'rewrite_instruction': request.POST.get(prefix + 'rewrite_instruction', '').strip(),
+                    'compare_prompt_id': request.POST.get(prefix + 'compare_prompt') or None,
+                    'compare_model_id': request.POST.get(prefix + 'compare_model') or None,
+                    'compare_timeout': request.POST.get(prefix + 'compare_timeout', '15'),
+                    'compare_question': request.POST.get(prefix + 'compare_question', '').strip(),
+                })
             
             if not all([name, adventure_prompt_id, storyteller_model_id, turn_correction_prompt_id, turn_correction_model_id, game_ending_prompt_id]):
                 messages.error(request, 'All fields are required')
@@ -391,6 +422,20 @@ def config_editor(request, config_id=None):
                     phase2_turns_int = int(phase2_turns)
                     phase3_turns_int = int(phase3_turns)
                     phase4_turns_int = int(phase4_turns)
+
+                    for step in judge_steps_data:
+                        if step.get('deleted'):
+                            continue
+                        required_fields = [
+                            step.get('judge_prompt_id'),
+                            step.get('judge_model_id'),
+                            step.get('rewrite_prompt_id'),
+                            step.get('rewrite_model_id'),
+                            step.get('compare_prompt_id'),
+                            step.get('compare_model_id')
+                        ]
+                        if any(field is None for field in required_fields):
+                            raise ValueError('Judge steps are missing required fields')
                     
                     if config:
                         # Update existing
@@ -443,6 +488,54 @@ def config_editor(request, config_id=None):
                             classifier_question=classifier_question
                         )
                         messages.success(request, f'Configuration "{name}" created')
+
+                    # Sync judge steps
+                    existing_steps = {str(step.id): step for step in JudgeStep.objects.filter(configuration=config)}
+                    seen_ids = set()
+                    for step in judge_steps_data:
+                        step_id = step.get('id')
+                        if step.get('deleted'):
+                            if step_id and step_id in existing_steps:
+                                existing_steps[step_id].delete()
+                            continue
+
+                        judge_prompt = Prompt.objects.get(pk=step['judge_prompt_id'])
+                        rewrite_prompt = Prompt.objects.get(pk=step['rewrite_prompt_id'])
+                        compare_prompt = Prompt.objects.get(pk=step['compare_prompt_id'])
+                        judge_model = LLMModel.objects.get(pk=step['judge_model_id'])
+                        rewrite_model = LLMModel.objects.get(pk=step['rewrite_model_id'])
+                        compare_model = LLMModel.objects.get(pk=step['compare_model_id'])
+
+                        if step_id and step_id in existing_steps:
+                            judge_step = existing_steps[step_id]
+                        else:
+                            judge_step = JudgeStep(configuration=config)
+
+                        judge_step.order = step['order']
+                        judge_step.name = step['name']
+                        judge_step.enabled = step['enabled']
+                        judge_step.judge_prompt = judge_prompt
+                        judge_step.judge_model = judge_model
+                        judge_step.judge_timeout = int(step['judge_timeout'])
+                        judge_step.rewrite_prompt = rewrite_prompt
+                        judge_step.rewrite_model = rewrite_model
+                        judge_step.rewrite_timeout = int(step['rewrite_timeout'])
+                        judge_step.rewrite_instruction = step['rewrite_instruction']
+                        judge_step.compare_prompt = compare_prompt
+                        judge_step.compare_model = compare_model
+                        judge_step.compare_timeout = int(step['compare_timeout'])
+                        judge_step.compare_question = step['compare_question']
+                        judge_step.save()
+
+                        if step_id:
+                            seen_ids.add(step_id)
+                        else:
+                            seen_ids.add(str(judge_step.id))
+
+                    # Remove any steps not present in the form
+                    for existing_id, existing_step in existing_steps.items():
+                        if existing_id not in seen_ids:
+                            existing_step.delete()
                     
                     return redirect('admin:config_editor', config_id=config.id)
                 except Prompt.DoesNotExist:
@@ -450,7 +543,7 @@ def config_editor(request, config_id=None):
                 except LLMModel.DoesNotExist:
                     messages.error(request, 'Invalid model selection')
                 except ValueError:
-                    messages.error(request, 'Invalid timeout value')
+                    messages.error(request, 'Invalid timeout value or judge step configuration')
     
     context = {
         'config': config,
@@ -460,6 +553,8 @@ def config_editor(request, config_id=None):
         'game_ending_prompts': game_ending_prompts,
         'classifier_prompts': classifier_prompts,
         'difficulties': difficulties,
+        'judge_prompts': judge_prompts,
+        'judge_steps': JudgeStep.objects.filter(configuration=config).order_by('order', 'id') if config else [],
     }
     return render(request, 'cyoa_admin/config_editor.html', context)
 

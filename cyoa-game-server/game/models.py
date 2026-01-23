@@ -15,6 +15,7 @@ class Prompt(models.Model):
     - 'turn-correction': Prompts for correcting refused turns (both regular and game-ending)
     - 'game-ending': Prompts for generating death/failure scenes
     - 'classifier': Prompts for detecting refusals
+    - 'judge': Prompts for evaluating and comparing turn quality
     
     Each prompt has its own title/name for identification within its type.
     """
@@ -25,12 +26,13 @@ class Prompt(models.Model):
         'turn-correction': 'Turn Correction Prompts',
         'game-ending': 'Game Ending Prompts',
         'classifier': 'Classifier Prompts',
+        'judge': 'Judge Prompts',
     }
     
     prompt_type = models.CharField(
         max_length=50,
         db_index=True,
-        help_text="Category: adventure, turn-correction, game-ending, classifier"
+        help_text="Category: adventure, turn-correction, game-ending, classifier, judge"
     )
     name = models.CharField(
         max_length=100,
@@ -115,6 +117,11 @@ class AuditLog(models.Model):
         blank=True,
         related_name='correction_logs',
         help_text="Judge prompt used for correction (if refusal was detected)"
+    )
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured details for judge pipelines or other processing"
     )
     
     class Meta:
@@ -290,9 +297,6 @@ class Configuration(models.Model):
             'PHASE3_END': self.phase1_turns + self.phase2_turns + self.phase3_turns,
             'PHASE4_END': self.total_turns,
         }
-
-
-
     @classmethod
     def wait_for_response(cls, cache_key, timeout=30.0, poll_interval=0.5):
         """
@@ -326,6 +330,98 @@ class Configuration(models.Model):
         cutoff = timezone.now() - timezone.timedelta(seconds=max_age_seconds)
         deleted_count, _ = cls.objects.filter(created_at__lt=cutoff).delete()
         return deleted_count
+
+
+class JudgeStep(models.Model):
+    """
+    Configurable judge pipeline step for post-processing story turns.
+    Each step evaluates a turn, optionally rewrites it, then compares the result.
+    """
+    configuration = models.ForeignKey(
+        Configuration,
+        on_delete=models.CASCADE,
+        related_name='judge_steps',
+        help_text="Configuration this judge step belongs to"
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text="Execution order (lower runs first)"
+    )
+    name = models.CharField(
+        max_length=100,
+        default='judge',
+        help_text="Short label for this judge step (e.g., 'difficulty')"
+    )
+    enabled = models.BooleanField(
+        default=True,
+        help_text="Enable this judge step"
+    )
+    judge_prompt = models.ForeignKey(
+        Prompt,
+        on_delete=models.PROTECT,
+        related_name='judge_steps_as_evaluator',
+        limit_choices_to={'prompt_type': 'judge'},
+        help_text="Prompt to evaluate the current turn"
+    )
+    judge_model = models.ForeignKey(
+        'LLMModel',
+        on_delete=models.PROTECT,
+        related_name='judge_steps_as_evaluator',
+        help_text="Model to use for judge evaluation"
+    )
+    judge_timeout = models.IntegerField(
+        default=15,
+        help_text="Timeout in seconds for judge evaluation"
+    )
+    rewrite_prompt = models.ForeignKey(
+        Prompt,
+        on_delete=models.PROTECT,
+        related_name='judge_steps_as_rewriter',
+        limit_choices_to={'prompt_type': 'turn-correction'},
+        help_text="Prompt to rewrite the turn if judge fails"
+    )
+    rewrite_model = models.ForeignKey(
+        'LLMModel',
+        on_delete=models.PROTECT,
+        related_name='judge_steps_as_rewriter',
+        help_text="Model to use for rewrite"
+    )
+    rewrite_timeout = models.IntegerField(
+        default=30,
+        help_text="Timeout in seconds for rewrite generation"
+    )
+    rewrite_instruction = models.TextField(
+        blank=True,
+        help_text="User instruction appended when requesting a rewrite"
+    )
+    compare_prompt = models.ForeignKey(
+        Prompt,
+        on_delete=models.PROTECT,
+        related_name='judge_steps_as_comparator',
+        limit_choices_to={'prompt_type': 'judge'},
+        help_text="Prompt to compare original vs rewritten turn"
+    )
+    compare_model = models.ForeignKey(
+        'LLMModel',
+        on_delete=models.PROTECT,
+        related_name='judge_steps_as_comparator',
+        help_text="Model to use for comparison"
+    )
+    compare_timeout = models.IntegerField(
+        default=15,
+        help_text="Timeout in seconds for comparison"
+    )
+    compare_question = models.TextField(
+        default="Is the revised turn better than the original?",
+        help_text="Question asked to compare original vs rewritten turn"
+    )
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        status = "enabled" if self.enabled else "disabled"
+        return f"{self.configuration.name} - {self.name} ({status})"
 
 
 class APIProvider(models.Model):

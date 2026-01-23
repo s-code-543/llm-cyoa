@@ -44,6 +44,7 @@ class Command(BaseCommand):
             'turn_correction_prompts': 'turn-correction',
             'game_ending_prompts': 'game-ending',
             'classifier_prompts': 'classifier',
+            'judge_prompts': 'judge',
         }
         
         for dir_name, prompt_type in dir_config.items():
