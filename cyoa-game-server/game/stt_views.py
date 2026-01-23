@@ -96,7 +96,7 @@ def transcribe_with_whisper_api(wav_path: str) -> tuple[str | None, str | None]:
 
                 # Remove common Whisper hallucinations at the end of the text
                 # These often appear when the audio ends with silence or noise
-                hallucination_pattern = r'(?i)(?:^|\s+)(?:(?:Thanks?|Thank you)(?:\s+for\s+(?:watching|listening|playing))?|Okay|Ok|Bye|Subtitles\s+by\s+.*?|Amara\.org.*?)\W*$'
+                hallucination_pattern = r'(?i)(?:^|\s+)(?:(?:Thanks?|Thank you)(?:\s+for\s+(?:watching|listening|playing))?|Okay|Ok|Bye|Yes|Subtitles\s+by\s+.*?)\W*$'
 
                 while True:
                     new_transcript = re.sub(hallucination_pattern, '', transcript).strip()
