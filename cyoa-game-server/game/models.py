@@ -164,26 +164,29 @@ class Configuration(models.Model):
         help_text="Model to use for story generation"
     )
     storyteller_timeout = models.IntegerField(
-        default=30,
-        help_text="Timeout in seconds for storyteller generation (default: 30)"
+        default=60,
+        help_text="Timeout in seconds for storyteller generation (default: 60)"
     )
     turn_correction_prompt = models.ForeignKey(
         Prompt,
         on_delete=models.PROTECT,
         related_name='configs_as_turn_correction',
         limit_choices_to={'prompt_type': 'turn-correction'},
-        help_text="Turn correction prompt for regenerating refused turns"
+        null=True,
+        blank=True,
+        help_text="Turn correction prompt for regenerating refused turns (only needed if refusal detection enabled)"
     )
     turn_correction_model = models.ForeignKey(
         'LLMModel',
         on_delete=models.PROTECT,
         related_name='configs_as_turn_correction',
         null=True,
-        help_text="Model to use for turn correction"
+        blank=True,
+        help_text="Model to use for turn correction (only needed if refusal detection enabled)"
     )
     turn_correction_timeout = models.IntegerField(
-        default=30,
-        help_text="Timeout in seconds for turn correction (default: 30)"
+        default=60,
+        help_text="Timeout in seconds for turn correction (default: 60)"
     )
     game_ending_turn_correction_prompt = models.ForeignKey(
         Prompt,
@@ -254,8 +257,8 @@ class Configuration(models.Model):
         help_text="Prompt to use for detecting refusals"
     )
     classifier_timeout = models.IntegerField(
-        default=10,
-        help_text="Timeout in seconds for classifier (default: 10)"
+        default=60,
+        help_text="Timeout in seconds for classifier (default: 60)"
     )
     classifier_question = models.TextField(
         default="Is this a content policy refusal?",
@@ -356,64 +359,98 @@ class JudgeStep(models.Model):
         default=True,
         help_text="Enable this judge step"
     )
-    judge_prompt = models.ForeignKey(
+    
+    # === CLASSIFIER PHASE ===
+    # Evaluates single turn: "Does this need fixing?" (optional - skip to always rewrite)
+    classifier_prompt = models.ForeignKey(
         Prompt,
         on_delete=models.PROTECT,
-        related_name='judge_steps_as_evaluator',
-        limit_choices_to={'prompt_type': 'judge'},
-        help_text="Prompt to evaluate the current turn"
+        related_name='judge_steps_as_classifier',
+        limit_choices_to={'prompt_type': 'classifier'},
+        null=True,
+        blank=True,
+        help_text="Classifier prompt (optional - if omitted, always proceeds to rewrite)"
     )
-    judge_model = models.ForeignKey(
+    classifier_model = models.ForeignKey(
         'LLMModel',
         on_delete=models.PROTECT,
-        related_name='judge_steps_as_evaluator',
-        help_text="Model to use for judge evaluation"
+        related_name='judge_steps_as_classifier',
+        null=True,
+        blank=True,
+        help_text="Model for classification"
     )
-    judge_timeout = models.IntegerField(
-        default=15,
-        help_text="Timeout in seconds for judge evaluation"
+    classifier_timeout = models.IntegerField(
+        default=60,
+        help_text="Timeout in seconds for classification"
     )
+    classifier_question = models.TextField(
+        default="Does this turn have issues that make it invalid?",
+        help_text="Question to ask classifier about the turn"
+    )
+    classifier_use_full_context = models.BooleanField(
+        default=False,
+        help_text="Use full message history (true) or just turn text (false)"
+    )
+    
+    # === REWRITER PHASE ===
+    # Corrects/rewrites the turn using context
     rewrite_prompt = models.ForeignKey(
         Prompt,
         on_delete=models.PROTECT,
         related_name='judge_steps_as_rewriter',
         limit_choices_to={'prompt_type': 'turn-correction'},
-        help_text="Prompt to rewrite the turn if judge fails"
+        help_text="Turn correction prompt for rewriting"
     )
     rewrite_model = models.ForeignKey(
         'LLMModel',
         on_delete=models.PROTECT,
         related_name='judge_steps_as_rewriter',
-        help_text="Model to use for rewrite"
+        help_text="Model for rewriting turns"
     )
     rewrite_timeout = models.IntegerField(
-        default=30,
+        default=60,
         help_text="Timeout in seconds for rewrite generation"
     )
     rewrite_instruction = models.TextField(
+        default="Re-write this text to be a valid choose your own adventure turn following all the rules:",
         blank=True,
-        help_text="User instruction appended when requesting a rewrite"
+        help_text="Additional instruction appended to rewrite request"
     )
+    rewrite_use_full_context = models.BooleanField(
+        default=True,
+        help_text="Use full message history (true) or just turn text (false)"
+    )
+    max_rewrite_attempts = models.IntegerField(
+        default=3,
+        help_text="Maximum rewrite attempts before giving up"
+    )
+    
+    # === COMPARE PHASE ===
+    # Judges original vs rewritten: "Is the rewrite better?"
     compare_prompt = models.ForeignKey(
         Prompt,
         on_delete=models.PROTECT,
         related_name='judge_steps_as_comparator',
         limit_choices_to={'prompt_type': 'judge'},
-        help_text="Prompt to compare original vs rewritten turn"
+        help_text="Judge prompt to compare original vs rewritten turn"
     )
     compare_model = models.ForeignKey(
         'LLMModel',
         on_delete=models.PROTECT,
         related_name='judge_steps_as_comparator',
-        help_text="Model to use for comparison"
+        help_text="Model for comparing turns"
     )
     compare_timeout = models.IntegerField(
-        default=15,
+        default=60,
         help_text="Timeout in seconds for comparison"
     )
     compare_question = models.TextField(
-        default="Is the revised turn better than the original?",
-        help_text="Question asked to compare original vs rewritten turn"
+        default="Is the revised turn better and more valid than the original?",
+        help_text="Question to ask when comparing original vs rewritten turn"
+    )
+    compare_use_full_context = models.BooleanField(
+        default=False,
+        help_text="Use full message history (true) or just the two turns (false)"
     )
 
     class Meta:

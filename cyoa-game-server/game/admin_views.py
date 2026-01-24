@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q
+from django.db.models.deletion import ProtectedError
 from django.conf import settings
 from django.utils import timezone
 from functools import wraps
@@ -390,31 +391,72 @@ def config_editor(request, config_id=None):
                     'order': idx,
                     'name': request.POST.get(prefix + 'name', '').strip() or f"Step {idx + 1}",
                     'enabled': request.POST.get(prefix + 'enabled') == '1',
-                    'judge_prompt_id': request.POST.get(prefix + 'judge_prompt') or None,
-                    'judge_model_id': request.POST.get(prefix + 'judge_model') or None,
-                    'judge_timeout': request.POST.get(prefix + 'judge_timeout', '15'),
+                    # Classifier phase (optional)
+                    'classifier_prompt_id': request.POST.get(prefix + 'classifier_prompt') or None,
+                    'classifier_model_id': request.POST.get(prefix + 'classifier_model') or None,
+                    'classifier_timeout': request.POST.get(prefix + 'classifier_timeout', '10'),
+                    'classifier_question': request.POST.get(prefix + 'classifier_question', 'Does this turn have issues?').strip(),
+                    'classifier_use_full_context': request.POST.get(prefix + 'classifier_use_full_context') == '1',
+                    # Rewrite phase
                     'rewrite_prompt_id': request.POST.get(prefix + 'rewrite_prompt') or None,
                     'rewrite_model_id': request.POST.get(prefix + 'rewrite_model') or None,
                     'rewrite_timeout': request.POST.get(prefix + 'rewrite_timeout', '30'),
                     'rewrite_instruction': request.POST.get(prefix + 'rewrite_instruction', '').strip(),
+                    'rewrite_use_full_context': request.POST.get(prefix + 'rewrite_use_full_context') == '1',
+                    'max_rewrite_attempts': request.POST.get(prefix + 'max_rewrite_attempts', '3'),
+                    # Compare phase
                     'compare_prompt_id': request.POST.get(prefix + 'compare_prompt') or None,
                     'compare_model_id': request.POST.get(prefix + 'compare_model') or None,
                     'compare_timeout': request.POST.get(prefix + 'compare_timeout', '15'),
-                    'compare_question': request.POST.get(prefix + 'compare_question', '').strip(),
+                    'compare_question': request.POST.get(prefix + 'compare_question', 'Is the revised turn better than the original?').strip(),
+                    'compare_use_full_context': request.POST.get(prefix + 'compare_use_full_context') == '1',
                 })
             
-            if not all([name, adventure_prompt_id, storyteller_model_id, turn_correction_prompt_id, turn_correction_model_id, game_ending_prompt_id]):
-                messages.error(request, 'All fields are required')
+            # Build list of missing required fields
+            missing_fields = []
+            if not name:
+                missing_fields.append('Configuration Name')
+            if not adventure_prompt_id:
+                missing_fields.append('Adventure Prompt')
+            if not storyteller_model_id:
+                missing_fields.append('Storyteller Model')
+            if not game_ending_prompt_id:
+                missing_fields.append('Game Ending Prompt')
+            
+            # Only validate refusal detection fields if enabled
+            if enable_refusal_detection:
+                if not turn_correction_prompt_id:
+                    missing_fields.append('Turn Correction Prompt')
+                if not turn_correction_model_id:
+                    missing_fields.append('Turn Correction Model')
+                if not classifier_prompt_id:
+                    missing_fields.append('Classifier Prompt')
+                if not classifier_model_id:
+                    missing_fields.append('Classifier Model')
+            
+            if missing_fields:
+                error_msg = 'Missing required fields: ' + ', '.join(missing_fields)
+                messages.error(request, error_msg)
             else:
                 try:
                     adventure_prompt = Prompt.objects.get(pk=adventure_prompt_id)
-                    turn_correction_prompt = Prompt.objects.get(pk=turn_correction_prompt_id)
-                    game_ending_turn_correction_prompt = Prompt.objects.get(pk=game_ending_turn_correction_prompt_id) if game_ending_turn_correction_prompt_id else None
                     game_ending_prompt = Prompt.objects.get(pk=game_ending_prompt_id)
                     storyteller_model = LLMModel.objects.get(pk=storyteller_model_id)
-                    turn_correction_model = LLMModel.objects.get(pk=turn_correction_model_id)
-                    classifier_prompt = Prompt.objects.get(pk=classifier_prompt_id) if classifier_prompt_id else None
-                    classifier_model = LLMModel.objects.get(pk=classifier_model_id) if classifier_model_id else None
+                    
+                    # Only fetch refusal detection related objects if enabled
+                    if enable_refusal_detection:
+                        turn_correction_prompt = Prompt.objects.get(pk=turn_correction_prompt_id)
+                        turn_correction_model = LLMModel.objects.get(pk=turn_correction_model_id)
+                        classifier_prompt = Prompt.objects.get(pk=classifier_prompt_id)
+                        classifier_model = LLMModel.objects.get(pk=classifier_model_id)
+                    else:
+                        # Set to None when disabled
+                        turn_correction_prompt = None
+                        turn_correction_model = None
+                        classifier_prompt = None
+                        classifier_model = None
+                    
+                    game_ending_turn_correction_prompt = Prompt.objects.get(pk=game_ending_turn_correction_prompt_id) if game_ending_turn_correction_prompt_id else None
                     difficulty = DifficultyProfile.objects.get(pk=difficulty_id) if difficulty_id else None
                     storyteller_timeout_int = int(storyteller_timeout)
                     turn_correction_timeout_int = int(turn_correction_timeout)
@@ -428,16 +470,15 @@ def config_editor(request, config_id=None):
                     for step in judge_steps_data:
                         if step.get('deleted'):
                             continue
+                        # Classifier is optional, but rewrite and compare are required
                         required_fields = [
-                            step.get('judge_prompt_id'),
-                            step.get('judge_model_id'),
                             step.get('rewrite_prompt_id'),
                             step.get('rewrite_model_id'),
                             step.get('compare_prompt_id'),
                             step.get('compare_model_id')
                         ]
                         if any(field is None for field in required_fields):
-                            raise ValueError('Judge steps are missing required fields')
+                            raise ValueError('Judge steps require rewrite and compare settings (classifier is optional)')
                     
                     if config:
                         # Update existing
@@ -501,12 +542,15 @@ def config_editor(request, config_id=None):
                                 existing_steps[step_id].delete()
                             continue
 
-                        judge_prompt = Prompt.objects.get(pk=step['judge_prompt_id'])
+                        # Fetch required objects
                         rewrite_prompt = Prompt.objects.get(pk=step['rewrite_prompt_id'])
                         compare_prompt = Prompt.objects.get(pk=step['compare_prompt_id'])
-                        judge_model = LLMModel.objects.get(pk=step['judge_model_id'])
                         rewrite_model = LLMModel.objects.get(pk=step['rewrite_model_id'])
                         compare_model = LLMModel.objects.get(pk=step['compare_model_id'])
+                        
+                        # Fetch optional classifier objects
+                        classifier_prompt = Prompt.objects.get(pk=step['classifier_prompt_id']) if step['classifier_prompt_id'] else None
+                        classifier_model = LLMModel.objects.get(pk=step['classifier_model_id']) if step['classifier_model_id'] else None
 
                         if step_id and step_id in existing_steps:
                             judge_step = existing_steps[step_id]
@@ -516,17 +560,29 @@ def config_editor(request, config_id=None):
                         judge_step.order = step['order']
                         judge_step.name = step['name']
                         judge_step.enabled = step['enabled']
-                        judge_step.judge_prompt = judge_prompt
-                        judge_step.judge_model = judge_model
-                        judge_step.judge_timeout = int(step['judge_timeout'])
+                        
+                        # Classifier phase (optional)
+                        judge_step.classifier_prompt = classifier_prompt
+                        judge_step.classifier_model = classifier_model
+                        judge_step.classifier_timeout = int(step['classifier_timeout'])
+                        judge_step.classifier_question = step['classifier_question']
+                        judge_step.classifier_use_full_context = step['classifier_use_full_context']
+                        
+                        # Rewrite phase
                         judge_step.rewrite_prompt = rewrite_prompt
                         judge_step.rewrite_model = rewrite_model
                         judge_step.rewrite_timeout = int(step['rewrite_timeout'])
                         judge_step.rewrite_instruction = step['rewrite_instruction']
+                        judge_step.rewrite_use_full_context = step['rewrite_use_full_context']
+                        judge_step.max_rewrite_attempts = int(step['max_rewrite_attempts'])
+                        
+                        # Compare phase
                         judge_step.compare_prompt = compare_prompt
                         judge_step.compare_model = compare_model
                         judge_step.compare_timeout = int(step['compare_timeout'])
                         judge_step.compare_question = step['compare_question']
+                        judge_step.compare_use_full_context = step['compare_use_full_context']
+                        
                         judge_step.save()
 
                         if step_id:
@@ -547,6 +603,12 @@ def config_editor(request, config_id=None):
                 except ValueError:
                     messages.error(request, 'Invalid timeout value or judge step configuration')
     
+    # Preserve form data on validation errors
+    form_data = None
+    if request.method == 'POST' and messages.get_messages(request):
+        # If there are error messages, preserve the POST data
+        form_data = request.POST
+    
     context = {
         'config': config,
         'all_models': LLMModel.objects.all().order_by('provider__name', 'name'),
@@ -557,6 +619,7 @@ def config_editor(request, config_id=None):
         'difficulties': difficulties,
         'judge_prompts': judge_prompts,
         'judge_steps': JudgeStep.objects.filter(configuration=config).order_by('order', 'id') if config else [],
+        'form_data': form_data,
     }
     return render(request, 'cyoa_admin/config_editor.html', context)
 
@@ -758,6 +821,62 @@ def delete_model(request, model_id):
         return JsonResponse({
             'success': False,
             'message': 'Model not found'
+        })
+    except ProtectedError as e:
+        # Model is still referenced by configurations or judge steps
+        model = LLMModel.objects.get(pk=model_id)
+        
+        # Find all configurations using this model
+        configs_using = []
+        
+        # Check direct configuration references
+        for config in Configuration.objects.filter(
+            Q(storyteller_model=model) |
+            Q(turn_correction_model=model) |
+            Q(classifier_model=model)
+        ).distinct():
+            roles = []
+            if config.storyteller_model == model:
+                roles.append('storyteller')
+            if config.turn_correction_model == model:
+                roles.append('turn correction')
+            if config.classifier_model == model:
+                roles.append('classifier')
+            configs_using.append(f'"{config.name}" ({", ".join(roles)})')
+        
+        # Check judge steps
+        judge_steps = JudgeStep.objects.filter(
+            Q(classifier_model=model) |
+            Q(rewrite_model=model) |
+            Q(compare_model=model)
+        ).select_related('configuration')
+        
+        for step in judge_steps:
+            roles = []
+            if step.classifier_model == model:
+                roles.append(f'judge step "{step.name}" classifier')
+            if step.rewrite_model == model:
+                roles.append(f'judge step "{step.name}" rewriter')
+            if step.compare_model == model:
+                roles.append(f'judge step "{step.name}" comparator')
+            
+            config_entry = f'"{step.configuration.name}" ({", ".join(roles)})'
+            if config_entry not in configs_using:
+                configs_using.append(config_entry)
+        
+        if configs_using:
+            configs_list = '\n• '.join(configs_using)
+            message = (
+                f'Cannot delete model "{model.name}" because it is currently used by:\n\n'
+                f'• {configs_list}\n\n'
+                f'Please update or delete these configurations first.'
+            )
+        else:
+            message = f'Cannot delete model "{model.name}" because it is still referenced by other objects.'
+        
+        return JsonResponse({
+            'success': False,
+            'message': message
         })
     except Exception as e:
         return JsonResponse({

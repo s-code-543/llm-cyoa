@@ -54,6 +54,8 @@
                         class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                     <option value="name-asc">Name (A-Z)</option>
                     <option value="name-desc">Name (Z-A)</option>
+                    <option value="added-desc">Recently Added First</option>
+                    <option value="added-asc">Oldest Added First</option>
                     {% if provider.provider_type == 'openrouter' %}
                     <option value="price-asc">Price (Low to High)</option>
                     <option value="price-desc">Price (High to Low)</option>
@@ -112,7 +114,9 @@
                                         <span>ID: <code class="bg-gray-100 px-1 rounded" x-text="model.id"></code></span>
                                         <span x-show="model.size" x-text="'Size: ' + formatSize(model.size)"></span>
                                         <span x-show="model.context_length" x-text="'Context: ' + model.context_length.toLocaleString() + ' tokens'"></span>
-                                        <span x-show="model.pricing && model.pricing.prompt" x-text="'$' + model.pricing.prompt + '/M prompt'"></span>
+                                        <span x-show="model.pricing && model.pricing.prompt" 
+                                              x-html="formatPrice(model.pricing.prompt, model.pricing.completion)"
+                                              class="font-mono font-semibold"></span>
                                     </div>
                                 </div>
                             </div>
@@ -259,6 +263,26 @@ function modelBrowser() {
                 case 'name-desc':
                     sorted.sort((a, b) => b.name.localeCompare(a.name));
                     break;
+                case 'added-desc':
+                    sorted.sort((a, b) => {
+                        // Sort imported models first, then by timestamp
+                        if (a.imported && !b.imported) return -1;
+                        if (!a.imported && b.imported) return 1;
+                        const timeA = a.imported_at || a.added_at || 0;
+                        const timeB = b.imported_at || b.added_at || 0;
+                        return timeB - timeA; // Most recent first
+                    });
+                    break;
+                case 'added-asc':
+                    sorted.sort((a, b) => {
+                        // Sort imported models first, then by timestamp
+                        if (a.imported && !b.imported) return -1;
+                        if (!a.imported && b.imported) return 1;
+                        const timeA = a.imported_at || a.added_at || 0;
+                        const timeB = b.imported_at || b.added_at || 0;
+                        return timeA - timeB; // Oldest first
+                    });
+                    break;
                 case 'price-asc':
                     sorted.sort((a, b) => {
                         const priceA = a.pricing?.prompt || 0;
@@ -307,6 +331,43 @@ function modelBrowser() {
             if (gb >= 1) return gb.toFixed(2) + ' GB';
             const mb = bytes / (1024 * 1024);
             return mb.toFixed(2) + ' MB';
+        },
+        
+        formatPrice(promptPrice, completionPrice) {
+            if (!promptPrice) return '';
+            
+            // Convert to numbers and determine the best scale
+            const prompt = parseFloat(promptPrice);
+            const completion = completionPrice ? parseFloat(completionPrice) : null;
+            
+            // Find appropriate multiplier to get readable numbers (between 0.01 and 999)
+            let multiplier = 1; // 1M tokens
+            let suffix = '1M';
+            let decimals = 2;
+            
+            // Check if we need larger scale
+            if (prompt < 0.00001) {
+                multiplier = 1000; // 1B tokens
+                suffix = '1B';
+                decimals = 4;
+            } else if (prompt < 0.0001) {
+                multiplier = 100; // 100M tokens
+                suffix = '100M';
+                decimals = 3;
+            } else if (prompt < 0.001) {
+                multiplier = 10; // 10M tokens
+                suffix = '10M';
+                decimals = 2;
+            }
+            
+            const promptCost = (prompt * multiplier).toFixed(decimals);
+            const completionCost = completion ? (completion * multiplier).toFixed(decimals) : null;
+            
+            if (completionCost) {
+                return `<span class="text-blue-600">$${promptCost}</span> / <span class="text-purple-600">$${completionCost}</span> per ${suffix} tokens <span class="text-gray-400">(in/out)</span>`;
+            } else {
+                return `<span class="text-blue-600">$${promptCost}</span> per ${suffix} tokens`;
+            }
         },
         
         toggleModel(modelId, wasImported) {

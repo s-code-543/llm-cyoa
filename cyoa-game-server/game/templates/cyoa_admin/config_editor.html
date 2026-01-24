@@ -12,14 +12,14 @@
         <div>
             <label for="name" class="block text-sm font-medium text-gray-700 mb-2">Configuration Name *</label>
             <input type="text" name="name" id="name" required
-                   value="{% if config %}{{ config.name }}{% endif %}"
+                   value="{% if form_data %}{{ form_data.name }}{% elif config %}{{ config.name }}{% endif %}"
                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
         
         <div>
             <label for="description" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
             <textarea name="description" id="description" rows="2"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">{% if config %}{{ config.description }}{% endif %}</textarea>
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">{% if form_data %}{{ form_data.description }}{% elif config %}{{ config.description }}{% endif %}</textarea>
         </div>
         
         <div class="border-t border-gray-200 pt-6">
@@ -32,7 +32,8 @@
                     <option value="">-- Select Adventure --</option>
                     {% for prompt in adventure_prompts %}
                     <option value="{{ prompt.id }}"
-                            {% if config and config.adventure_prompt.id == prompt.id %}selected{% endif %}>
+                            {% if form_data and form_data.adventure_prompt == prompt.id|stringformat:"s" %}selected
+                            {% elif config and config.adventure_prompt.id == prompt.id %}selected{% endif %}>
                         {{ prompt.name }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
                     </option>
                     {% endfor %}
@@ -43,10 +44,10 @@
                 <label for="total_turns" class="block text-sm font-medium text-gray-700 mb-2">Game Length *</label>
                 <select name="total_turns" id="total_turns" required
                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="5" {% if config and config.total_turns == 5 %}selected{% endif %}>5 turns (Quick test)</option>
-                    <option value="10" {% if config and config.total_turns == 10 %}selected{% elif not config %}selected{% endif %}>10 turns (Standard)</option>
-                    <option value="15" {% if config and config.total_turns == 15 %}selected{% endif %}>15 turns (Extended)</option>
-                    <option value="20" {% if config and config.total_turns == 20 %}selected{% endif %}>20 turns (Epic)</option>
+                    <option value="5" {% if form_data and form_data.total_turns == "5" %}selected{% elif config and config.total_turns == 5 %}selected{% endif %}>5 turns (Quick test)</option>
+                    <option value="10" {% if form_data and form_data.total_turns == "10" %}selected{% elif config and config.total_turns == 10 %}selected{% elif not config and not form_data %}selected{% endif %}>10 turns (Standard)</option>
+                    <option value="15" {% if form_data and form_data.total_turns == "15" %}selected{% elif config and config.total_turns == 15 %}selected{% endif %}>15 turns (Extended)</option>
+                    <option value="20" {% if form_data and form_data.total_turns == "20" %}selected{% elif config and config.total_turns == 20 %}selected{% endif %}>20 turns (Epic)</option>
                 </select>
             </div>
             
@@ -59,7 +60,7 @@
                             Phase 1: Introduction/Exposition
                         </label>
                         <input type="number" name="phase1_turns" id="phase1_turns" required min="1"
-                               value="{% if config %}{{ config.phase1_turns }}{% else %}3{% endif %}"
+                               value="{% if form_data %}{{ form_data.phase1_turns }}{% elif config %}{{ config.phase1_turns }}{% else %}3{% endif %}"
                                class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
@@ -67,7 +68,7 @@
                             Phase 2: Victory/Loss Conditions
                         </label>
                         <input type="number" name="phase2_turns" id="phase2_turns" required min="1"
-                               value="{% if config %}{{ config.phase2_turns }}{% else %}3{% endif %}"
+                               value="{% if form_data %}{{ form_data.phase2_turns }}{% elif config %}{{ config.phase2_turns }}{% else %}3{% endif %}"
                                class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
@@ -75,7 +76,7 @@
                             Phase 3: Progress/Twists
                         </label>
                         <input type="number" name="phase3_turns" id="phase3_turns" required min="1"
-                               value="{% if config %}{{ config.phase3_turns }}{% else %}3{% endif %}"
+                               value="{% if form_data %}{{ form_data.phase3_turns }}{% elif config %}{{ config.phase3_turns }}{% else %}3{% endif %}"
                                class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
@@ -83,7 +84,7 @@
                             Phase 4: Finale Setup
                         </label>
                         <input type="number" name="phase4_turns" id="phase4_turns" required min="1"
-                               value="{% if config %}{{ config.phase4_turns }}{% else %}1{% endif %}"
+                               value="{% if form_data %}{{ form_data.phase4_turns }}{% elif config %}{{ config.phase4_turns }}{% else %}1{% endif %}"
                                class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
@@ -105,7 +106,8 @@
                     <optgroup label="{{ provider_group.grouper.name }}">
                         {% for model in provider_group.list %}
                         <option value="{{ model.id }}"
-                                {% if config and config.storyteller_model.id == model.id %}selected{% endif %}>
+                                {% if form_data and form_data.storyteller_model == model.id|stringformat:"s" %}selected
+                                {% elif config and config.storyteller_model.id == model.id %}selected{% endif %}>
                             {{ model.name }}
                         </option>
                         {% endfor %}
@@ -119,7 +121,7 @@
                     Storyteller Timeout (seconds) *
                 </label>
                 <input type="number" name="storyteller_timeout" id="storyteller_timeout" required min="1" max="300"
-                       value="{% if config %}{{ config.storyteller_timeout }}{% else %}30{% endif %}"
+                       value="{% if form_data %}{{ form_data.storyteller_timeout }}{% elif config %}{{ config.storyteller_timeout }}{% else %}60{% endif %}"
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <p class="mt-1 text-sm text-gray-500">How long to wait for story generation (1-300 seconds)</p>
             </div>
@@ -133,7 +135,8 @@
                     <option value="">None (no difficulty modifiers)</option>
                     {% for diff in difficulties %}
                     <option value="{{ diff.id }}"
-                            {% if config and config.difficulty_id == diff.id %}selected{% endif %}>
+                            {% if form_data and form_data.difficulty == diff.id|stringformat:"s" %}selected
+                            {% elif config and config.difficulty_id == diff.id %}selected{% endif %}>
                         {{ diff.name }}{% if diff.description %} - {{ diff.description|truncatewords:8 }}{% endif %}
                     </option>
                     {% endfor %}
@@ -153,7 +156,8 @@
                     <option value="">-- Select Game Ending Prompt --</option>
                     {% for prompt in game_ending_prompts %}
                     <option value="{{ prompt.id }}"
-                            {% if config and config.game_ending_prompt_id == prompt.id %}selected{% endif %}>
+                            {% if form_data and form_data.game_ending_prompt == prompt.id|stringformat:"s" %}selected
+                            {% elif config and config.game_ending_prompt_id == prompt.id %}selected{% endif %}>
                         {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
                     </option>
                     {% endfor %}
@@ -170,7 +174,8 @@
             <div class="mb-4">
                 <label class="flex items-center">
                     <input type="checkbox" name="enable_refusal_detection" id="enable_refusal_detection" value="1"
-                           {% if not config or config.enable_refusal_detection %}checked{% endif %}
+                           {% if form_data %}{% if form_data.enable_refusal_detection == "1" %}checked{% endif %}
+                           {% elif not config or config.enable_refusal_detection %}checked{% endif %}
                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                     <span class="ml-2 text-sm font-medium text-gray-700">
                         Enable automatic refusal detection & correction
@@ -181,7 +186,7 @@
                 </p>
             </div>
             
-            <div id="refusal-settings" {% if config and not config.enable_refusal_detection %}style="display: none;"{% endif %}>
+            <div id="refusal-settings" {% if form_data %}{% if form_data.enable_refusal_detection != "1" %}style="display: none;"{% endif %}{% elif config and not config.enable_refusal_detection %}style="display: none;"{% endif %}>
                 <div class="mb-4 pl-6 border-l-4 border-blue-200">
                     <h4 class="text-sm font-semibold text-gray-900 mb-3">Classification Settings</h4>
                     
@@ -194,7 +199,8 @@
                             <option value="">-- Select Classifier Prompt --</option>
                             {% for prompt in classifier_prompts %}
                             <option value="{{ prompt.id }}"
-                                    {% if config and config.classifier_prompt_id == prompt.id %}selected{% endif %}>
+                                    {% if form_data and form_data.classifier_prompt == prompt.id|stringformat:"s" %}selected
+                                    {% elif config and config.classifier_prompt_id == prompt.id %}selected{% endif %}>
                                 {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
                             </option>
                             {% endfor %}
@@ -236,7 +242,7 @@
                             Classifier Timeout (seconds)
                         </label>
                         <input type="number" name="classifier_timeout" id="classifier_timeout" min="1" max="60"
-                               value="{% if config %}{{ config.classifier_timeout }}{% else %}10{% endif %}"
+                               value="{% if form_data %}{{ form_data.classifier_timeout }}{% elif config %}{{ config.classifier_timeout }}{% else %}60{% endif %}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <p class="mt-1 text-sm text-gray-500">
                             Classification should be fast (1-60 seconds). Use a small model for best performance.
@@ -248,7 +254,7 @@
                             Classifier Question
                         </label>
                         <textarea name="classifier_question" id="classifier_question" rows="2"
-                                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">{% if config %}{{ config.classifier_question }}{% else %}Is this a content policy refusal?{% endif %}</textarea>
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">{% if form_data %}{{ form_data.classifier_question }}{% elif config %}{{ config.classifier_question }}{% else %}Is this a content policy refusal?{% endif %}</textarea>
                         <p class="mt-1 text-sm text-gray-500">
                             Question asked to the classifier along with the story turn text. Keep it clear and specific.
                         </p>
@@ -265,7 +271,8 @@
                             <option value="">-- Select Turn Correction Prompt --</option>
                             {% for prompt in turn_correction_prompts %}
                             <option value="{{ prompt.id }}"
-                                    {% if config and config.turn_correction_prompt.id == prompt.id %}selected{% endif %}>
+                                    {% if form_data and form_data.turn_correction_prompt == prompt.id|stringformat:"s" %}selected
+                                    {% elif config and config.turn_correction_prompt.id == prompt.id %}selected{% endif %}>
                                 {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
                             </option>
                             {% endfor %}
@@ -280,7 +287,8 @@
                             <option value="">-- Use default Turn Correction Prompt --</option>
                             {% for prompt in turn_correction_prompts %}
                             <option value="{{ prompt.id }}"
-                                    {% if config and config.game_ending_turn_correction_prompt_id == prompt.id %}selected{% endif %}>
+                                    {% if form_data and form_data.game_ending_turn_correction_prompt == prompt.id|stringformat:"s" %}selected
+                                    {% elif config and config.game_ending_turn_correction_prompt_id == prompt.id %}selected{% endif %}>
                                 {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
                             </option>
                             {% endfor %}
@@ -303,7 +311,8 @@
                             <optgroup label="{{ provider_group.grouper.name }}">
                                 {% for model in provider_group.list %}
                                 <option value="{{ model.id }}"
-                                        {% if config and config.turn_correction_model.id == model.id %}selected{% endif %}>
+                                        {% if form_data and form_data.turn_correction_model == model.id|stringformat:"s" %}selected
+                                        {% elif config and config.turn_correction_model.id == model.id %}selected{% endif %}>
                                     {{ model.name }}
                                 </option>
                                 {% endfor %}
@@ -317,7 +326,7 @@
                             Turn Correction Timeout (seconds) *
                         </label>
                         <input type="number" name="turn_correction_timeout" id="turn_correction_timeout" required min="1" max="300"
-                               value="{% if config %}{{ config.turn_correction_timeout }}{% else %}30{% endif %}"
+                               value="{% if form_data %}{{ form_data.turn_correction_timeout }}{% elif config %}{{ config.turn_correction_timeout }}{% else %}60{% endif %}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <p class="mt-1 text-sm text-gray-500">How long to wait for turn correction (1-300 seconds)</p>
                     </div>
@@ -344,145 +353,7 @@
                 <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 judge-step" data-index="{{ forloop.counter0 }}">
                     <input type="hidden" name="judge_steps-{{ forloop.counter0 }}-id" value="{{ step.id }}">
                     <input type="hidden" name="judge_steps-{{ forloop.counter0 }}-deleted" value="0" class="judge-step-deleted">
-
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center gap-3">
-                            <input type="text" name="judge_steps-{{ forloop.counter0 }}-name" value="{{ step.name }}"
-                                   class="px-2 py-1 border border-gray-300 rounded-md text-sm" placeholder="Step name (e.g., difficulty)">
-                            <label class="flex items-center text-sm text-gray-700">
-                                <input type="checkbox" name="judge_steps-{{ forloop.counter0 }}-enabled" value="1" {% if step.enabled %}checked{% endif %}
-                                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                <span class="ml-2">Enabled</span>
-                            </label>
-                        </div>
-                        <button type="button" class="remove-judge-step text-sm text-red-600 hover:text-red-800">Remove</button>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Judge Prompt</label>
-                            <select name="judge_steps-{{ forloop.counter0 }}-judge_prompt"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Judge Prompt --</option>
-                                {% for prompt in judge_prompts %}
-                                <option value="{{ prompt.id }}" {% if step.judge_prompt_id == prompt.id %}selected{% endif %}>
-                                    {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Judge Model</label>
-                            <select name="judge_steps-{{ forloop.counter0 }}-judge_model"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Model --</option>
-                                {% regroup all_models by provider as models_by_provider %}
-                                {% for provider_group in models_by_provider %}
-                                <optgroup label="{{ provider_group.grouper.name }}">
-                                    {% for model in provider_group.list %}
-                                    <option value="{{ model.id }}" {% if step.judge_model_id == model.id %}selected{% endif %}>
-                                        {{ model.name }}
-                                    </option>
-                                    {% endfor %}
-                                </optgroup>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Judge Timeout (s)</label>
-                            <input type="number" name="judge_steps-{{ forloop.counter0 }}-judge_timeout" min="1" max="120"
-                                   value="{{ step.judge_timeout }}"
-                                   class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Rewrite Prompt</label>
-                            <select name="judge_steps-{{ forloop.counter0 }}-rewrite_prompt"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Turn Correction Prompt --</option>
-                                {% for prompt in turn_correction_prompts %}
-                                <option value="{{ prompt.id }}" {% if step.rewrite_prompt_id == prompt.id %}selected{% endif %}>
-                                    {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Rewrite Model</label>
-                            <select name="judge_steps-{{ forloop.counter0 }}-rewrite_model"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Model --</option>
-                                {% regroup all_models by provider as models_by_provider %}
-                                {% for provider_group in models_by_provider %}
-                                <optgroup label="{{ provider_group.grouper.name }}">
-                                    {% for model in provider_group.list %}
-                                    <option value="{{ model.id }}" {% if step.rewrite_model_id == model.id %}selected{% endif %}>
-                                        {{ model.name }}
-                                    </option>
-                                    {% endfor %}
-                                </optgroup>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Rewrite Timeout (s)</label>
-                            <input type="number" name="judge_steps-{{ forloop.counter0 }}-rewrite_timeout" min="1" max="300"
-                                   value="{{ step.rewrite_timeout }}"
-                                   class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                        </div>
-                    </div>
-
-                    <div class="mt-3">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Rewrite Instruction (optional)</label>
-                        <textarea name="judge_steps-{{ forloop.counter0 }}-rewrite_instruction" rows="2"
-                                  class="w-full px-2 py-1 border border-gray-300 rounded-md">{{ step.rewrite_instruction }}</textarea>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Compare Prompt</label>
-                            <select name="judge_steps-{{ forloop.counter0 }}-compare_prompt"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Judge Prompt --</option>
-                                {% for prompt in judge_prompts %}
-                                <option value="{{ prompt.id }}" {% if step.compare_prompt_id == prompt.id %}selected{% endif %}>
-                                    {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Compare Model</label>
-                            <select name="judge_steps-{{ forloop.counter0 }}-compare_model"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Model --</option>
-                                {% regroup all_models by provider as models_by_provider %}
-                                {% for provider_group in models_by_provider %}
-                                <optgroup label="{{ provider_group.grouper.name }}">
-                                    {% for model in provider_group.list %}
-                                    <option value="{{ model.id }}" {% if step.compare_model_id == model.id %}selected{% endif %}>
-                                        {{ model.name }}
-                                    </option>
-                                    {% endfor %}
-                                </optgroup>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Compare Timeout (s)</label>
-                            <input type="number" name="judge_steps-{{ forloop.counter0 }}-compare_timeout" min="1" max="120"
-                                   value="{{ step.compare_timeout }}"
-                                   class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                        </div>
-                    </div>
-
-                    <div class="mt-3">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Compare Question</label>
-                        <textarea name="judge_steps-{{ forloop.counter0 }}-compare_question" rows="2"
-                                  class="w-full px-2 py-1 border border-gray-300 rounded-md">{{ step.compare_question }}</textarea>
-                    </div>
+                    {% include "cyoa_admin/includes/judge_step_fields.html" with index=forloop.counter0 step=step %}
                 </div>
                 {% empty %}
                 <p class="text-sm text-gray-500">No judge steps configured yet.</p>
@@ -493,142 +364,7 @@
                 <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 judge-step" data-index="__INDEX__">
                     <input type="hidden" name="judge_steps-__INDEX__-id" value="">
                     <input type="hidden" name="judge_steps-__INDEX__-deleted" value="0" class="judge-step-deleted">
-
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center gap-3">
-                            <input type="text" name="judge_steps-__INDEX__-name" value="Step __NUM__"
-                                   class="px-2 py-1 border border-gray-300 rounded-md text-sm" placeholder="Step name (e.g., difficulty)">
-                            <label class="flex items-center text-sm text-gray-700">
-                                <input type="checkbox" name="judge_steps-__INDEX__-enabled" value="1" checked
-                                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                <span class="ml-2">Enabled</span>
-                            </label>
-                        </div>
-                        <button type="button" class="remove-judge-step text-sm text-red-600 hover:text-red-800">Remove</button>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Judge Prompt</label>
-                            <select name="judge_steps-__INDEX__-judge_prompt"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Judge Prompt --</option>
-                                {% for prompt in judge_prompts %}
-                                <option value="{{ prompt.id }}">
-                                    {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Judge Model</label>
-                            <select name="judge_steps-__INDEX__-judge_model"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Model --</option>
-                                {% regroup all_models by provider as models_by_provider %}
-                                {% for provider_group in models_by_provider %}
-                                <optgroup label="{{ provider_group.grouper.name }}">
-                                    {% for model in provider_group.list %}
-                                    <option value="{{ model.id }}">
-                                        {{ model.name }}
-                                    </option>
-                                    {% endfor %}
-                                </optgroup>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Judge Timeout (s)</label>
-                            <input type="number" name="judge_steps-__INDEX__-judge_timeout" min="1" max="120"
-                                   value="15" class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Rewrite Prompt</label>
-                            <select name="judge_steps-__INDEX__-rewrite_prompt"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Turn Correction Prompt --</option>
-                                {% for prompt in turn_correction_prompts %}
-                                <option value="{{ prompt.id }}">
-                                    {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Rewrite Model</label>
-                            <select name="judge_steps-__INDEX__-rewrite_model"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Model --</option>
-                                {% regroup all_models by provider as models_by_provider %}
-                                {% for provider_group in models_by_provider %}
-                                <optgroup label="{{ provider_group.grouper.name }}">
-                                    {% for model in provider_group.list %}
-                                    <option value="{{ model.id }}">
-                                        {{ model.name }}
-                                    </option>
-                                    {% endfor %}
-                                </optgroup>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Rewrite Timeout (s)</label>
-                            <input type="number" name="judge_steps-__INDEX__-rewrite_timeout" min="1" max="300"
-                                   value="30" class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                        </div>
-                    </div>
-
-                    <div class="mt-3">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Rewrite Instruction (optional)</label>
-                        <textarea name="judge_steps-__INDEX__-rewrite_instruction" rows="2"
-                                  class="w-full px-2 py-1 border border-gray-300 rounded-md">Fix the difficulty of this turn to make it playable.</textarea>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Compare Prompt</label>
-                            <select name="judge_steps-__INDEX__-compare_prompt"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Judge Prompt --</option>
-                                {% for prompt in judge_prompts %}
-                                <option value="{{ prompt.id }}">
-                                    {{ prompt.name }} v{{ prompt.version }}{% if prompt.description %}: {{ prompt.description }}{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Compare Model</label>
-                            <select name="judge_steps-__INDEX__-compare_model"
-                                    class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                                <option value="">-- Select Model --</option>
-                                {% regroup all_models by provider as models_by_provider %}
-                                {% for provider_group in models_by_provider %}
-                                <optgroup label="{{ provider_group.grouper.name }}">
-                                    {% for model in provider_group.list %}
-                                    <option value="{{ model.id }}">
-                                        {{ model.name }}
-                                    </option>
-                                    {% endfor %}
-                                </optgroup>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Compare Timeout (s)</label>
-                            <input type="number" name="judge_steps-__INDEX__-compare_timeout" min="1" max="120"
-                                   value="15" class="w-full px-2 py-1 border border-gray-300 rounded-md">
-                        </div>
-                    </div>
-
-                    <div class="mt-3">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Compare Question</label>
-                        <textarea name="judge_steps-__INDEX__-compare_question" rows="2"
-                                  class="w-full px-2 py-1 border border-gray-300 rounded-md">Is the revised turn better than the original?</textarea>
-                    </div>
+                    {% include "cyoa_admin/includes/judge_step_fields.html" with index="__INDEX__" step=None step_num="__NUM__" %}
                 </div>
             </template>
         </div>
@@ -653,9 +389,10 @@ const pacingDefaults = {
 };
 
 // Toggle refusal detection settings
-document.getElementById('enable_refusal_detection').addEventListener('change', function() {
+function toggleRefusalSettings() {
+    const checkbox = document.getElementById('enable_refusal_detection');
     const settings = document.getElementById('refusal-settings');
-    const isEnabled = this.checked;
+    const isEnabled = checkbox.checked;
     settings.style.display = isEnabled ? 'block' : 'none';
     
     // Toggle required attribute on refusal fields
@@ -667,7 +404,9 @@ document.getElementById('enable_refusal_detection').addEventListener('change', f
             field.removeAttribute('required');
         }
     });
-});
+}
+
+document.getElementById('enable_refusal_detection').addEventListener('change', toggleRefusalSettings);
 
 function updatePacingDefaults() {
     const totalTurns = parseInt(document.getElementById('total_turns').value);
@@ -725,6 +464,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     updatePacingTotal();
     
+    // Initialize refusal settings visibility and required attributes
+    toggleRefusalSettings();
+    
     // Add event listener for total_turns change
     const totalTurnsSelect = document.getElementById('total_turns');
     if (totalTurnsSelect) {
@@ -772,13 +514,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function refreshModels() {
-    const storytellerSelect = document.getElementById('storyteller_model');
-    const turnCorrectionSelect = document.getElementById('turn_correction_model');
-    const classifierSelect = document.getElementById('classifier_model');
-    const currentStoryteller = storytellerSelect.value;
-    const currentTurnCorrection = turnCorrectionSelect.value;
-    const currentClassifier = classifierSelect ? classifierSelect.value : '';
-    
     try {
         const response = await fetch('{% url "admin:refresh_models" %}', {
             method: 'POST',
@@ -790,35 +525,7 @@ async function refreshModels() {
         
         if (!response.ok) throw new Error('Failed to refresh models');
         
-        const data = await response.json();
-        
-        // Update storyteller dropdown (only Ollama models)
-        const storytellerOllama = storytellerSelect.querySelector('optgroup[label="Local Models (Ollama)"]');
-        if (storytellerOllama) {
-            storytellerOllama.innerHTML = '';
-            data.models.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model;
-                option.textContent = model;
-                if (model === currentStoryteller) option.selected = true;
-                storytellerOllama.appendChild(option);
-            });
-        }
-        
-        // Update judge dropdown (only Ollama models)
-        const judgeOllama = judgeSelect.querySelector('optgroup[label="Local Models (Ollama)"]');
-        if (judgeOllama) {
-            judgeOllama.innerHTML = '';
-            data.models.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model;
-                option.textContent = model;
-                if (model === currentJudge) option.selected = true;
-                judgeOllama.appendChild(option);
-            });
-        }
-        
-        alert('Models refreshed successfully!');
+        alert('Models refreshed successfully! Please reload the page to see updated model lists.');
     } catch (error) {
         alert('Error refreshing models: ' + error.message);
     }

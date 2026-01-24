@@ -172,6 +172,12 @@ def process_potential_refusal(
         print("[REFUSAL] No classifier configured, skipping")
         return result
     
+    # Check for turn correction configuration (needed if we detect a refusal)
+    if turn_number > 1 and (not config.turn_correction_model or not config.turn_correction_prompt):
+        print("[REFUSAL] Warning: Refusal detection enabled but no turn correction configured")
+        print("[REFUSAL] Can detect refusals but cannot correct them (will use original turn)")
+        # Still run detection but won't be able to correct
+    
     # Step 1: Detect refusal on initial turn
     is_refusal, classifier_response = detect_refusal(
         story_turn=story_turn,
@@ -198,6 +204,12 @@ def process_potential_refusal(
     if turn_number == 1:
         print("[REFUSAL] ⚠️  Turn 1 refusal detected - not enough context to rewrite")
         result['turn_1_refusal'] = True
+        return result
+    
+    # Check that we have turn correction configured before attempting
+    if not config.turn_correction_model or not config.turn_correction_prompt:
+        print("[REFUSAL] ❌ Refusal detected but no turn correction configured - cannot fix")
+        result['all_attempts_failed'] = True
         return result
     
     # Step 2: Attempt to correct the refusal (with retry loop)

@@ -532,6 +532,11 @@ function chatApp() {
       
       // Initialize recorder
       await this.initRecorder();
+      
+      // Clear draft when page is about to unload (user navigating away)
+      window.addEventListener('beforeunload', () => {
+        CYOARecorder.clearDraftText();
+      });
     },
     
     async initRecorder() {
@@ -733,6 +738,10 @@ function chatApp() {
           this.choice2Text = '';
           this.gameStarted = false;
           this.gameBlocked = false;
+          
+          // Clear input and draft when starting new conversation
+          this.inputMessage = '';
+          CYOARecorder.clearDraftText();
 
           window.history.pushState({}, '', `/chat/?conversation_id=${this.conversationId}`);
         }

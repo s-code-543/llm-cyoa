@@ -76,21 +76,35 @@ def extract_game_state(text):
         state['turn_current'] = int(turn_match.group(1))
         state['turn_max'] = int(turn_match.group(2))
     
-    # Extract choices like "1) text" and "2) text"
-    # Look for patterns like "1) some action" and "2) another action"
-    choice_pattern = r'^\s*(\d+)\)\s*(.+?)(?=\s*\d+\)|$)'
-    matches = list(re.finditer(choice_pattern, text, re.MULTILINE))
+    # Extract choices - look for "1) ..." or "1. ..." patterns
+    # Split into lines and look for numbered choices
+    lines = text.split('\n')
+    current_choice = None
+    choice_texts = {}
     
-    if len(matches) >= 2:
-        # Get the text for choices 1 and 2
-        for match in matches:
-            choice_num = int(match.group(1))
-            choice_text = match.group(2).strip()
-            
-            if choice_num == 1:
-                state['choice1'] = choice_text
-            elif choice_num == 2:
-                state['choice2'] = choice_text
+    for line in lines:
+        # Check if line starts with a choice number (handles both "1)" and "1.")
+        choice_match = re.match(r'^\s*(\d+)[.)\]]\s*(.+)', line)
+        if choice_match:
+            choice_num = int(choice_match.group(1))
+            choice_text = choice_match.group(2).strip()
+            if choice_num in [1, 2]:
+                current_choice = choice_num
+                choice_texts[choice_num] = choice_text
+        elif current_choice and line.strip() and not re.match(r'^\s*\d+[.)\]]', line):
+            # Continuation of current choice (multi-line)
+            choice_texts[current_choice] += ' ' + line.strip()
+    
+    # Assign to state
+    if 1 in choice_texts:
+        state['choice1'] = choice_texts[1]
+    if 2 in choice_texts:
+        state['choice2'] = choice_texts[2]
+    
+    # Debug output
+    print(f"[EXTRACT_STATE] Turn: {state['turn_current']}/{state['turn_max']}")
+    print(f"[EXTRACT_STATE] Choice 1: {state['choice1'][:50] if state['choice1'] else 'NOT FOUND'}")
+    print(f"[EXTRACT_STATE] Choice 2: {state['choice2'][:50] if state['choice2'] else 'NOT FOUND'}")
     
     return state
 
@@ -356,12 +370,16 @@ def chat_api_send_message(request):
                 final_response = judge_result['final_turn']
                 judge_info = judge_result
                 judge_steps = list(config.judge_steps.all().order_by('order', 'id'))
+                # Use first step's classifier prompt if available, otherwise compare prompt
+                first_step_prompt = None
+                if judge_steps:
+                    first_step_prompt = judge_steps[0].classifier_prompt or judge_steps[0].compare_prompt
                 AuditLog.objects.create(
                     original_text=judge_input_turn,
                     refined_text=final_response,
                     was_modified=judge_result.get('was_modified', False),
                     was_refusal=False,
-                    prompt_used=judge_steps[0].judge_prompt if judge_steps else None,
+                    prompt_used=first_step_prompt,
                     details=judge_result
                 )
 
