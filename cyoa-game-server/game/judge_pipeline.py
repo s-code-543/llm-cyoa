@@ -127,6 +127,8 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
             max_attempts = step.max_rewrite_attempts or 3
             rewrite_approved = False
             best_rewrite = None
+            all_attempts_failed = False
+            last_error = None
             
             for attempt_num in range(1, max_attempts + 1):
                 print(f"[JUDGE:{step.name}] Rewrite attempt {attempt_num}/{max_attempts}")
@@ -188,8 +190,14 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                 except Exception as e:
                     print(f"[JUDGE:{step.name}] Error in attempt {attempt_num}: {e}")
                     attempt_result['error'] = str(e)
+                    last_error = str(e)
+                    all_attempts_failed = True
                 
                 step_result['attempts'].append(attempt_result)
+            
+            # If all attempts failed with errors, record the error
+            if all_attempts_failed and not rewrite_approved and last_error:
+                step_result['error'] = last_error
             
             # Use rewrite if approved, otherwise keep original
             if rewrite_approved and best_rewrite:

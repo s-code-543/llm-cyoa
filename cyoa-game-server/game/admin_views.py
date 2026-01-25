@@ -15,7 +15,7 @@ from django.utils import timezone
 from functools import wraps
 from .models import Prompt, AuditLog, Configuration, APIProvider, LLMModel, JudgeStep
 from .ollama_utils import get_ollama_models, test_ollama_connection
-from .external_anthropic_utils import test_anthropic_connection, get_anthropic_models
+from .anthropic_utils import test_anthropic_connection, get_anthropic_models
 from .openai_utils import test_openai_connection, get_openai_models
 from .openrouter_utils import test_openrouter_connection, get_openrouter_models
 import markdown2
@@ -300,7 +300,10 @@ def preview_markdown(request):
     API endpoint to preview markdown.
     """
     text = request.POST.get('text', '')
-    html = markdown2.markdown(text, extras=['fenced-code-blocks', 'tables'])
+    if not text.strip():
+        html = ''
+    else:
+        html = markdown2.markdown(text, extras=['fenced-code-blocks', 'tables'])
     return JsonResponse({'html': html})
 
 
@@ -631,7 +634,7 @@ def refresh_models(request):
     API endpoint to refresh Ollama models list.
     """
     models = get_ollama_models()
-    model_names = [model['name'] for model in models]
+    model_names = [model.get('id', model.get('name')) for model in models]
     return JsonResponse({'models': model_names})
 
 
@@ -813,15 +816,11 @@ def delete_model(request, model_id):
         model_name = model.name
         model.delete()
         
-        return JsonResponse({
-            'success': True,
-            'message': f'Model "{model_name}" deleted successfully'
-        })
+        messages.success(request, f'Model "{model_name}" deleted successfully')
+        return redirect('admin:model_list')
     except LLMModel.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'message': 'Model not found'
-        })
+        messages.error(request, 'Model not found')
+        return redirect('admin:model_list')
     except ProtectedError as e:
         # Model is still referenced by configurations or judge steps
         model = LLMModel.objects.get(pk=model_id)
@@ -865,19 +864,16 @@ def delete_model(request, model_id):
                 configs_using.append(config_entry)
         
         if configs_using:
-            configs_list = '\n• '.join(configs_using)
+            configs_list = ', '.join(configs_using)
             message = (
-                f'Cannot delete model "{model.name}" because it is currently used by:\n\n'
-                f'• {configs_list}\n\n'
+                f'Cannot delete model "{model.name}" because it is currently used by: {configs_list}. '
                 f'Please update or delete these configurations first.'
             )
         else:
             message = f'Cannot delete model "{model.name}" because it is still referenced by other objects.'
         
-        return JsonResponse({
-            'success': False,
-            'message': message
-        })
+        messages.error(request, message)
+        return redirect('admin:model_list')
     except Exception as e:
         return JsonResponse({
             'success': False,
@@ -938,7 +934,7 @@ def import_models(request):
     model_ids = data.get('model_ids', [])
     
     if not provider_id or not model_ids:
-        return JsonResponse({'success': False, 'message': 'Missing provider or models'})
+        return JsonResponse({'success': False, 'error': 'Missing provider or models', 'message': 'Missing provider or models'})
     
     try:
         provider = APIProvider.objects.get(pk=provider_id)
@@ -976,7 +972,8 @@ def import_models(request):
         
         return JsonResponse({
             'success': True,
-            'message': f'Imported {imported_count} models from {provider.name}'
+            'message': f'Imported {imported_count} models from {provider.name}',
+            'imported': imported_count
         })
     
     except APIProvider.DoesNotExist:
@@ -1131,11 +1128,16 @@ def difficulty_editor(request, difficulty_id=None):
             function = request.POST.get('function')
             curve_points = None
         
+        # Fallback: if function is still None, try getting it directly
+        if not function:
+            function = request.POST.get('function')
+        
         # Create or update
         if difficulty:
             difficulty.name = name
             difficulty.description = description
-            difficulty.function = function
+            if function:  # Only update if function is provided
+                difficulty.function = function
             difficulty.curve_points = curve_points
             difficulty.save()
             messages.success(request, f'Difficulty profile "{name}" updated successfully.')

@@ -5,7 +5,7 @@ import uuid
 import json
 import re
 from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
@@ -71,7 +71,7 @@ def extract_game_state(text):
     }
     
     # Extract "Turn X of Y" or "Turn X/Y"
-    turn_match = re.search(r'Turn\s+(\d+)\s+(?:of|/)\s+(\d+)', text, re.IGNORECASE)
+    turn_match = re.search(r'Turn\s+(\d+)\s*(?:of|/)\s*(\d+)', text, re.IGNORECASE)
     if turn_match:
         state['turn_current'] = int(turn_match.group(1))
         state['turn_max'] = int(turn_match.group(2))
@@ -443,6 +443,8 @@ def chat_api_get_conversation(request, conversation_id):
             'created_at': conversation.created_at.isoformat(),
             'updated_at': conversation.updated_at.isoformat()
         })
+    except Http404:
+        return JsonResponse({'error': 'Conversation not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 

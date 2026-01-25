@@ -4,7 +4,6 @@ LLM router - routes requests to appropriate backend (Ollama, Anthropic, OpenAI, 
 from django.db import models as django_models
 from .anthropic_utils import call_anthropic
 from .ollama_utils import call_ollama
-from .external_anthropic_utils import call_anthropic as call_anthropic_api
 from .openai_utils import call_openai
 from .openrouter_utils import call_openrouter
 from .models import LLMModel
@@ -52,7 +51,7 @@ def call_llm(messages, system_prompt=None, llm_model=None, timeout=30, disable_t
     
     elif routing_info['type'] == 'anthropic':
         # External Anthropic
-        return call_anthropic_api(
+        return call_anthropic(
             messages,
             system_prompt,
             routing_info['model'],
