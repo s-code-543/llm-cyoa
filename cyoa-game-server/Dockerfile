@@ -15,11 +15,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project files
 COPY . .
 
+# Make entrypoint script executable
+RUN chmod +x entrypoint.sh
+
 # Expose debugpy port and Django port
 EXPOSE 5678 8000
 
 # Force unbuffered Python output so logs appear immediately
 ENV PYTHONUNBUFFERED=1
 
-# Run with debugpy for remote debugging (attach at your convenience)
-CMD ["python", "-Xfrozen_modules=off", "-m", "debugpy", "--listen", "0.0.0.0:5678", "manage.py", "runserver", "0.0.0.0:8000"]
+# Use entrypoint script to initialize and start server
+ENTRYPOINT ["./entrypoint.sh"]
