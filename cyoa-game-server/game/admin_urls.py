@@ -8,6 +8,8 @@ from . import admin_views
 app_name = 'admin'
 
 urlpatterns = [
+    path('login/', admin_views.login_view, name='login'),
+    path('logout/', admin_views.logout_view, name='logout'),
     path('', RedirectView.as_view(url='dashboard/', permanent=False), name='index'),
     path('dashboard/', admin_views.dashboard, name='dashboard'),
     path('audit/', admin_views.audit_log, name='audit_log'),
@@ -36,6 +38,9 @@ urlpatterns = [
     path('difficulty/', admin_views.difficulty_list, name='difficulty_list'),
     path('difficulty/new/', admin_views.difficulty_editor, name='difficulty_new'),
     path('difficulty/<int:difficulty_id>/', admin_views.difficulty_editor, name='difficulty_editor'),
+    
+    # TTS Settings
+    path('tts-settings/', admin_views.tts_settings, name='tts_settings'),
     
     # API endpoints
     path('api/preview-markdown/', admin_views.preview_markdown, name='preview_markdown'),

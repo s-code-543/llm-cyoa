@@ -5,15 +5,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
 from django.conf import settings
 from django.utils import timezone
 from functools import wraps
-from .models import Prompt, AuditLog, Configuration, APIProvider, LLMModel, JudgeStep
+from .models import Prompt, AuditLog, Configuration, APIProvider, LLMModel, JudgeStep, TTSSettings
 from .ollama_utils import get_ollama_models, test_ollama_connection
 from .anthropic_utils import test_anthropic_connection, get_anthropic_models
 from .openai_utils import test_openai_connection, get_openai_models
@@ -24,23 +23,29 @@ import markdown2
 def debug_login_bypass(view_func):
     """
     Decorator that bypasses login_required in DEBUG mode.
-    Useful for curl/wget debugging.
+    In production, requires both authentication AND staff status.
     """
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if settings.DEBUG and not request.user.is_authenticated:
             # In debug mode, skip authentication
             pass
+        else:
+            # In production OR if authenticated in debug mode, enforce staff requirement
+            if not request.user.is_authenticated or not request.user.is_staff:
+                return HttpResponseForbidden("Admin access required.")
         return view_func(request, *args, **kwargs)
     return wrapper
 
 
 def login_view(request):
     """
-    Custom login view to avoid Django's default template rendering issues.
+    Login view — accessible to everyone. After login, honour ?next,
+    otherwise staff go to /admin/dashboard/ and regular users go to /.
     """
     if request.user.is_authenticated:
-        return redirect('/admin/dashboard/')
+        next_url = request.GET.get('next', '/' if not request.user.is_staff else '/admin/dashboard/')
+        return redirect(next_url)
     
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -49,12 +54,19 @@ def login_view(request):
         
         if user is not None:
             auth_login(request, user)
-            next_url = request.GET.get('next', '/admin/dashboard/')
+            next_url = request.GET.get('next', '/' if not user.is_staff else '/admin/dashboard/')
             return redirect(next_url)
         else:
             return render(request, 'cyoa_admin/login.html', {'error': True})
     
     return render(request, 'cyoa_admin/login.html')
+
+
+def logout_view(request):
+    """Log out and redirect to login page."""
+    from django.contrib.auth import logout as auth_logout
+    auth_logout(request)
+    return redirect('/admin/login/')
 
 
 @debug_login_bypass
@@ -64,14 +76,16 @@ def dashboard(request):
     """
     # Get statistics
     total_requests = AuditLog.objects.count()
+    total_refusals = AuditLog.objects.filter(was_refusal=True).count()
     total_corrections = AuditLog.objects.filter(was_modified=True).count()
     correction_rate = (total_corrections / total_requests * 100) if total_requests > 0 else 0
     
-    # Recent corrections
-    recent_corrections = AuditLog.objects.filter(was_modified=True)[:10]
+    # Recent activity (all types)
+    recent_corrections = AuditLog.objects.all()[:10]
     
     context = {
         'total_requests': total_requests,
+        'total_refusals': total_refusals,
         'total_corrections': total_corrections,
         'correction_rate': f'{correction_rate:.1f}',
         'recent_corrections': recent_corrections,
@@ -640,7 +654,6 @@ def refresh_models(request):
 
 @debug_login_bypass
 @require_http_methods(["POST"])
-@csrf_exempt
 def clear_audit_log(request):
     """
     Clear all audit log entries.
@@ -653,7 +666,6 @@ def clear_audit_log(request):
 
 @debug_login_bypass
 @require_http_methods(["POST"])
-@csrf_exempt
 def reset_statistics(request):
     """
     Reset all statistics (clears audit log).
@@ -1156,4 +1168,44 @@ def difficulty_editor(request, difficulty_id=None):
         'difficulty': difficulty,
     }
     return render(request, 'cyoa_admin/difficulty_editor.html', context)
+
+
+@debug_login_bypass
+def tts_settings(request):
+    """
+    Edit TTS (Text-to-Speech) settings.
+    """
+    settings_obj = TTSSettings.get_settings()
+    
+    if request.method == 'POST':
+        # Parse form data
+        enabled = request.POST.get('enabled') == 'on'
+        openai_model = request.POST.get('openai_model')
+        openai_voice = request.POST.get('openai_voice')
+        max_text_length = int(request.POST.get('max_text_length', 4096))
+        audio_retention_days = int(request.POST.get('audio_retention_days', 7))
+        auto_cleanup_enabled = request.POST.get('auto_cleanup_enabled') == 'on'
+        
+        # Validate
+        if max_text_length < 1 or max_text_length > 4096:
+            messages.error(request, 'Max text length must be between 1 and 4096')
+        elif audio_retention_days < 1:
+            messages.error(request, 'Audio retention days must be at least 1')
+        else:
+            # Update settings
+            settings_obj.enabled = enabled
+            settings_obj.openai_model = openai_model
+            settings_obj.openai_voice = openai_voice
+            settings_obj.max_text_length = max_text_length
+            settings_obj.audio_retention_days = audio_retention_days
+            settings_obj.auto_cleanup_enabled = auto_cleanup_enabled
+            settings_obj.save()
+            
+            messages.success(request, 'TTS settings updated successfully')
+            return redirect('admin:tts_settings')
+    
+    context = {
+        'settings': settings_obj,
+    }
+    return render(request, 'cyoa_admin/tts_settings.html', context)
 

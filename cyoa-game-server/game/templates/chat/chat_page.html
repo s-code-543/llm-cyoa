@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>CYOA Adventure</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="/static/js/recorder.js"></script>
+    <script src="/static/js/tts.js"></script>
     <style>
         [x-cloak] { display: none !important; }
         html, body { 
@@ -49,6 +51,14 @@
         <h1 class="text-sm font-bold text-gray-800">Choose Your Own Adventure</h1>
       </div>
       <button
+        @click="toggleVoiceMode()"
+        :class="voiceMode ? 'bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700' : 'bg-gray-100 text-gray-400 hover:bg-green-100 hover:text-green-700'"
+        class="px-2 py-1 rounded text-sm transition-colors"
+        :title="voiceMode ? 'Voice mode ON (click to disable)' : 'Voice mode OFF (click to enable)'"
+      >
+        🎙
+      </button>
+      <button
         @click="newConversation()"
         class="px-2 py-1 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700"
         title="Start new adventure"
@@ -88,31 +98,63 @@
       <div>
         <div
           :class="{
-            'bg-indigo-600 text-white text-right': message.role === 'user',
+            'bg-indigo-600 text-white': message.role === 'user',
             'bg-red-50 text-red-900 border border-red-200': message.role === 'assistant' && (message.is_error || (message.metadata && message.metadata.is_error)),
             'bg-gray-100 text-gray-900': message.role === 'assistant' && !message.is_error && !(message.metadata && message.metadata.is_error)
           }"
-          class="w-full px-2 py-1.5 rounded-lg relative"
+          class="w-full px-2 py-1.5 rounded-lg"
         >
-          <div class="whitespace-pre-wrap text-[14px] leading-snug" x-text="message.content"></div>
-          <!-- Refusal indicator for assistant messages -->
-          <button
-            x-show="message.role === 'assistant' && (message.refusal_info || (message.metadata && message.metadata.refusal_info))"
-            @click="viewRefusalDetails(message)"
-            class="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs hover:bg-blue-200 transition-colors shadow-sm"
-            title="View refusal details"
-          >
-            ⓘ
-          </button>
-          <!-- Judge indicator for assistant messages -->
-          <button
-            x-show="message.role === 'assistant' && (message.judge_info || (message.metadata && message.metadata.judge_info))"
-            @click="viewJudgeDetails(message)"
-            class="absolute top-1 right-7 w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs hover:bg-purple-200 transition-colors shadow-sm"
-            title="View judge details"
-          >
-            ⚖︎
-          </button>
+          <div class="flex gap-2" :class="message.role === 'user' ? 'flex-row-reverse' : ''">
+            <!-- Message text -->
+            <div class="flex-1 min-w-0">
+              <div class="whitespace-pre-wrap text-[14px] leading-snug" :class="message.role === 'user' ? 'text-right' : ''" x-text="message.content"></div>
+            </div>
+            <!-- Action buttons column for assistant messages -->
+            <div
+              x-show="message.role === 'assistant' && message.content && !message.is_error && !(message.metadata && message.metadata.is_error)"
+              class="flex-none flex flex-col gap-1 items-center pt-0.5"
+            >
+              <!-- TTS speaker button -->
+              <button
+                @click="toggleTTS(index, message.content)"
+                :class="{
+                  'bg-green-500 text-white hover:bg-green-600': ttsPlayingIndex === index,
+                  'bg-indigo-400 text-white cursor-wait': ttsLoadingIndex === index && ttsPlayingIndex !== index,
+                  'bg-gray-700 text-white hover:bg-gray-800': ttsPlayingIndex !== index && ttsLoadingIndex !== index
+                }"
+                :disabled="ttsLoadingIndex === index && ttsPlayingIndex !== index"
+                class="w-7 h-7 rounded flex items-center justify-center text-sm transition-colors shadow-md"
+                :title="ttsLoadingIndex === index ? 'Generating audio...' : (ttsPlayingIndex === index ? 'Stop audio' : 'Play audio')"
+              >
+                <span x-show="ttsLoadingIndex === index && ttsPlayingIndex !== index">
+                  <svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </span>
+                <span x-show="ttsPlayingIndex === index">⏹</span>
+                <span x-show="ttsPlayingIndex !== index && ttsLoadingIndex !== index">🔊</span>
+              </button>
+              <!-- Refusal indicator -->
+              <button
+                x-show="message.refusal_info || (message.metadata && message.metadata.refusal_info)"
+                @click="viewRefusalDetails(message)"
+                class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs hover:bg-blue-200 transition-colors shadow-sm"
+                title="View refusal details"
+              >
+                ⓘ
+              </button>
+              <!-- Judge indicator -->
+              <button
+                x-show="message.judge_info || (message.metadata && message.metadata.judge_info)"
+                @click="viewJudgeDetails(message)"
+                class="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs hover:bg-purple-200 transition-colors shadow-sm"
+                title="View judge details"
+              >
+                ⚖︎
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </template>
@@ -145,6 +187,11 @@
       <!-- Recording state: show level meter + timer + stop button -->
       <template x-if="recorderState === 'recording'">
         <div class="space-y-2">
+          <!-- Voice mode speech detection status -->
+          <div x-show="voiceMode && voiceModeListening" class="text-center py-0.5">
+            <span x-show="!voiceSpeechDetected" class="text-xs text-gray-500 animate-pulse">🎙 Speak now...</span>
+            <span x-show="voiceSpeechDetected" class="text-xs text-green-600 font-medium">🎙 Listening (auto-sends after silence)</span>
+          </div>
           <!-- Level meter -->
           <div class="h-12 bg-gray-200 rounded flex items-end justify-center gap-0.5 px-1 overflow-hidden" x-ref="levelMeterContainer">
             <template x-for="i in 32" :key="i">
@@ -519,10 +566,25 @@ function chatApp() {
     recorderLevel: 0,
     recorderTimeDisplay: '00:00',
     recorderInitialized: false,
+    
+    // TTS state
+    ttsPlayingIndex: null,  // Index of message currently playing audio
+    ttsLoadingIndex: null,  // Index of message currently generating TTS
+    
+    // Voice mode state
+    voiceMode: false,
+    voiceModeListening: false,
+    voiceSpeechDetected: false,
+
+    // Helper to get CSRF token from meta tag
+    getCSRFToken() {
+      return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    },
 
     async init() {
       const urlParams = new URLSearchParams(window.location.search);
       const convId = urlParams.get('conversation_id');
+      this.voiceMode = urlParams.get('voice') === '1';
 
       if (convId) {
         await this.loadConversation(convId);
@@ -537,6 +599,11 @@ function chatApp() {
       window.addEventListener('beforeunload', () => {
         CYOARecorder.clearDraftText();
       });
+      
+      // Voice mode: auto-start listening
+      if (this.voiceMode && !this.gameBlocked) {
+        setTimeout(() => this.startVoiceListening(), 500);
+      }
     },
     
     async initRecorder() {
@@ -555,17 +622,39 @@ function chatApp() {
                 this.recorderState = 'idle';
               }, 100);
             }
+            
+            // Voice mode: clear listening flag on error/idle
+            if ((state === 'error' || state === 'idle') && this.voiceModeListening) {
+              this.voiceModeListening = false;
+            }
           },
           onTranscriptReady: (transcript) => {
-            this.insertTranscript(transcript);
-            // Once inserted, we can discard the recording so it doesn't come back on reload
-            CYOARecorder.discardRecording();
+            if (this.voiceMode && this.voiceModeListening) {
+              // Voice mode: auto-send the transcript
+              this.voiceModeListening = false;
+              CYOARecorder.discardRecording();
+              if (transcript && transcript.trim()) {
+                this.inputMessage = transcript.trim();
+                this.sendMessage();
+              } else {
+                // Empty transcript, restart listening
+                if (this.voiceMode && !this.gameBlocked) {
+                  setTimeout(() => this.startVoiceListening(), 300);
+                }
+              }
+            } else {
+              this.insertTranscript(transcript);
+              CYOARecorder.discardRecording();
+            }
           },
           onLevelUpdate: (level) => {
             this.recorderLevel = level;
           },
           onTimeUpdate: (ms) => {
             this.recorderTimeDisplay = CYOARecorder.formatTime(ms);
+          },
+          onSpeechStatusChange: (detected) => {
+            this.voiceSpeechDetected = detected;
           }
         });
         
@@ -626,6 +715,10 @@ function chatApp() {
     
     discardRecording() {
       CYOARecorder.discardRecording();
+      // Voice mode: restart listening after discard
+      if (this.voiceMode && !this.gameBlocked && !this.isLoading) {
+        setTimeout(() => this.startVoiceListening(), 500);
+      }
     },
     
     downloadRecording() {
@@ -719,7 +812,10 @@ function chatApp() {
         
         const response = await fetch('/chat/api/new', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.getCSRFToken()
+          },
           body: body
         });
 
@@ -742,8 +838,18 @@ function chatApp() {
           // Clear input and draft when starting new conversation
           this.inputMessage = '';
           CYOARecorder.clearDraftText();
+          
+          // Clear TTS cache
+          CYOATTS.clearCache();
+          this.ttsPlayingIndex = null;
 
-          window.history.pushState({}, '', `/chat/?conversation_id=${this.conversationId}`);
+          const voiceParam = this.voiceMode ? '&voice=1' : '';
+          window.history.pushState({}, '', `/chat/?conversation_id=${this.conversationId}${voiceParam}`);
+          
+          // Voice mode: auto-start listening for new conversation
+          if (this.voiceMode) {
+            setTimeout(() => this.startVoiceListening(), 500);
+          }
         }
       } catch (error) {
         this.errorMessage = 'Failed to create new conversation: ' + error.message;
@@ -782,6 +888,12 @@ function chatApp() {
 
     async sendMessage() {
       if (!this.inputMessage.trim() || this.isLoading) return;
+      
+      // Cancel any active voice listening (e.g., user typed manually)
+      if (this.voiceModeListening && this.recorderState === 'recording') {
+        CYOARecorder.cancelRecording();
+        this.voiceModeListening = false;
+      }
 
       const userMessage = this.inputMessage.trim();
       this.inputMessage = '';
@@ -809,7 +921,10 @@ function chatApp() {
       try {
         const response = await fetch('/chat/api/send', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.getCSRFToken()
+          },
           body: JSON.stringify({
             conversation_id: this.conversationId,
             message: userMessage
@@ -841,6 +956,14 @@ function chatApp() {
             if (typeof data.state.turn_max === 'number') this.turnMax = data.state.turn_max;
             if (typeof data.state.choice1 === 'string') this.choice1Text = data.state.choice1;
             if (typeof data.state.choice2 === 'string') this.choice2Text = data.state.choice2;
+          }
+          
+          // Voice mode: auto-play TTS for response (listen only if game continues)
+          if (this.voiceMode) {
+            const isError = data.message.is_error || (data.message.metadata && data.message.metadata.is_error);
+            if (!isError) {
+              setTimeout(() => this.voiceCycleTTS(data.message.content), 200);
+            }
           }
         }
       } catch (error) {
@@ -913,6 +1036,95 @@ function chatApp() {
       } else {
         textarea.style.overflowY = 'hidden';
       }
+    },
+    
+    // === TTS Methods ===
+    
+    toggleTTS(messageIndex, text) {
+      if (this.ttsPlayingIndex === messageIndex) {
+        // Stop if already playing
+        CYOATTS.stopAudio();
+        this.ttsPlayingIndex = null;
+        this.ttsLoadingIndex = null;
+      } else {
+        // Show loading state
+        this.ttsLoadingIndex = messageIndex;
+        // Play new audio
+        CYOATTS.playMessage(
+          messageIndex,
+          text,
+          (idx) => { this.ttsLoadingIndex = null; this.ttsPlayingIndex = idx; },  // onPlay
+          (idx) => { this.ttsPlayingIndex = null; this.ttsLoadingIndex = null; },  // onEnd
+          (idx, error) => {  // onError
+            this.ttsPlayingIndex = null;
+            this.ttsLoadingIndex = null;
+            console.error('TTS error:', error);
+          }
+        );
+      }
+    },
+    
+    // === Voice Mode Methods ===
+    
+    startVoiceListening() {
+      if (!this.voiceMode || this.gameBlocked || this.isLoading) return;
+      this.voiceModeListening = true;
+      this.voiceSpeechDetected = false;
+      CYOARecorder.startConversationRecording();
+    },
+    
+    voiceCycleTTS(text) {
+      const lastIndex = this.messages.length - 1;
+      this.ttsLoadingIndex = lastIndex;
+      CYOATTS.playMessage(
+        lastIndex,
+        text,
+        (idx) => { this.ttsLoadingIndex = null; this.ttsPlayingIndex = idx; },
+        (idx) => {
+          // TTS finished playing, start listening
+          this.ttsPlayingIndex = null;
+          this.ttsLoadingIndex = null;
+          if (this.voiceMode && !this.gameBlocked) {
+            setTimeout(() => this.startVoiceListening(), 300);
+          }
+        },
+        (idx, error) => {
+          // TTS error, still start listening
+          this.ttsPlayingIndex = null;
+          this.ttsLoadingIndex = null;
+          console.error('Voice mode TTS error:', error);
+          if (this.voiceMode && !this.gameBlocked) {
+            setTimeout(() => this.startVoiceListening(), 300);
+          }
+        }
+      );
+    },
+    
+    toggleVoiceMode() {
+      if (this.voiceMode) {
+        // Disable voice mode
+        this.voiceMode = false;
+        if (this.voiceModeListening) {
+          CYOARecorder.cancelRecording();
+          this.voiceModeListening = false;
+        }
+        CYOATTS.stopAudio();
+        this.ttsPlayingIndex = null;
+      } else {
+        // Enable voice mode
+        this.voiceMode = true;
+        if (!this.gameBlocked && !this.isLoading) {
+          this.startVoiceListening();
+        }
+      }
+      // Update URL
+      const url = new URL(window.location);
+      if (this.voiceMode) {
+        url.searchParams.set('voice', '1');
+      } else {
+        url.searchParams.delete('voice');
+      }
+      window.history.replaceState({}, '', url);
     }
   }
 }

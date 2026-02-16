@@ -11,10 +11,11 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-key-change-in-produ
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['cyoa.mac.stargate.lan', 'localhost', '127.0.0.1', 'cyoa-game-server', 'host.docker.internal', '*']
+ALLOWED_HOSTS = ['cyoa.mac.stargate.lan', 'cyoa.chat-sdp.org', 'localhost', '127.0.0.1', 'cyoa-game-server', 'host.docker.internal']
 
 # Proxy SSL awareness
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = ['https://cyoa.mac.stargate.lan', 'https://cyoa.chat-sdp.org']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -32,6 +33,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'game.cloudflare_auth.CloudflareAccessMiddleware',  # after AuthenticationMiddleware
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -87,5 +89,24 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Login URL
 LOGIN_URL = '/admin/login/'
-LOGIN_REDIRECT_URL = '/admin/dashboard/'
+LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/admin/login/'
+
+# ---------------------------------------------------------------------------
+# Cloudflare Access (Zero Trust) authentication
+# ---------------------------------------------------------------------------
+# Set CLOUDFLARE_AUTH_ENABLED=True once the tunnel + Access app are live.
+# When False the middleware is a no-op and normal Django login is used.
+CLOUDFLARE_AUTH_ENABLED = os.environ.get('CLOUDFLARE_AUTH_ENABLED', '').lower() in ('1', 'true', 'yes')
+
+# Your Cloudflare One team domain, e.g. https://myteam.cloudflareaccess.com
+CLOUDFLARE_TEAM_DOMAIN = os.environ.get('CLOUDFLARE_TEAM_DOMAIN', '')
+
+# The Application Audience (AUD) tag — found in Zero Trust → Access → Applications → your app
+CLOUDFLARE_AUD = os.environ.get('CLOUDFLARE_AUD', '')
+
+# Emails that get is_staff + is_superuser when auto-created (comma-separated)
+CLOUDFLARE_ADMIN_EMAILS = [
+    e.strip() for e in os.environ.get('CLOUDFLARE_ADMIN_EMAILS', '').split(',')
+    if e.strip()
+]

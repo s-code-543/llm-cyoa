@@ -12,7 +12,6 @@ from pathlib import Path
 
 from django.conf import settings
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from .models import STTRecording
@@ -124,7 +123,6 @@ def transcribe_with_whisper_api(wav_path: str) -> tuple[str | None, str | None]:
         return None, error_msg
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def stt_upload(request):
     """
@@ -205,7 +203,6 @@ def stt_upload(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def stt_transcribe(request):
     """
@@ -361,7 +358,6 @@ def stt_recording_status(request, recording_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def stt_discard(request):
     """

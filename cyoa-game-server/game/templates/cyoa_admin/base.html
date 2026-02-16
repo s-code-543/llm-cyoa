@@ -19,7 +19,7 @@
                 <div class="flex h-16 items-center justify-between">
                     <div class="flex items-center">
                         <!-- Mobile menu button -->
-                        <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden -ml-2 mr-2 inline-flex items-center justify-center rounded-md p-2 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
+                        <button @click="mobileMenuOpen = !mobileMenuOpen" class="xl:hidden -ml-2 mr-2 inline-flex items-center justify-center rounded-md p-2 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
                             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path x-show="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                                 <path x-show="mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -31,16 +31,17 @@
                         </div>
                         
                         <!-- Desktop menu -->
-                        <div class="hidden md:block">
-                            <div class="ml-10 flex items-baseline space-x-4">
-                                <a href="/" class="{% if request.path == '/' %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Home</a>
-                                <a href="{% url 'admin:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Dashboard</a>
-                                <a href="{% url 'admin:config_list' %}" class="{% if 'config' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Configurations</a>
-                                <a href="{% url 'admin:difficulty_list' %}" class="{% if 'difficulty' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Difficulty</a>
-                                <a href="{% url 'admin:provider_list' %}" class="{% if 'provider' in request.resolver_match.url_name or 'browse' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Providers</a>
-                                <a href="{% url 'admin:model_list' %}" class="{% if 'model' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Models</a>
-                                <a href="{% url 'admin:prompt_list' %}" class="{% if 'prompt' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Prompts</a>
-                                <a href="{% url 'admin:audit_log' %}" class="{% if request.resolver_match.url_name == 'audit_log' or request.resolver_match.url_name == 'audit_detail' %}bg-indigo-700{% endif %} text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Audit Log</a>
+                        <div class="hidden xl:block">
+                            <div class="ml-6 flex items-center space-x-2">
+                                <a href="/" class="{% if request.path == '/' %}bg-indigo-700{% endif %} text-white px-2.5 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Home</a>
+                                <a href="{% url 'admin:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}bg-indigo-700{% endif %} text-white px-2.5 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Dashboard</a>
+                                <a href="{% url 'admin:config_list' %}" class="{% if 'config' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-2.5 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Configs</a>
+                                <a href="{% url 'admin:difficulty_list' %}" class="{% if 'difficulty' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-2.5 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Difficulty</a>
+                                <a href="{% url 'admin:provider_list' %}" class="{% if 'provider' in request.resolver_match.url_name or 'browse' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-2.5 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Providers</a>
+                                <a href="{% url 'admin:model_list' %}" class="{% if 'model' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-2.5 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Models</a>
+                                <a href="{% url 'admin:prompt_list' %}" class="{% if 'prompt' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-2.5 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Prompts</a>
+                                <a href="{% url 'admin:audit_log' %}" class="{% if request.resolver_match.url_name == 'audit_log' or request.resolver_match.url_name == 'audit_detail' %}bg-indigo-700{% endif %} text-white px-2.5 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Audit</a>
+                                <a href="{% url 'admin:tts_settings' %}" class="{% if 'tts_settings' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white px-2.5 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">TTS</a>
                             </div>
                         </div>
                     </div>
@@ -48,7 +49,7 @@
             </div>
 
             <!-- Mobile menu -->
-            <div x-show="mobileMenuOpen" x-cloak class="md:hidden">
+            <div x-show="mobileMenuOpen" x-cloak class="xl:hidden">
                 <div class="space-y-1 px-2 pb-3 pt-2">
                     <a href="/" class="{% if request.path == '/' %}bg-indigo-700{% endif %} text-white block px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-700">Home</a>
                     <a href="{% url 'admin:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}bg-indigo-700{% endif %} text-white block px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-700">Dashboard</a>
@@ -58,6 +59,7 @@
                     <a href="{% url 'admin:model_list' %}" class="{% if 'model' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white block px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-700">Models</a>
                     <a href="{% url 'admin:prompt_list' %}" class="{% if 'prompt' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white block px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-700">Prompts</a>
                     <a href="{% url 'admin:audit_log' %}" class="{% if request.resolver_match.url_name == 'audit_log' or request.resolver_match.url_name == 'audit_detail' %}bg-indigo-700{% endif %} text-white block px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-700">Audit Log</a>
+                    <a href="{% url 'admin:tts_settings' %}" class="{% if 'tts_settings' in request.resolver_match.url_name %}bg-indigo-700{% endif %} text-white block px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-700">TTS</a>
                 </div>
             </div>
         </nav>
