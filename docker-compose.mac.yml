@@ -24,12 +24,30 @@ services:
       DJANGO_ALLOWED_HOSTS: "cyoa.mac.stargate.lan,localhost,127.0.0.1,cyoa-game-server,host.docker.internal"
       # Ollama connection
       OLLAMA_URL: "http://host.docker.internal:11434"
+      # Cloudflare Access (Zero Trust) — set these in .env when deploying
+      CLOUDFLARE_AUTH_ENABLED: ${CLOUDFLARE_AUTH_ENABLED:-false}
+      CLOUDFLARE_TEAM_DOMAIN: ${CLOUDFLARE_TEAM_DOMAIN:-}
+      CLOUDFLARE_AUD: ${CLOUDFLARE_AUD:-}
+      CLOUDFLARE_ADMIN_EMAILS: ${CLOUDFLARE_ADMIN_EMAILS:-}
     volumes:
       - ./cyoa-game-server:/app
       - ./cyoa_prompts:/story_prompts  # Story prompt files
       - cyoa-db:/app/db  # Persist SQLite database
     networks:
       - stargate-shared
+
+  # Cloudflare Tunnel — connects cyoa.chat-sdp.com to the game server.
+  # Runs on its own isolated network alongside cyoa-game-server so it
+  # can't see (or be seen by) containers in other compose projects.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cyoa-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - stargate-shared
+    depends_on:
+      - cyoa-game-server
 
 networks:
   stargate-shared:
