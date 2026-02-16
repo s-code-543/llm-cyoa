@@ -4,6 +4,7 @@ debugpy==1.8.9
 markdown2==2.5.1
 PyJWT==2.9.0
 cryptography==43.0.3
+openai==1.58.1
 
 # Testing dependencies
 pytest==8.3.4

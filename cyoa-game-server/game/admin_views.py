@@ -13,7 +13,7 @@ from django.db.models.deletion import ProtectedError
 from django.conf import settings
 from django.utils import timezone
 from functools import wraps
-from .models import Prompt, AuditLog, Configuration, APIProvider, LLMModel, JudgeStep
+from .models import Prompt, AuditLog, Configuration, APIProvider, LLMModel, JudgeStep, TTSSettings
 from .ollama_utils import get_ollama_models, test_ollama_connection
 from .anthropic_utils import test_anthropic_connection, get_anthropic_models
 from .openai_utils import test_openai_connection, get_openai_models
@@ -1171,4 +1171,44 @@ def difficulty_editor(request, difficulty_id=None):
         'difficulty': difficulty,
     }
     return render(request, 'cyoa_admin/difficulty_editor.html', context)
+
+
+@debug_login_bypass
+def tts_settings(request):
+    """
+    Edit TTS (Text-to-Speech) settings.
+    """
+    settings_obj = TTSSettings.get_settings()
+    
+    if request.method == 'POST':
+        # Parse form data
+        enabled = request.POST.get('enabled') == 'on'
+        openai_model = request.POST.get('openai_model')
+        openai_voice = request.POST.get('openai_voice')
+        max_text_length = int(request.POST.get('max_text_length', 4096))
+        audio_retention_days = int(request.POST.get('audio_retention_days', 7))
+        auto_cleanup_enabled = request.POST.get('auto_cleanup_enabled') == 'on'
+        
+        # Validate
+        if max_text_length < 1 or max_text_length > 4096:
+            messages.error(request, 'Max text length must be between 1 and 4096')
+        elif audio_retention_days < 1:
+            messages.error(request, 'Audio retention days must be at least 1')
+        else:
+            # Update settings
+            settings_obj.enabled = enabled
+            settings_obj.openai_model = openai_model
+            settings_obj.openai_voice = openai_voice
+            settings_obj.max_text_length = max_text_length
+            settings_obj.audio_retention_days = audio_retention_days
+            settings_obj.auto_cleanup_enabled = auto_cleanup_enabled
+            settings_obj.save()
+            
+            messages.success(request, 'TTS settings updated successfully')
+            return redirect('admin:tts_settings')
+    
+    context = {
+        'settings': settings_obj,
+    }
+    return render(request, 'cyoa_admin/tts_settings.html', context)
 

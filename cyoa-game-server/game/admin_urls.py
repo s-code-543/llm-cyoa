@@ -39,6 +39,9 @@ urlpatterns = [
     path('difficulty/new/', admin_views.difficulty_editor, name='difficulty_new'),
     path('difficulty/<int:difficulty_id>/', admin_views.difficulty_editor, name='difficulty_editor'),
     
+    # TTS Settings
+    path('tts-settings/', admin_views.tts_settings, name='tts_settings'),
+    
     # API endpoints
     path('api/preview-markdown/', admin_views.preview_markdown, name='preview_markdown'),
     path('api/refresh-models/', admin_views.refresh_models, name='refresh_models'),

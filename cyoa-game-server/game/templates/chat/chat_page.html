@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="/static/js/recorder.js"></script>
+    <script src="/static/js/tts.js"></script>
     <style>
         [x-cloak] { display: none !important; }
         html, body { 
@@ -95,11 +96,22 @@
           class="w-full px-2 py-1.5 rounded-lg relative"
         >
           <div class="whitespace-pre-wrap text-[14px] leading-snug" x-text="message.content"></div>
+          <!-- TTS speaker button for assistant messages (upper-right) -->
+          <button
+            x-show="message.role === 'assistant' && message.content && !message.is_error && !(message.metadata && message.metadata.is_error)"
+            @click="toggleTTS(index, message.content)"
+            :class="ttsPlayingIndex === index ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-700 text-white hover:bg-gray-800'"
+            class="absolute top-1 right-1 w-8 h-8 rounded flex items-center justify-center text-base transition-colors shadow-md"
+            :title="ttsPlayingIndex === index ? 'Stop audio' : 'Play audio'"
+          >
+            <span x-show="ttsPlayingIndex !== index">🔊</span>
+            <span x-show="ttsPlayingIndex === index">⏹</span>
+          </button>
           <!-- Refusal indicator for assistant messages -->
           <button
             x-show="message.role === 'assistant' && (message.refusal_info || (message.metadata && message.metadata.refusal_info))"
             @click="viewRefusalDetails(message)"
-            class="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs hover:bg-blue-200 transition-colors shadow-sm"
+            class="absolute top-10 right-1 w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs hover:bg-blue-200 transition-colors shadow-sm"
             title="View refusal details"
           >
             ⓘ
@@ -108,7 +120,7 @@
           <button
             x-show="message.role === 'assistant' && (message.judge_info || (message.metadata && message.metadata.judge_info))"
             @click="viewJudgeDetails(message)"
-            class="absolute top-1 right-7 w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs hover:bg-purple-200 transition-colors shadow-sm"
+            class="absolute top-10 right-7 w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs hover:bg-purple-200 transition-colors shadow-sm"
             title="View judge details"
           >
             ⚖︎
@@ -519,6 +531,9 @@ function chatApp() {
     recorderLevel: 0,
     recorderTimeDisplay: '00:00',
     recorderInitialized: false,
+    
+    // TTS state
+    ttsPlayingIndex: null,  // Index of message currently playing audio
 
     async init() {
       const urlParams = new URLSearchParams(window.location.search);
@@ -742,6 +757,10 @@ function chatApp() {
           // Clear input and draft when starting new conversation
           this.inputMessage = '';
           CYOARecorder.clearDraftText();
+          
+          // Clear TTS cache
+          CYOATTS.clearCache();
+          this.ttsPlayingIndex = null;
 
           window.history.pushState({}, '', `/chat/?conversation_id=${this.conversationId}`);
         }
@@ -912,6 +931,28 @@ function chatApp() {
         textarea.style.overflowY = 'auto';
       } else {
         textarea.style.overflowY = 'hidden';
+      }
+    },
+    
+    // === TTS Methods ===
+    
+    toggleTTS(messageIndex, text) {
+      if (this.ttsPlayingIndex === messageIndex) {
+        // Stop if already playing
+        CYOATTS.stopAudio();
+        this.ttsPlayingIndex = null;
+      } else {
+        // Play new audio
+        CYOATTS.playMessage(
+          messageIndex,
+          text,
+          (idx) => { this.ttsPlayingIndex = idx; },  // onPlay
+          (idx) => { this.ttsPlayingIndex = null; },  // onEnd
+          (idx, error) => {  // onError
+            this.ttsPlayingIndex = null;
+            console.error('TTS error:', error);
+          }
+        );
       }
     }
   }

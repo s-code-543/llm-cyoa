@@ -906,3 +906,177 @@ class STTRecording(models.Model):
     
     def __str__(self):
         return f"Recording {self.id} - {self.status}"
+
+
+class TTSAudio(models.Model):
+    """
+    Store text-to-speech audio files generated from assistant messages.
+    Tracks generation status and audio file paths.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('generating', 'Generating'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    VOICE_CHOICES = [
+        ('alloy', 'Alloy'),
+        ('echo', 'Echo'),
+        ('fable', 'Fable'),
+        ('onyx', 'Onyx'),
+        ('nova', 'Nova'),
+        ('shimmer', 'Shimmer'),
+    ]
+    
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Unique identifier for the TTS audio"
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="When the TTS request was created"
+    )
+    
+    text = models.TextField(
+        help_text="Text to be converted to speech"
+    )
+    
+    text_hash = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text="SHA-256 hash of text for deduplication"
+    )
+    
+    voice = models.CharField(
+        max_length=20,
+        choices=VOICE_CHOICES,
+        default='alloy',
+        help_text="Voice to use for TTS"
+    )
+    
+    model = models.CharField(
+        max_length=50,
+        default='tts-1',
+        help_text="TTS model (tts-1 or tts-1-hd)"
+    )
+    
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True,
+        help_text="Current status of the TTS generation"
+    )
+    
+    file_path = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Path to the generated audio file relative to MEDIA_ROOT"
+    )
+    
+    duration_seconds = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Duration of the audio in seconds"
+    )
+    
+    error_text = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Error message if generation failed"
+    )
+    
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['text_hash', 'voice', 'model']),
+            models.Index(fields=['status', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"TTS {self.id} - {self.voice} - {self.status}"
+
+
+class TTSSettings(models.Model):
+    """
+    Global TTS (Text-to-Speech) configuration settings.
+    Singleton model - only one instance should exist.
+    """
+    # OpenAI TTS Settings
+    openai_model = models.CharField(
+        max_length=50,
+        default='tts-1',
+        choices=[
+            ('tts-1', 'TTS-1 (Fast, Standard Quality)'),
+            ('tts-1-hd', 'TTS-1-HD (Slower, High Quality)'),
+        ],
+        help_text="OpenAI TTS model to use"
+    )
+    
+    openai_voice = models.CharField(
+        max_length=20,
+        default='alloy',
+        choices=[
+            ('alloy', 'Alloy (Neutral)'),
+            ('echo', 'Echo (Male)'),
+            ('fable', 'Fable (Expressive)'),
+            ('onyx', 'Onyx (Deep Male)'),
+            ('nova', 'Nova (Female)'),
+            ('shimmer', 'Shimmer (Soft Female)'),
+        ],
+        help_text="Default voice for OpenAI TTS"
+    )
+    
+    # Cleanup Settings
+    audio_retention_days = models.IntegerField(
+        default=7,
+        help_text="Days to keep TTS audio files before automatic cleanup"
+    )
+    
+    auto_cleanup_enabled = models.BooleanField(
+        default=True,
+        help_text="Automatically clean up old audio files during generation"
+    )
+    
+    # General Settings
+    enabled = models.BooleanField(
+        default=True,
+        help_text="Enable TTS functionality"
+    )
+    
+    max_text_length = models.IntegerField(
+        default=4096,
+        help_text="Maximum text length for TTS (OpenAI limit: 4096)"
+    )
+    
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "TTS Settings"
+        verbose_name_plural = "TTS Settings"
+    
+    def __str__(self):
+        return "TTS Settings"
+    
+    @classmethod
+    def get_settings(cls):
+        """Get or create the singleton settings instance."""
+        settings, _ = cls.objects.get_or_create(pk=1)
+        return settings
+    
+    def save(self, *args, **kwargs):
+        """Ensure only one instance exists (singleton pattern)."""
+        self.pk = 1
+        super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        """Prevent deletion of the singleton instance."""
+        pass

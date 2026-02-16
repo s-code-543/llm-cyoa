@@ -4,6 +4,10 @@ ssl/*
 *.pyc
 __pycache__/
 *.webm
+*.mp3
+*.wav
+*.ogg
+*.m4a
 
 # Virtual environment
 venv/

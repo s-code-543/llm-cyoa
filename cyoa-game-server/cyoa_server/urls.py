@@ -4,6 +4,7 @@ URL configuration for cyoa_server project.
 from django.urls import path, include
 from game import chat_views
 from game import stt_views
+from game import tts_views
 
 urlpatterns = [
     # Home page
@@ -22,6 +23,11 @@ urlpatterns = [
     path('api/stt/transcribe', stt_views.stt_transcribe, name='stt_transcribe'),
     path('api/stt/recording/<str:recording_id>', stt_views.stt_recording_status, name='stt_recording_status'),
     path('api/stt/discard', stt_views.stt_discard, name='stt_discard'),
+    
+    # TTS (Text-to-Speech) API
+    path('api/tts/generate', tts_views.tts_generate, name='tts_generate'),
+    path('api/tts/audio/<str:audio_id>', tts_views.tts_audio, name='tts_audio'),
+    path('api/tts/status/<str:audio_id>', tts_views.tts_status, name='tts_status'),
     
     # Admin interface
     path('admin/', include(('game.admin_urls', 'app'), namespace='admin')),

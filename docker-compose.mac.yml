@@ -17,6 +17,7 @@ services:
       - "8001:8000"  # Optional: Direct HTTP access for debugging
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-to-a-long-random-string}
       DJANGO_DEBUG: "1"
       PYTHONUNBUFFERED: "1"
