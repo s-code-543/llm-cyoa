@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Choose Your Own Adventure</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="96x96" href="/static/icons/favicon-96x96.png">
+    <link rel="icon" href="/static/icons/favicon.svg" type="image/svg+xml" sizes="any">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+    <!-- PWA -->
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1e1b4b" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CYOA">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         html, body { 
@@ -138,6 +153,14 @@
         } catch (error) {
             alert('Error deleting game: ' + error.message);
         }
+    }
+    </script>
+
+    <!-- Register service worker for PWA install -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .catch((err) => console.warn('SW registration failed:', err));
     }
     </script>
 </body>

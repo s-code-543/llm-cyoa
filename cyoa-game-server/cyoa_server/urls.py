@@ -4,8 +4,15 @@ URL configuration for cyoa_server project.
 from django.urls import path, include
 from game import chat_views
 from game import stt_views
+from game import pwa_views
 
 urlpatterns = [
+    # PWA root-level assets (must be above catch-all patterns)
+    path('sw.js', pwa_views.service_worker, name='service_worker'),
+    path('favicon.ico', pwa_views.favicon_ico, name='favicon_ico'),
+    path('apple-touch-icon.png', pwa_views.apple_touch_icon, name='apple_touch_icon'),
+    path('site.webmanifest', pwa_views.web_manifest, name='web_manifest'),
+
     # Home page
     path('', chat_views.home_page, name='home'),
     
