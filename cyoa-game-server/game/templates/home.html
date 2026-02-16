@@ -48,9 +48,8 @@
                 <h2 class="text-2xl font-bold text-gray-900 mb-4">Continue Your Adventure</h2>
                 <div class="space-y-3">
                     {% for game in recent_games %}
-                    <div class="flex items-center gap-2">
-                        <a href="/chat/?conversation_id={{ game.conversation_id }}" 
-                           class="flex-1 block bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-4 border border-gray-200">
+                    <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-200">
+                        <a href="/chat/?conversation_id={{ game.conversation_id }}" class="block p-4">
                             <div class="flex items-center justify-between">
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium text-gray-900">{{ game.title }}</p>
@@ -65,13 +64,21 @@
                                 </div>
                             </div>
                         </a>
-                        <button onclick="deleteGame('{{ game.conversation_id }}')" 
-                                class="flex-shrink-0 p-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Delete game">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
+                        <div class="flex items-center justify-end gap-1 px-3 pb-3 -mt-1">
+                            <a href="/chat/?conversation_id={{ game.conversation_id }}&voice=1"
+                               class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                               title="Continue with voice mode">
+                                🎙 Voice
+                            </a>
+                            <button onclick="event.stopPropagation(); deleteGame('{{ game.conversation_id }}')"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    title="Delete game">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete
+                            </button>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -84,35 +91,60 @@
                 {% if configurations %}
                 <div class="grid grid-cols-1 gap-4">
                     {% for config in configurations %}
-                    <a href="/chat/?config={{ config.id }}" 
-                       class="block bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-200">
-                        <div class="flex items-start justify-between">
-                            <div class="flex-1">
-                                <h3 class="text-lg font-semibold text-gray-900">{{ config.name }}</h3>
-                                {% if config.description %}
-                                <p class="text-sm text-gray-600 mt-1">{{ config.description }}</p>
-                                {% endif %}
-                                <div class="mt-3 flex flex-wrap gap-2">
-                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                                        📖 {{ config.adventure_prompt.name }}
-                                    </span>
-                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                                        {{ config.total_turns }} turns
-                                    </span>
-                                    {% if config.difficulty %}
-                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-700">
-                                        {{ config.difficulty.name }}
-                                    </span>
+                    <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-200">
+                        <a href="/chat/?config={{ config.id }}" class="block p-6">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <h3 class="text-lg font-semibold text-gray-900">{{ config.name }}</h3>
+                                    {% if config.description %}
+                                    <p class="text-sm text-gray-600 mt-1">{{ config.description }}</p>
                                     {% endif %}
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                            📖 {{ config.adventure_prompt.name }}
+                                        </span>
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                                            {{ config.total_turns }} turns
+                                        </span>
+                                        {% if config.difficulty %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-700">
+                                            {{ config.difficulty.name }}
+                                        </span>
+                                        {% endif %}
+                                        {% if config.storyteller_model %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                                            🧠 {{ config.storyteller_model.name }}
+                                        </span>
+                                        {% endif %}
+                                        {% if config.classifier_prompt %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700">
+                                            🛡 Refusal detection
+                                        </span>
+                                        {% endif %}
+                                        {% with judge_count=config.judge_steps.count %}
+                                        {% if judge_count > 0 %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
+                                            ⚖︎ {{ judge_count }} judge step{{ judge_count|pluralize }}
+                                        </span>
+                                        {% endif %}
+                                        {% endwith %}
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <span class="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700">
+                                        Start →
+                                    </span>
                                 </div>
                             </div>
-                            <div class="ml-4">
-                                <span class="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700">
-                                    Start →
-                                </span>
-                            </div>
+                        </a>
+                        <div class="flex items-center justify-end px-4 pb-4 -mt-2">
+                            <a href="/chat/?config={{ config.id }}&voice=1"
+                               class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                               title="Start with voice mode">
+                                🎙 Start with Voice
+                            </a>
                         </div>
-                    </a>
+                    </div>
                     {% endfor %}
                 </div>
                 {% else %}

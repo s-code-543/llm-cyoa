@@ -79,14 +79,16 @@ def dashboard(request):
     """
     # Get statistics
     total_requests = AuditLog.objects.count()
+    total_refusals = AuditLog.objects.filter(was_refusal=True).count()
     total_corrections = AuditLog.objects.filter(was_modified=True).count()
     correction_rate = (total_corrections / total_requests * 100) if total_requests > 0 else 0
     
-    # Recent corrections
-    recent_corrections = AuditLog.objects.filter(was_modified=True)[:10]
+    # Recent activity (all types)
+    recent_corrections = AuditLog.objects.all()[:10]
     
     context = {
         'total_requests': total_requests,
+        'total_refusals': total_refusals,
         'total_corrections': total_corrections,
         'correction_rate': f'{correction_rate:.1f}',
         'recent_corrections': recent_corrections,

@@ -47,11 +47,21 @@ const CYOARecorder = (function() {
   let lastError = null;
   let isCancelled = false;
   
+  // === Conversation Mode (VAD) ===
+  let conversationMode = false;
+  let speechDetected = false;
+  let lastSpeechTime = null;
+  let speechFrameCount = 0;
+  const SPEECH_THRESHOLD = 0.015;   // RMS level to count as speech
+  const SILENCE_TIMEOUT_MS = 7000;  // 7s silence after speech → auto-stop
+  const SPEECH_CONFIRM_FRAMES = 3;  // consecutive frames above threshold to confirm speech start
+  
   // Callbacks (set by init)
   let onStateChange = null;
   let onTranscriptReady = null;
   let onLevelUpdate = null;
   let onTimeUpdate = null;
+  let onSpeechStatusChange = null;  // conversation mode: (speechDetected: boolean) => void
   
   // === IndexedDB Operations ===
   
@@ -241,6 +251,13 @@ const CYOARecorder = (function() {
       };
       
       mediaRecorder.onstop = async () => {
+        // Reset conversation mode state
+        conversationMode = false;
+        speechDetected = false;
+        lastSpeechTime = null;
+        speechFrameCount = 0;
+        if (onSpeechStatusChange) onSpeechStatusChange(false);
+        
         if (isCancelled) {
           console.log('Recording cancelled by user');
           stopLevelMeter();
@@ -290,6 +307,7 @@ const CYOARecorder = (function() {
       
     } catch (error) {
       console.error('Failed to start recording:', error);
+      conversationMode = false;
       cleanupMediaResources();
       
       if (error.name === 'NotAllowedError') {
@@ -316,6 +334,19 @@ const CYOARecorder = (function() {
     } else {
       discardRecording();
     }
+  }
+  
+  /**
+   * Start recording in conversation mode with Voice Activity Detection.
+   * The mic stays open until speech is detected, then auto-stops
+   * after SILENCE_TIMEOUT_MS of silence following speech.
+   */
+  async function startConversationRecording() {
+    conversationMode = true;
+    speechDetected = false;
+    lastSpeechTime = null;
+    speechFrameCount = 0;
+    await startRecording();
   }
   
   function cleanupMediaResources() {
@@ -361,6 +392,32 @@ const CYOARecorder = (function() {
       
       if (onLevelUpdate) {
         onLevelUpdate(level);
+      }
+      
+      // === Conversation mode VAD ===
+      if (conversationMode) {
+        if (!speechDetected) {
+          // Waiting for speech to start
+          if (rms > SPEECH_THRESHOLD) {
+            speechFrameCount++;
+            if (speechFrameCount >= SPEECH_CONFIRM_FRAMES) {
+              speechDetected = true;
+              lastSpeechTime = Date.now();
+              console.log('[VAD] Speech detected');
+              if (onSpeechStatusChange) onSpeechStatusChange(true);
+            }
+          } else {
+            speechFrameCount = 0;
+          }
+        } else {
+          // Speech detected, watching for silence
+          if (rms > SPEECH_THRESHOLD) {
+            lastSpeechTime = Date.now();
+          } else if (lastSpeechTime && (Date.now() - lastSpeechTime) >= SILENCE_TIMEOUT_MS) {
+            console.log('[VAD] Silence timeout reached, auto-stopping');
+            stopRecording();
+          }
+        }
       }
     }, 50);  // 20fps for smooth animation
   }
@@ -707,6 +764,7 @@ const CYOARecorder = (function() {
     onTranscriptReady = callbacks.onTranscriptReady || null;
     onLevelUpdate = callbacks.onLevelUpdate || null;
     onTimeUpdate = callbacks.onTimeUpdate || null;
+    onSpeechStatusChange = callbacks.onSpeechStatusChange || null;
     
     // Open IndexedDB
     try {
@@ -728,6 +786,7 @@ const CYOARecorder = (function() {
     startRecording,
     stopRecording,
     cancelRecording,
+    startConversationRecording,
     retryTranscription,
     discardRecording,
     downloadRecording,

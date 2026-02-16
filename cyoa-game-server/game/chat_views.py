@@ -320,7 +320,10 @@ def chat_api_send_message(request):
                     was_refusal=True,
                     classifier_response=refusal_info['classifier_response'],
                     prompt_used=config.classifier_prompt,
-                    correction_prompt_used=config.turn_correction_prompt if refusal_info['was_corrected'] else None
+                    correction_prompt_used=config.turn_correction_prompt if refusal_info['was_corrected'] else None,
+                    details={'type': 'refusal', 'refusal_info': {
+                        k: v for k, v in refusal_info.items() if k != 'attempts'
+                    }}
                 )
                 print(f"[CHAT] Refusal logged to audit (corrected={refusal_info['was_corrected']})")
             
@@ -380,6 +383,7 @@ def chat_api_send_message(request):
             
         # Run judge pipeline (post-refusal corrections)
         judge_info = None
+        audit_logged = refusal_info['was_refusal']  # Already logged if refusal
         if config:
             judge_input_turn = final_response
             judge_result = run_judge_pipeline(messages, final_response, config)
@@ -397,8 +401,20 @@ def chat_api_send_message(request):
                     was_modified=judge_result.get('was_modified', False),
                     was_refusal=False,
                     prompt_used=first_step_prompt,
-                    details=judge_result
+                    details={'type': 'judge', **judge_result}
                 )
+                audit_logged = True
+        
+        # Always log happy-path turns that weren't already logged by refusal or judge
+        if not audit_logged:
+            AuditLog.objects.create(
+                original_text=llm_response,
+                refined_text=final_response,
+                was_modified=False,
+                was_refusal=False,
+                prompt_used=config.adventure_prompt if config else None,
+                details={'type': 'happy_path', 'turn_number': turn_number}
+            )
 
         # Save assistant response (using final response after refusal/judge processing)
         assistant_msg = ChatMessage.objects.create(
