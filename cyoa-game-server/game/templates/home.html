@@ -25,11 +25,21 @@
 
         <!-- Main Content -->
         <div class="max-w-4xl mx-auto px-4 py-8">
-            <!-- Admin Link -->
-            <div class="mb-8 text-center">
-                <a href="/admin/" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                    → Admin Panel
-                </a>
+            <!-- User & Admin Links -->
+            <div class="mb-8 flex items-center justify-between">
+                <span class="text-sm text-gray-600">
+                    Signed in as <strong>{{ user.email|default:user.username }}</strong>
+                </span>
+                <div class="flex gap-4">
+                    {% if user.is_staff %}
+                    <a href="/admin/" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                        → Admin Panel
+                    </a>
+                    {% endif %}
+                    <a href="/admin/logout/" class="text-gray-500 hover:text-gray-700 text-sm font-medium">
+                        Sign Out
+                    </a>
+                </div>
             </div>
 
             <!-- Recent Games -->
@@ -108,8 +118,7 @@
                 {% else %}
                 <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                     <p class="text-sm text-yellow-800">
-                        No configurations available. 
-                        <a href="/admin/configurations/" class="font-medium underline">Create a configuration</a> to start playing.
+                        No adventures available yet. {% if user.is_staff %}<a href="/admin/configurations/" class="font-medium underline">Create a configuration</a> to start playing.{% else %}Check back soon!{% endif %}
                     </p>
                 </div>
                 {% endif %}

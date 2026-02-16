@@ -8,6 +8,8 @@ from . import admin_views
 app_name = 'admin'
 
 urlpatterns = [
+    path('login/', admin_views.login_view, name='login'),
+    path('logout/', admin_views.logout_view, name='logout'),
     path('', RedirectView.as_view(url='dashboard/', permanent=False), name='index'),
     path('dashboard/', admin_views.dashboard, name='dashboard'),
     path('audit/', admin_views.audit_log, name='audit_log'),

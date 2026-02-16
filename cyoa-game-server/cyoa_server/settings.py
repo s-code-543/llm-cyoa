@@ -15,6 +15,7 @@ ALLOWED_HOSTS = ['cyoa.mac.stargate.lan', 'localhost', '127.0.0.1', 'cyoa-game-s
 
 # Proxy SSL awareness
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = ['https://cyoa.mac.stargate.lan']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -87,5 +88,5 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Login URL
 LOGIN_URL = '/admin/login/'
-LOGIN_REDIRECT_URL = '/admin/dashboard/'
+LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/admin/login/'

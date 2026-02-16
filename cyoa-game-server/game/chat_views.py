@@ -8,6 +8,7 @@ from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
 
 from .models import ChatConversation, ChatMessage, GameSession, Configuration, AuditLog
 from .llm_router import call_llm
@@ -17,17 +18,23 @@ from .refusal_detector import process_potential_refusal
 from .judge_pipeline import run_judge_pipeline
 
 
+@login_required
 def home_page(request):
     """
     Home page showing recent games and available configurations.
     """
-    # Get recent incomplete games (last 5)
+    # Get recent incomplete games for this user (last 5)
     recent_games = []
-    conversations = ChatConversation.objects.order_by('-updated_at')[:10]
+    conversations = ChatConversation.objects.filter(
+        user=request.user
+    ).order_by('-updated_at')[:10]
     
     for conv in conversations:
         try:
-            game_session = GameSession.objects.get(session_id=conv.conversation_id)
+            game_session = GameSession.objects.get(
+                session_id=conv.conversation_id,
+                user=request.user
+            )
             if not game_session.game_over:
                 recent_games.append({
                     'conversation_id': conv.conversation_id,
@@ -50,6 +57,7 @@ def home_page(request):
     })
 
 
+@login_required
 def chat_page(request):
     """
     Main chat page view.
@@ -83,15 +91,19 @@ def extract_game_state(text):
     choice_texts = {}
     
     for line in lines:
-        # Check if line starts with a choice number (handles both "1)" and "1.")
-        choice_match = re.match(r'^\s*(\d+)[.)\]]\s*(.+)', line)
+        # Strip common markdown formatting (**, __, etc.) to find choice number
+        stripped_line = re.sub(r'^[\s\*_#-]+', '', line)
+        # Check if line starts with a choice number (handles "1)", "1.", "1]", etc.)
+        choice_match = re.match(r'^(\d+)[.)\]]\**\s*(.+)', stripped_line)
         if choice_match:
             choice_num = int(choice_match.group(1))
             choice_text = choice_match.group(2).strip()
+            # Clean up any remaining markdown formatting from choice text
+            choice_text = re.sub(r'^\*+|\*+$', '', choice_text).strip()
             if choice_num in [1, 2]:
                 current_choice = choice_num
                 choice_texts[choice_num] = choice_text
-        elif current_choice and line.strip() and not re.match(r'^\s*\d+[.)\]]', line):
+        elif current_choice and line.strip() and not re.match(r'^[\s\*_#-]*\d+[.)\]]', line):
             # Continuation of current choice (multi-line)
             choice_texts[current_choice] += ' ' + line.strip()
     
@@ -110,6 +122,7 @@ def extract_game_state(text):
 
 
 @csrf_exempt
+@login_required
 @require_http_methods(["POST"])
 def chat_api_new_conversation(request):
     """
@@ -132,6 +145,7 @@ def chat_api_new_conversation(request):
                 pass
         
         conversation = ChatConversation.objects.create(
+            user=request.user,
             conversation_id=conversation_id,
             title=title,
             metadata={'config_id': config_id} if config_id else {}
@@ -147,6 +161,7 @@ def chat_api_new_conversation(request):
 
 
 @csrf_exempt
+@login_required
 @require_http_methods(["POST"])
 def chat_api_send_message(request):
     """
@@ -160,9 +175,10 @@ def chat_api_send_message(request):
         if not conversation_id or not user_message:
             return JsonResponse({'error': 'conversation_id and message required'}, status=400)
         
-        # Get or create conversation
+        # Get or create conversation (always owned by current user)
         conversation, created = ChatConversation.objects.get_or_create(
             conversation_id=conversation_id,
+            user=request.user,
             defaults={'title': 'New Adventure'}
         )
         
@@ -202,6 +218,7 @@ def chat_api_send_message(request):
         max_turns = config.total_turns if config else 20
         game_session, created = GameSession.objects.get_or_create(
             session_id=conversation.conversation_id,
+            user=request.user,
             defaults={
                 'conversation_fingerprint': conversation.conversation_id,
                 'configuration': config,
@@ -418,13 +435,18 @@ def chat_api_send_message(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def chat_api_get_conversation(request, conversation_id):
     """
     Get conversation history.
     """
     try:
-        conversation = get_object_or_404(ChatConversation, conversation_id=conversation_id)
+        conversation = get_object_or_404(
+            ChatConversation,
+            conversation_id=conversation_id,
+            user=request.user
+        )
         
         messages_data = []
         for msg in conversation.messages.all():
@@ -449,13 +471,14 @@ def chat_api_get_conversation(request, conversation_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def chat_api_list_conversations(request):
     """
-    List all conversations.
+    List conversations for the current user.
     """
     try:
-        conversations = ChatConversation.objects.all()[:50]  # Latest 50
+        conversations = ChatConversation.objects.filter(user=request.user)[:50]
         
         conversations_data = []
         for conv in conversations:
@@ -477,14 +500,18 @@ def chat_api_list_conversations(request):
 
 
 @csrf_exempt
+@login_required
 @require_http_methods(["POST"])
 def chat_api_delete_conversation(request, conversation_id):
     """
     Delete a conversation by marking its game session as over.
     """
     try:
-        # Mark game session as over
-        game_session = GameSession.objects.get(session_id=conversation_id)
+        # Mark game session as over (scoped to current user)
+        game_session = GameSession.objects.get(
+            session_id=conversation_id,
+            user=request.user
+        )
         game_session.game_over = True
         game_session.save()
         

@@ -5,7 +5,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q
@@ -24,23 +24,31 @@ import markdown2
 def debug_login_bypass(view_func):
     """
     Decorator that bypasses login_required in DEBUG mode.
-    Useful for curl/wget debugging.
+    In production, requires both authentication AND staff status.
     """
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if settings.DEBUG and not request.user.is_authenticated:
             # In debug mode, skip authentication
             pass
+        elif not settings.DEBUG:
+            if not request.user.is_authenticated:
+                from django.shortcuts import redirect
+                return redirect(settings.LOGIN_URL + f'?next={request.path}')
+            if not request.user.is_staff:
+                return HttpResponseForbidden("Admin access required.")
         return view_func(request, *args, **kwargs)
     return wrapper
 
 
 def login_view(request):
     """
-    Custom login view to avoid Django's default template rendering issues.
+    Login view — accessible to everyone. After login, honour ?next,
+    otherwise staff go to /admin/dashboard/ and regular users go to /.
     """
     if request.user.is_authenticated:
-        return redirect('/admin/dashboard/')
+        next_url = request.GET.get('next', '/' if not request.user.is_staff else '/admin/dashboard/')
+        return redirect(next_url)
     
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -49,12 +57,19 @@ def login_view(request):
         
         if user is not None:
             auth_login(request, user)
-            next_url = request.GET.get('next', '/admin/dashboard/')
+            next_url = request.GET.get('next', '/' if not user.is_staff else '/admin/dashboard/')
             return redirect(next_url)
         else:
             return render(request, 'cyoa_admin/login.html', {'error': True})
     
     return render(request, 'cyoa_admin/login.html')
+
+
+def logout_view(request):
+    """Log out and redirect to login page."""
+    from django.contrib.auth import logout as auth_logout
+    auth_logout(request)
+    return redirect('/admin/login/')
 
 
 @debug_login_bypass

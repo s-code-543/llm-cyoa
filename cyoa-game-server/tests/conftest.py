@@ -152,6 +152,7 @@ class GameSessionFactory(DjangoModelFactory):
     class Meta:
         model = GameSession
     
+    user = factory.LazyFunction(lambda: User.objects.first() or User.objects.create_user('testplayer', password='testpass'))
     session_id = factory.LazyFunction(lambda: str(uuid.uuid4())[:32])
     conversation_fingerprint = factory.LazyFunction(lambda: str(uuid.uuid4())[:32])
     turn_number = 1
@@ -164,6 +165,7 @@ class ChatConversationFactory(DjangoModelFactory):
     class Meta:
         model = ChatConversation
     
+    user = factory.LazyFunction(lambda: User.objects.first() or User.objects.create_user('testplayer', password='testpass'))
     conversation_id = factory.LazyFunction(lambda: str(uuid.uuid4()))
     title = factory.Sequence(lambda n: f"Test Conversation {n}")
     metadata = {}
@@ -348,6 +350,43 @@ def difficulty_profile(db):
 
 
 @pytest.fixture
+def user(db):
+    """Create a test user for authentication."""
+    return User.objects.create_user(
+        username='testplayer',
+        email='testplayer@example.com',
+        password='testpass123'
+    )
+
+
+@pytest.fixture
+def admin_user(db):
+    """Create a staff/admin test user."""
+    return User.objects.create_user(
+        username='admin',
+        email='admin@example.com',
+        password='adminpass123',
+        is_staff=True
+    )
+
+
+@pytest.fixture
+def auth_client(user):
+    """Return a Django test client logged in as the test user."""
+    c = Client()
+    c.force_login(user)
+    return c
+
+
+@pytest.fixture
+def admin_client(admin_user):
+    """Return a Django test client logged in as the admin user."""
+    c = Client()
+    c.force_login(admin_user)
+    return c
+
+
+@pytest.fixture
 def configuration(db, adventure_prompt, llm_model):
     """Create a full test configuration."""
     return ConfigurationFactory(
@@ -396,9 +435,9 @@ def game_session(db, configuration):
 
 
 @pytest.fixture
-def chat_conversation(db):
+def chat_conversation(db, user):
     """Create a chat conversation."""
-    return ChatConversationFactory()
+    return ChatConversationFactory(user=user)
 
 
 @pytest.fixture

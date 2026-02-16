@@ -1,6 +1,7 @@
 """
 Models for CYOA game server.
 """
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 import hashlib
@@ -677,6 +678,13 @@ class GameSession(models.Model):
     Per-session game state for CYOA adventures.
     Tracks progress, turn count, and game over status.
     """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='game_sessions',
+        help_text="Owner of this game session"
+    )
+    
     session_id = models.CharField(
         max_length=32,
         unique=True,
@@ -742,6 +750,13 @@ class ChatConversation(models.Model):
     """
     Represents a chat conversation with UUID and metadata.
     """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='conversations',
+        help_text="Owner of this conversation"
+    )
+    
     conversation_id = models.CharField(
         max_length=36,
         unique=True,
