@@ -12,6 +12,7 @@ urlpatterns = [
     path('favicon.ico', pwa_views.favicon_ico, name='favicon_ico'),
     path('apple-touch-icon.png', pwa_views.apple_touch_icon, name='apple_touch_icon'),
     path('site.webmanifest', pwa_views.web_manifest, name='web_manifest'),
+    path('offline.html', pwa_views.offline_page, name='offline_page'),
 
     # Home page
     path('', chat_views.home_page, name='home'),

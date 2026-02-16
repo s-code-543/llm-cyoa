@@ -1,14 +1,25 @@
 // Service Worker for CYOA PWA
-// Minimal SW to satisfy PWA installability requirements
+// Required for Chromium/Samsung Internet PWA installability
 
-const CACHE_NAME = 'cyoa-v1';
+const CACHE_NAME = 'cyoa-v2';
+const OFFLINE_URL = '/offline.html';
 
-// Install: cache shell assets
+// Install: pre-cache the offline fallback page and key assets
 self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll([
+        OFFLINE_URL,
+        '/static/icons/icon-192.png',
+        '/static/icons/icon-512.png',
+        '/static/icons/favicon-96x96.png',
+      ])
+    )
+  );
   self.skipWaiting();
 });
 
-// Activate: clean old caches
+// Activate: clean old caches and claim clients immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((names) =>
@@ -19,21 +30,35 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: network-first strategy (the game is dynamic, so always prefer network)
+// Fetch: network-first for navigations, cache-first for static assets
 self.addEventListener('fetch', (event) => {
-  // Only handle same-origin GET requests
+  // Only intercept GET requests
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Cache static assets for offline icon display
-        if (response.ok && event.request.url.includes('/static/')) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      })
-      .catch(() => caches.match(event.request))
-  );
+  // Navigation requests: network-first with offline fallback
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(OFFLINE_URL))
+    );
+    return;
+  }
+
+  // Static assets: network-first, cache fallback
+  if (event.request.url.includes('/static/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Everything else: just fetch from network
+  event.respondWith(fetch(event.request));
 });

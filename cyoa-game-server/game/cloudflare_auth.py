@@ -181,8 +181,15 @@ class CloudflareAccessMiddleware:
     Skipped entirely when ``CLOUDFLARE_AUTH_ENABLED`` is False.
     """
 
-    # Paths that should never be blocked (health checks, etc.)
-    EXEMPT_PATHS = frozenset()
+    # Paths that should never be blocked (health checks, PWA assets, etc.)
+    EXEMPT_PREFIXES = (
+        '/sw.js',
+        '/site.webmanifest',
+        '/favicon.ico',
+        '/apple-touch-icon.png',
+        '/offline.html',
+        '/static/',
+    )
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -198,8 +205,8 @@ class CloudflareAccessMiddleware:
         if not self.enabled:
             return self.get_response(request)
 
-        # Allow exempt paths through
-        if request.path in self.EXEMPT_PATHS:
+        # Allow exempt paths through (PWA assets, static files)
+        if request.path.startswith(self.EXEMPT_PREFIXES):
             return self.get_response(request)
 
         # If the user is already authenticated via session, skip JWT check
