@@ -11,7 +11,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-key-change-in-produ
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['cyoa.mac.stargate.lan', 'cyoa.chat-sdp.org', 'localhost', '127.0.0.1', 'cyoa-game-server', 'host.docker.internal', '*']
+ALLOWED_HOSTS = ['cyoa.mac.stargate.lan', 'cyoa.chat-sdp.org', 'localhost', '127.0.0.1', 'cyoa-game-server', 'host.docker.internal']
 
 # Proxy SSL awareness
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

@@ -13,6 +13,10 @@ python manage.py migrate --noinput
 echo "📂 Collecting static files..."
 python manage.py collectstatic --noinput --clear
 
+# Clean up old TTS audio files (uses TTSSettings retention days)
+echo "🧹 Cleaning up old TTS audio files..."
+python manage.py cleanup_tts_audio
+
 echo "✅ Initialization complete!"
 
 # Start server with debugpy

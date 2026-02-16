@@ -63,6 +63,15 @@ const CYOARecorder = (function() {
   let onTimeUpdate = null;
   let onSpeechStatusChange = null;  // conversation mode: (speechDetected: boolean) => void
   
+  // === Helper Functions ===
+  
+  /**
+   * Get CSRF token from meta tag.
+   */
+  function getCSRFToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content || '';
+  }
+  
   // === IndexedDB Operations ===
   
   async function openDB() {
@@ -529,6 +538,9 @@ const CYOARecorder = (function() {
       
       const response = await fetch('/api/stt/upload', {
         method: 'POST',
+        headers: {
+          'X-CSRFToken': getCSRFToken(),
+        },
         body: formData
       });
       
@@ -550,7 +562,10 @@ const CYOARecorder = (function() {
     try {
       const response = await fetch('/api/stt/transcribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCSRFToken(),
+        },
         body: JSON.stringify({ recording_id: recordingId })
       });
       
@@ -623,7 +638,10 @@ const CYOARecorder = (function() {
       try {
         await fetch('/api/stt/discard', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken(),
+          },
           body: JSON.stringify({ recording_id: serverRecordingId })
         });
       } catch (e) {

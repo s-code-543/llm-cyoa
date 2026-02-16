@@ -20,6 +20,15 @@ const CYOATTS = (function() {
   const DEFAULT_VOICE = 'alloy';  // Can be: alloy, echo, fable, onyx, nova, shimmer
   const DEFAULT_MODEL = 'tts-1';  // or 'tts-1-hd' for higher quality
   
+  // === Helper Functions ===
+  
+  /**
+   * Get CSRF token from meta tag.
+   */
+  function getCSRFToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content || '';
+  }
+  
   /**
    * Generate TTS audio for a message.
    * Returns the audio URL or throws an error.
@@ -30,6 +39,7 @@ const CYOATTS = (function() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': getCSRFToken(),
         },
         body: JSON.stringify({
           text: text,

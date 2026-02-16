@@ -71,11 +71,23 @@ class Command(BaseCommand):
         records_deleted = 0
         
         MEDIA_ROOT = getattr(settings, 'MEDIA_ROOT', settings.BASE_DIR / 'media')
+        TTS_AUDIO_DIR = Path(MEDIA_ROOT) / 'tts_audio'
         
         for record in old_records:
             # Check if file exists
             if record.file_path:
                 file_path = Path(MEDIA_ROOT) / record.file_path
+                
+                # Security: Verify file is within TTS_AUDIO_DIR before deleting
+                try:
+                    resolved_path = file_path.resolve()
+                    if not resolved_path.is_relative_to(TTS_AUDIO_DIR.resolve()):
+                        self.stdout.write(self.style.ERROR(f"  Security: Skipping file outside TTS directory: {record.file_path}"))
+                        continue
+                except (ValueError, OSError) as e:
+                    self.stdout.write(self.style.ERROR(f"  Path resolution error for {record.file_path}: {e}"))
+                    continue
+                
                 if file_path.exists():
                     if not dry_run:
                         try:

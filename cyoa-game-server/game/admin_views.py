@@ -7,7 +7,6 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseForbidden
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
 from django.conf import settings
@@ -31,11 +30,9 @@ def debug_login_bypass(view_func):
         if settings.DEBUG and not request.user.is_authenticated:
             # In debug mode, skip authentication
             pass
-        elif not settings.DEBUG:
-            if not request.user.is_authenticated:
-                from django.shortcuts import redirect
-                return redirect(settings.LOGIN_URL + f'?next={request.path}')
-            if not request.user.is_staff:
+        else:
+            # In production OR if authenticated in debug mode, enforce staff requirement
+            if not request.user.is_authenticated or not request.user.is_staff:
                 return HttpResponseForbidden("Admin access required.")
         return view_func(request, *args, **kwargs)
     return wrapper
@@ -657,7 +654,6 @@ def refresh_models(request):
 
 @debug_login_bypass
 @require_http_methods(["POST"])
-@csrf_exempt
 def clear_audit_log(request):
     """
     Clear all audit log entries.
@@ -670,7 +666,6 @@ def clear_audit_log(request):
 
 @debug_login_bypass
 @require_http_methods(["POST"])
-@csrf_exempt
 def reset_statistics(request):
     """
     Reset all statistics (clears audit log).

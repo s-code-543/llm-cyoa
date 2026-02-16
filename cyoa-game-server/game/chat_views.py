@@ -6,7 +6,6 @@ import json
 import re
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, Http404
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 
@@ -121,7 +120,6 @@ def extract_game_state(text):
     return state
 
 
-@csrf_exempt
 @login_required
 @require_http_methods(["POST"])
 def chat_api_new_conversation(request):
@@ -160,7 +158,6 @@ def chat_api_new_conversation(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
 @login_required
 @require_http_methods(["POST"])
 def chat_api_send_message(request):
@@ -515,7 +512,6 @@ def chat_api_list_conversations(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
 @login_required
 @require_http_methods(["POST"])
 def chat_api_delete_conversation(request, conversation_id):

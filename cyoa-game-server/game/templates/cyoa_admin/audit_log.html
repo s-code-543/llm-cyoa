@@ -15,6 +15,7 @@
                 <span class="ml-2 text-sm text-gray-700">Show corrections only</span>
             </label>
             <form method="post" action="{% url 'admin:clear_audit_log' %}" onsubmit="return confirm('Are you sure you want to clear all audit log entries?');">
+                {% csrf_token %}
                 <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
                     Clear Audit Log
                 </button>

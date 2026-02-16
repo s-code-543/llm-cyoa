@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>CYOA Adventure</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -575,6 +576,11 @@ function chatApp() {
     voiceModeListening: false,
     voiceSpeechDetected: false,
 
+    // Helper to get CSRF token from meta tag
+    getCSRFToken() {
+      return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    },
+
     async init() {
       const urlParams = new URLSearchParams(window.location.search);
       const convId = urlParams.get('conversation_id');
@@ -806,7 +812,10 @@ function chatApp() {
         
         const response = await fetch('/chat/api/new', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.getCSRFToken()
+          },
           body: body
         });
 
@@ -912,7 +921,10 @@ function chatApp() {
       try {
         const response = await fetch('/chat/api/send', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.getCSRFToken()
+          },
           body: JSON.stringify({
             conversation_id: this.conversationId,
             message: userMessage

@@ -10,7 +10,6 @@ from django.utils import timezone
 
 from django.conf import settings
 from django.http import JsonResponse, FileResponse, HttpResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from openai import OpenAI
 
@@ -64,6 +63,17 @@ def cleanup_old_tts_files(retention_days: int = 7):
             # Delete physical file if it exists
             if record.file_path:
                 file_path = Path(MEDIA_ROOT) / record.file_path
+                
+                # Security: Verify file is within TTS_AUDIO_DIR before deleting
+                try:
+                    resolved_path = file_path.resolve()
+                    if not resolved_path.is_relative_to(TTS_AUDIO_DIR.resolve()):
+                        logger.error(f"Security: Attempted to delete file outside TTS directory: {record.file_path}")
+                        continue
+                except (ValueError, OSError) as e:
+                    logger.error(f"Path resolution error for {record.file_path}: {e}")
+                    continue
+                
                 if file_path.exists():
                     try:
                         file_path.unlink()
@@ -89,7 +99,6 @@ def cleanup_old_tts_files(retention_days: int = 7):
         return 0, 0
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def tts_generate(request):
     """
@@ -267,6 +276,16 @@ def tts_audio(request, audio_id):
         return JsonResponse({'error': 'Audio file path not set'}, status=404)
     
     audio_path = Path(MEDIA_ROOT) / tts_audio.file_path
+    
+    # Security: Verify file is within TTS_AUDIO_DIR before serving
+    try:
+        resolved_path = audio_path.resolve()
+        if not resolved_path.is_relative_to(TTS_AUDIO_DIR.resolve()):
+            logger.error(f"Security: Attempted to access file outside TTS directory: {tts_audio.file_path}")
+            return JsonResponse({'error': 'Invalid file path'}, status=403)
+    except (ValueError, OSError):
+        return JsonResponse({'error': 'Invalid file path'}, status=403)
+    
     if not audio_path.exists():
         return JsonResponse({'error': 'Audio file not found on disk'}, status=404)
     
