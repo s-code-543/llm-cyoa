@@ -31,6 +31,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'game.cors_middleware.PWACorsMiddleware',  # Add CORS headers to PWA assets
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'game.cloudflare_auth.CloudflareAccessMiddleware',  # after AuthenticationMiddleware
