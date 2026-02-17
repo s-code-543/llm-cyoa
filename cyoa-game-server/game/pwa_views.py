@@ -1,7 +1,7 @@
 """
 Views that serve PWA root-level files (service worker, favicon, manifest, offline page).
 """
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, HttpResponse, Http404
 from django.conf import settings
 from pathlib import Path
 
@@ -11,16 +11,13 @@ ICONS_DIR = STATIC_DIR / 'icons'
 
 
 def _serve_file(path, content_type, extra_headers=None):
-    """Serve a static file with proper content type and CORS headers."""
+    """Serve a static file with proper content type (CORS headers added by middleware)."""
+    if not path.exists():
+        raise Http404(f"File not found: {path.name}")    
     response = FileResponse(
         open(path, 'rb'),
         content_type=content_type,
     )
-    # CORS headers for crossorigin="use-credentials" manifest/icon fetches
-    response['Access-Control-Allow-Origin'] = 'https://cyoa.chat-sdp.org'
-    response['Access-Control-Allow-Credentials'] = 'true'
-    response['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
-    response['Access-Control-Allow-Headers'] = 'X-Requested-With, Content-Type'
     
     if extra_headers:
         for key, value in extra_headers.items():
@@ -81,8 +78,4 @@ def offline_page(request):
     </div>
 </body>
 </html>"""
-    response = HttpResponse(html, content_type='text/html')
-    # CORS headers for service worker fetches
-    response['Access-Control-Allow-Origin'] = 'https://cyoa.chat-sdp.org'
-    response['Access-Control-Allow-Credentials'] = 'true'
-    return response
+    return HttpResponse(html, content_type='text/html')
