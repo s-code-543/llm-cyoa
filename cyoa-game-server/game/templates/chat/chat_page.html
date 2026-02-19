@@ -124,7 +124,11 @@
           <div class="flex gap-2" :class="message.role === 'user' ? 'flex-row-reverse' : ''">
             <!-- Message text -->
             <div class="flex-1 min-w-0">
-              <div class="whitespace-pre-wrap text-[14px] leading-snug" :class="message.role === 'user' ? 'text-right' : ''" x-text="message.content"></div>
+              <div 
+                class="text-[14px] leading-snug story-content" 
+                :class="message.role === 'user' ? 'text-right whitespace-pre-wrap' : ''"
+                x-html="message.role === 'assistant' ? renderMarkdown(message.content) : message.content"
+              ></div>
             </div>
             <!-- Action buttons column for assistant messages -->
             <div
@@ -169,6 +173,15 @@
                 title="View judge details"
               >
                 ⚖︎
+              </button>
+              <!-- Rollback button (hidden on the last assistant message) -->
+              <button
+                x-show="!isLastAssistantMessage(index)"
+                @click="promptRollback(index)"
+                class="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs hover:bg-amber-200 transition-colors shadow-sm"
+                title="Roll back to this turn"
+              >
+                ↩
               </button>
             </div>
           </div>
@@ -484,67 +497,110 @@
       </div>
     </div>
   </div>
-</div>
 
-<!-- Judge Details Modal -->
-<div
-  x-show="showJudgeModal"
-  x-cloak
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-  @click.self="showJudgeModal = false"
->
-  <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-hidden">
-    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-      <h3 class="text-lg font-semibold text-gray-900">Judge Pipeline Details</h3>
-      <button @click="showJudgeModal = false" class="text-gray-400 hover:text-gray-600">✕</button>
+  <!-- Judge Details Modal -->
+  <div
+    x-show="showJudgeModal"
+    x-cloak
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    @click.self="showJudgeModal = false"
+  >
+    <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">Judge Pipeline Details</h3>
+        <button @click="showJudgeModal = false" class="text-gray-400 hover:text-gray-600">✕</button>
+      </div>
+
+      <div class="p-4 space-y-4 max-h-[65vh] overflow-y-auto">
+        <template x-if="activeJudgeInfo">
+          <div>
+            <div class="text-sm text-gray-700 mb-2">
+              <span class="font-semibold">Modified:</span>
+              <span x-text="activeJudgeInfo.was_modified ? 'Yes' : 'No'"></span>
+            </div>
+
+            <div class="space-y-3" x-show="activeJudgeInfo.steps && activeJudgeInfo.steps.length">
+              <template x-for="(step, idx) in activeJudgeInfo.steps" :key="idx">
+                <div class="border rounded p-3" :class="step.used_rewrite ? 'border-purple-200 bg-purple-50' : 'border-gray-200 bg-gray-50'">
+                  <div class="flex items-center justify-between">
+                    <div class="text-sm font-semibold text-gray-800" x-text="step.name || ('Step ' + (idx + 1))"></div>
+                    <div class="text-xs text-gray-500" x-text="step.used_rewrite ? 'Rewrite applied' : 'No rewrite' "></div>
+                  </div>
+                  <div class="mt-2">
+                    <div class="text-xs text-gray-500">Judge Response</div>
+                    <div class="text-sm bg-white rounded p-2 whitespace-pre-wrap" x-text="step.judge_response"></div>
+                  </div>
+                  <div class="mt-2" x-show="step.rewrite_response">
+                    <div class="text-xs text-gray-500">Rewrite Output</div>
+                    <div class="text-sm bg-white rounded p-2 whitespace-pre-wrap" x-text="step.rewrite_response"></div>
+                  </div>
+                  <div class="mt-2" x-show="step.compare_response">
+                    <div class="text-xs text-gray-500">Comparison Response</div>
+                    <div class="text-sm bg-white rounded p-2 whitespace-pre-wrap" x-text="step.compare_response"></div>
+                  </div>
+                  <div class="mt-2 text-xs text-gray-600" x-show="step.error">Error: <span x-text="step.error"></span></div>
+                </div>
+              </template>
+            </div>
+
+            <div class="text-sm text-gray-500" x-show="!activeJudgeInfo.steps || activeJudgeInfo.steps.length === 0">
+              No judge steps were executed.
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div class="px-4 py-3 border-t border-gray-200 flex justify-end">
+        <button
+          @click="showJudgeModal = false"
+          class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-medium text-sm"
+        >
+          Close
+        </button>
+      </div>
     </div>
+  </div>
 
-    <div class="p-4 space-y-4 max-h-[65vh] overflow-y-auto">
-      <template x-if="activeJudgeInfo">
-        <div>
-          <div class="text-sm text-gray-700 mb-2">
-            <span class="font-semibold">Modified:</span>
-            <span x-text="activeJudgeInfo.was_modified ? 'Yes' : 'No'"></span>
-          </div>
+  <!-- Rollback Confirmation Modal -->
+  <div
+    x-show="showRollbackModal"
+    x-cloak
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    @click.self="showRollbackModal = false"
+  >
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-amber-800">Roll Back Conversation</h3>
+        <button @click="showRollbackModal = false" class="text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
 
-          <div class="space-y-3" x-show="activeJudgeInfo.steps && activeJudgeInfo.steps.length">
-            <template x-for="(step, idx) in activeJudgeInfo.steps" :key="idx">
-              <div class="border rounded p-3" :class="step.used_rewrite ? 'border-purple-200 bg-purple-50' : 'border-gray-200 bg-gray-50'">
-                <div class="flex items-center justify-between">
-                  <div class="text-sm font-semibold text-gray-800" x-text="step.name || ('Step ' + (idx + 1))"></div>
-                  <div class="text-xs text-gray-500" x-text="step.used_rewrite ? 'Rewrite applied' : 'No rewrite' "></div>
-                </div>
-                <div class="mt-2">
-                  <div class="text-xs text-gray-500">Judge Response</div>
-                  <div class="text-sm bg-white rounded p-2 whitespace-pre-wrap" x-text="step.judge_response"></div>
-                </div>
-                <div class="mt-2" x-show="step.rewrite_response">
-                  <div class="text-xs text-gray-500">Rewrite Output</div>
-                  <div class="text-sm bg-white rounded p-2 whitespace-pre-wrap" x-text="step.rewrite_response"></div>
-                </div>
-                <div class="mt-2" x-show="step.compare_response">
-                  <div class="text-xs text-gray-500">Comparison Response</div>
-                  <div class="text-sm bg-white rounded p-2 whitespace-pre-wrap" x-text="step.compare_response"></div>
-                </div>
-                <div class="mt-2 text-xs text-gray-600" x-show="step.error">Error: <span x-text="step.error"></span></div>
-              </div>
-            </template>
-          </div>
+      <div class="p-4 space-y-3">
+        <p class="text-sm text-gray-700">
+          This will roll back the conversation to the selected assistant turn, deleting
+          <span class="font-bold text-amber-700" x-text="rollbackTargetIndex !== null ? (messages.length - rollbackTargetIndex - 1) : 0"></span>
+          message(s) after it.
+        </p>
+        <p class="text-sm text-gray-500">
+          The game session will be reset so you can continue playing from this point. This cannot be undone.
+        </p>
+      </div>
 
-          <div class="text-sm text-gray-500" x-show="!activeJudgeInfo.steps || activeJudgeInfo.steps.length === 0">
-            No judge steps were executed.
-          </div>
-        </div>
-      </template>
-    </div>
-
-    <div class="px-4 py-3 border-t border-gray-200 flex justify-end">
-      <button
-        @click="showJudgeModal = false"
-        class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-medium text-sm"
-      >
-        Close
-      </button>
+      <div class="px-4 py-3 border-t border-gray-200 flex justify-end gap-2">
+        <button
+          @click="showRollbackModal = false"
+          class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-medium text-sm"
+        >
+          Cancel
+        </button>
+        <button
+          @click="confirmRollback()"
+          :disabled="rollbackLoading"
+          class="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:bg-amber-300 font-medium text-sm"
+        >
+          <span x-show="!rollbackLoading">Roll Back</span>
+          <span x-show="rollbackLoading">Rolling back...</span>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -577,6 +633,12 @@ function chatApp() {
     activeJudgeInfo: null,
     showJudgeModal: false,
     
+    // Rollback state
+    showRollbackModal: false,
+    rollbackTargetIndex: null,
+    rollbackTargetId: null,
+    rollbackLoading: false,
+    
     // Recording state
     recorderState: 'idle',  // idle, recording, processing, error, success
     recorderError: '',
@@ -596,6 +658,26 @@ function chatApp() {
     // Helper to get CSRF token from meta tag
     getCSRFToken() {
       return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    },
+    
+    // Render markdown for assistant messages
+    renderMarkdown(text) {
+      if (!text) return '';
+      
+      // Simple markdown rendering
+      let html = text
+        // Escape HTML first
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        // Bold
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        // Italic
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // Line breaks (preserve newlines)
+        .replace(/\n/g, '<br>');
+      
+      return html;
     },
 
     async init() {
@@ -819,6 +901,82 @@ function chatApp() {
       }
     },
 
+    // === Rollback Methods ===
+    
+    isLastAssistantMessage(index) {
+      for (let i = this.messages.length - 1; i >= 0; i--) {
+        if (this.messages[i].role === 'assistant') {
+          return index === i;
+        }
+      }
+      return false;
+    },
+    
+    promptRollback(index) {
+      const message = this.messages[index];
+      if (!message || message.role !== 'assistant') return;
+      this.rollbackTargetIndex = index;
+      this.rollbackTargetId = message.id;
+      this.showRollbackModal = true;
+    },
+    
+    async confirmRollback() {
+      if (this.rollbackTargetId === null || this.rollbackLoading) return;
+      
+      this.rollbackLoading = true;
+      this.errorMessage = '';
+      
+      try {
+        const response = await fetch('/chat/api/rollback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.getCSRFToken()
+          },
+          body: JSON.stringify({
+            conversation_id: this.conversationId,
+            message_id: this.rollbackTargetId
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          this.errorMessage = 'Rollback failed: ' + data.error;
+        } else if (data.success) {
+          // Replace messages with the updated list from backend
+          this.messages = data.messages || [];
+          
+          // Reset game state from response
+          this.gameBlocked = false;
+          this.restoreGameState();
+          
+          // Update state from backend if provided
+          if (data.state) {
+            if (typeof data.state.turn_current === 'number') this.turnCurrent = data.state.turn_current;
+            if (typeof data.state.turn_max === 'number') this.turnMax = data.state.turn_max;
+            if (typeof data.state.choice1 === 'string') this.choice1Text = data.state.choice1;
+            if (typeof data.state.choice2 === 'string') this.choice2Text = data.state.choice2;
+            if (Array.isArray(data.state.inventory)) this.inventoryItems = data.state.inventory;
+          }
+          
+          // Clear TTS cache since messages changed
+          CYOATTS.clearCache();
+          this.ttsPlayingIndex = null;
+          this.ttsLoadingIndex = null;
+          
+          this.scrollToBottom();
+        }
+      } catch (error) {
+        this.errorMessage = 'Rollback failed: ' + error.message;
+      } finally {
+        this.rollbackLoading = false;
+        this.showRollbackModal = false;
+        this.rollbackTargetIndex = null;
+        this.rollbackTargetId = null;
+      }
+    },
+
     async newConversation() {
       try {
         // Get config_id from URL if present
@@ -1025,12 +1183,33 @@ function chatApp() {
             this.turnMax = parseInt(turnMatch[2]);
           }
           
-          // Extract choices "1) ... 2) ..."
-          const choice1Match = text.match(/1\)\s*(.+?)(?=\n|$)/);
-          const choice2Match = text.match(/2\)\s*(.+?)(?=\n|$)/);
+          // Extract choices "1) ... 2) ..." - look for standalone numbered lines
+          // Match whole lines that start with digits followed by ) or .
+          const lines = text.split('\n');
+          let foundChoice1 = null;
+          let foundChoice2 = null;
           
-          if (choice1Match) this.choice1Text = choice1Match[1].trim();
-          if (choice2Match) this.choice2Text = choice2Match[1].trim();
+          for (const line of lines) {
+            let trimmed = line.trim();
+            // Strip markdown bold markers (** or __) from start and end
+            trimmed = trimmed.replace(/^\*\*/, '').replace(/\*\*$/, '');
+            trimmed = trimmed.replace(/^__/, '').replace(/__$/, '');
+            trimmed = trimmed.trim();
+            
+            // Match lines starting with "1)" or "1." or "2)" or "2."
+            const match1 = trimmed.match(/^1[.)]\s*(.+)$/);
+            const match2 = trimmed.match(/^2[.)]\s*(.+)$/);
+            
+            if (match1 && !foundChoice1) foundChoice1 = match1[1].trim();
+            if (match2 && !foundChoice2) foundChoice2 = match2[1].trim();
+          }
+          
+          if (foundChoice1) this.choice1Text = foundChoice1;
+          if (foundChoice2) this.choice2Text = foundChoice2;
+          
+          // If no choices found, clear them
+          if (!foundChoice1) this.choice1Text = '';
+          if (!foundChoice2) this.choice2Text = '';
           
           break;
         }

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>Choose Your Own Adventure</title>
 
     <!-- Favicon -->
@@ -176,6 +177,10 @@
     </div>
 
     <script>
+    function getCSRFToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    }
+
     async function deleteGame(conversationId) {
         if (!confirm('Delete this game? This cannot be undone.')) {
             return;
@@ -184,7 +189,10 @@
         try {
             const response = await fetch(`/chat/api/delete/${conversationId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                }
             });
             
             if (response.ok) {
