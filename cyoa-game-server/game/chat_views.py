@@ -83,17 +83,27 @@ def extract_game_state(text):
         state['turn_current'] = int(turn_match.group(1))
         state['turn_max'] = int(turn_match.group(2))
     
-    # Extract choices - look for "1) ..." or "1. ..." patterns
-    # Split into lines and look for numbered choices
+    # Extract choices - comprehensive regex to handle many variations:
+    # - Separators: ) . ] - :
+    # - Indentation: any leading whitespace
+    # - Bold/italic wrapping: **1)** or **1.** or *1)* etc.
+    # - Examples: "1)", "1.", "1-", "1:", "**1)**", "  1.", etc.
     lines = text.split('\n')
     current_choice = None
     choice_texts = {}
     
     for line in lines:
-        # Strip common markdown formatting (**, __, etc.) to find choice number
-        stripped_line = re.sub(r'^[\s\*_#-]+', '', line)
-        # Check if line starts with a choice number (handles "1)", "1.", "1]", etc.)
-        choice_match = re.match(r'^(\d+)[.)\]]\**\s*(.+)', stripped_line)
+        # Pattern explanation:
+        # ^\s*           - optional leading whitespace (indentation)
+        # \*{0,2}        - optional markdown bold (0-2 asterisks before number)
+        # (\d+)          - capture the choice number
+        # \*{0,2}        - optional markdown bold (0-2 asterisks after number)
+        # \s*            - optional whitespace
+        # [.)\]:-]       - separator: ) . ] - :
+        # \*{0,2}        - optional markdown bold (0-2 asterisks after separator)
+        # \s*            - optional whitespace
+        # (.+)           - capture the choice text
+        choice_match = re.match(r'^\s*\*{0,2}\s*(\d+)\s*\*{0,2}\s*[.)\]:-]\s*\*{0,2}\s*(.+)', line)
         if choice_match:
             choice_num = int(choice_match.group(1))
             choice_text = choice_match.group(2).strip()
@@ -102,7 +112,7 @@ def extract_game_state(text):
             if choice_num in [1, 2]:
                 current_choice = choice_num
                 choice_texts[choice_num] = choice_text
-        elif current_choice and line.strip() and not re.match(r'^[\s\*_#-]*\d+[.)\]]', line):
+        elif current_choice and line.strip() and not re.match(r'^\s*\*{0,2}\s*\d+\s*\*{0,2}\s*[.)\]:-]', line):
             # Continuation of current choice (multi-line)
             choice_texts[current_choice] += ' ' + line.strip()
     

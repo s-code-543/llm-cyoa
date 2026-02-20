@@ -1184,24 +1184,24 @@ function chatApp() {
           }
           
           // Extract choices "1) ... 2) ..." - look for standalone numbered lines
-          // Match whole lines that start with digits followed by ) or .
+          // Comprehensive pattern to handle: indentation, bold wrapping, various separators
           const lines = text.split('\n');
           let foundChoice1 = null;
           let foundChoice2 = null;
           
           for (const line of lines) {
-            let trimmed = line.trim();
-            // Strip markdown bold markers (** or __) from start and end
-            trimmed = trimmed.replace(/^\*\*/, '').replace(/\*\*$/, '');
-            trimmed = trimmed.replace(/^__/, '').replace(/__$/, '');
-            trimmed = trimmed.trim();
-            
-            // Match lines starting with "1)" or "1." or "2)" or "2."
-            const match1 = trimmed.match(/^1[.)]\s*(.+)$/);
-            const match2 = trimmed.match(/^2[.)]\s*(.+)$/);
-            
-            if (match1 && !foundChoice1) foundChoice1 = match1[1].trim();
-            if (match2 && !foundChoice2) foundChoice2 = match2[1].trim();
+            // Pattern: optional whitespace + optional bold + number + optional bold + separator + optional bold + text
+            // Handles: "1)", "1.", "**1)**", "**1.**", "  1-", "**1:**", etc.
+            const match = line.match(/^\s*\*{0,2}\s*(\d+)\s*\*{0,2}\s*[.)\]:-]\s*\*{0,2}\s*(.+)/);
+            if (match) {
+              const num = parseInt(match[1]);
+              let choiceText = match[2].trim();
+              // Clean up any remaining markdown from choice text
+              choiceText = choiceText.replace(/^\*+|\*+$/g, '').trim();
+              
+              if (num === 1 && !foundChoice1) foundChoice1 = choiceText;
+              if (num === 2 && !foundChoice2) foundChoice2 = choiceText;
+            }
           }
           
           if (foundChoice1) this.choice1Text = foundChoice1;
