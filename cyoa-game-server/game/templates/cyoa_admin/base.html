@@ -72,14 +72,14 @@
 
         <!-- Page header -->
         <header class="bg-white shadow">
-            <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                <h1 class="text-3xl font-bold tracking-tight text-gray-900">{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="mx-auto px-2 py-4 sm:px-3 sm:py-6">
+                <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">{% block page_title %}Dashboard{% endblock %}</h1>
             </div>
         </header>
 
         <!-- Messages -->
         {% if messages %}
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-4">
+        <div class="mx-auto px-2 sm:px-3 mt-4">
             {% for message in messages %}
             <div class="rounded-md bg-{% if message.tags == 'success' %}green{% elif message.tags == 'error' %}red{% else %}blue{% endif %}-50 p-4 mb-4">
                 <div class="flex">
@@ -96,7 +96,7 @@
 
         <!-- Main content -->
         <main>
-            <div class="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
+            <div class="mx-auto px-2 py-4 sm:px-3 sm:py-6">
                 {% block content %}{% endblock %}
             </div>
         </main>

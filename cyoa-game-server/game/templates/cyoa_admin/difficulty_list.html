@@ -10,16 +10,17 @@
 }
 </style>
 <div class="max-w-7xl mx-auto">
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
         <h1 class="text-3xl font-bold text-gray-900">Difficulty Profiles</h1>
         <a href="{% url 'admin:difficulty_new' %}" 
-           class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition duration-150">
+           class="w-full sm:w-auto text-center bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition duration-150">
             + New Profile
         </a>
     </div>
 
     {% if difficulties %}
-    <div class="bg-white shadow-md rounded-lg overflow-hidden">
+    <!-- Desktop Table -->
+    <div class="hidden lg:block bg-white shadow-md rounded-lg overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
@@ -55,6 +56,32 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+    
+    <!-- Mobile Cards -->
+    <div class="lg:hidden space-y-4">
+        {% for difficulty in difficulties %}
+        <div class="bg-white shadow-md rounded-lg p-4">
+            <div class="text-base font-medium text-gray-900 mb-2">{{ difficulty.name }}</div>
+            <div class="text-sm text-gray-600 mb-3">{{ difficulty.description|truncatewords:20 }}</div>
+            
+            <div class="mb-3">
+                <div class="text-xs font-medium text-gray-500 uppercase mb-2">Death Probability Curve</div>
+                <div class="flex gap-1">
+                    {% for point in difficulty.curve_points %}
+                    <div class="flex-1 h-12 bg-gradient-to-t from-red-500 to-gray-200 rounded difficulty-preview" 
+                         data-opacity="{{ point }}"
+                         title="{{ point|floatformat:2 }}"></div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <a href="{% url 'admin:difficulty_editor' difficulty.id %}" 
+               class="block text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-2 rounded text-sm font-medium">
+                Edit Profile
+            </a>
+        </div>
+        {% endfor %}
     </div>
     {% else %}
     <div class="bg-white shadow-md rounded-lg p-8 text-center">

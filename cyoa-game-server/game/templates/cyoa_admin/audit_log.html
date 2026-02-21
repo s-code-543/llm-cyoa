@@ -3,10 +3,10 @@
 {% block page_title %}Audit Log{% endblock %}
 
 {% block content %}
-<div class="px-4 sm:px-0">
+<div>
     <!-- Filters -->
     <div class="bg-white shadow rounded-lg mb-6 p-4">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <label class="flex items-center">
                 <input type="checkbox" 
                        {% if show_modified_only %}checked{% endif %}
@@ -16,15 +16,15 @@
             </label>
             <form method="post" action="{% url 'admin:clear_audit_log' %}" onsubmit="return confirm('Are you sure you want to clear all audit log entries?');">
                 {% csrf_token %}
-                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 w-full sm:w-auto justify-center">
                     Clear Audit Log
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- Audit Log Table -->
-    <div class="bg-white shadow rounded-lg overflow-hidden">
+    <!-- Audit Log Table - Desktop -->
+    <div class="hidden lg:block bg-white shadow rounded-lg overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
@@ -93,6 +93,50 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <!-- Audit Log Cards - Mobile -->
+    <div class="lg:hidden space-y-4">
+        {% for log in logs %}
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="flex items-start justify-between mb-3">
+                <div class="text-sm text-gray-500">
+                    {{ log.timestamp|date:"M d, Y H:i:s" }}
+                </div>
+                {% if log.was_refusal %}
+                <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                    🚫 Refusal
+                </span>
+                {% elif log.was_modified %}
+                <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
+                    ✏ Modified
+                </span>
+                {% else %}
+                <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                    ✓ OK
+                </span>
+                {% endif %}
+            </div>
+            
+            {% if log.prompt_used %}
+            <div class="text-sm text-gray-600 mb-2">
+                <span class="font-medium">Prompt:</span> {{ log.prompt_used }}
+            </div>
+            {% endif %}
+            
+            <div class="text-sm text-gray-900 mb-3 line-clamp-3">
+                {{ log.original_text|truncatewords:20 }}
+            </div>
+            
+            <a href="{% url 'admin:audit_detail' log.id %}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
+                View Details →
+            </a>
+        </div>
+        {% empty %}
+        <div class="bg-white shadow rounded-lg p-8 text-center text-gray-500">
+            No audit logs yet. Logs will appear as requests are processed.
+        </div>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}

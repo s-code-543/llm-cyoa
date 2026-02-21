@@ -6,21 +6,21 @@
 
 {% block content %}
 <div x-data="modelManager()" class="space-y-6">
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
             <h2 class="text-xl text-gray-600">Registered Models</h2>
             <p class="text-sm text-gray-500 mt-1">
                 Showing <span x-text="filteredModels.length"></span> of <span x-text="allModels.length"></span> models
             </p>
         </div>
-        <a href="{% url 'admin:provider_list' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+        <a href="{% url 'admin:provider_list' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg w-full sm:w-auto text-center">
             → Manage Providers
         </a>
     </div>
 
     <!-- Search and Filter -->
     <div class="bg-white shadow-md rounded-lg p-4">
-        <div class="flex gap-4 items-center">
+        <div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
             <div class="flex-1">
                 <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search Models</label>
                 <input type="text" 
@@ -31,7 +31,7 @@
                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
             </div>
             
-            <div class="w-64">
+            <div class="sm:w-64">
                 <label for="provider-filter" class="block text-sm font-medium text-gray-700 mb-1">Filter by Provider</label>
                 <select id="provider-filter"
                         x-model="providerFilter"
@@ -46,7 +46,8 @@
         </div>
     </div>
 
-<div class="bg-white shadow-md rounded-lg overflow-hidden">
+<!-- Desktop Table -->
+<div class="hidden lg:block bg-white shadow-md rounded-lg overflow-x-auto">
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
@@ -122,6 +123,64 @@
             {% endif %}
         </tbody>
     </table>
+</div>
+
+<!-- Mobile Cards -->
+<div class="lg:hidden space-y-4">
+    <template x-for="model in filteredModels" :key="model.id">
+    <div class="bg-white shadow-md rounded-lg p-4">
+        <div class="flex items-start justify-between mb-3">
+            <div class="text-base font-medium text-gray-900" x-text="model.name"></div>
+            <span x-show="model.is_available" class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                ✓ Available
+            </span>
+            <span x-show="!model.is_available" class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                Unavailable
+            </span>
+        </div>
+        
+        <div class="space-y-2 mb-3">
+            <div>
+                <span x-show="model.provider_type === 'ollama'" class="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-800">
+                    🦙 Ollama
+                </span>
+                <span x-show="model.provider_type === 'anthropic'" class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-800">
+                    🤖 Anthropic
+                </span>
+                <span x-show="model.provider_type === 'openai'" class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                    ⚡ OpenAI
+                </span>
+                <span x-show="model.provider_type === 'openrouter'" class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">
+                    🌐 OpenRouter
+                </span>
+            </div>
+            <div class="text-sm text-gray-600">
+                <span class="font-medium">Provider:</span> <span x-text="model.provider_name"></span>
+            </div>
+            <div class="text-sm text-gray-600">
+                <span class="font-medium">Model ID:</span>
+                <code class="bg-gray-100 px-2 py-0.5 rounded text-xs" x-text="model.model_identifier"></code>
+            </div>
+        </div>
+        
+        <div class="flex flex-col gap-2">
+            <a :href="'/admin/providers/' + model.provider_id + '/'" class="text-center bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm font-medium">
+                View Provider
+            </a>
+            <button @click="deleteModel(model.id, model.name)" class="text-center bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 rounded text-sm font-medium">
+                Delete Model
+            </button>
+        </div>
+    </div>
+    </template>
+    
+    <div x-show="filteredModels.length === 0" class="bg-white shadow-md rounded-lg p-8 text-center text-gray-500">
+        <div class="text-lg mb-2">No models found</div>
+        <p class="text-sm mb-4" x-text="searchQuery ? 'Try a different search' : 'Add a provider and import models to get started'"></p>
+        <a href="{% url 'admin:provider_list' %}" class="text-blue-600 hover:text-blue-900">
+            → Go to Providers
+        </a>
+    </div>
 </div>
 
 <!-- Status Messages -->

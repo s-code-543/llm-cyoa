@@ -5,19 +5,20 @@
 {% block page_title %}API Providers{% endblock %}
 
 {% block content %}
-<div class="flex justify-between items-center mb-6">
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
     <div>
         <h2 class="text-xl text-gray-600">Manage LLM providers</h2>
         <p class="text-sm text-gray-500 mt-1">Connect to Ollama servers (local or remote) and cloud APIs like Anthropic</p>
     </div>
-    <div>
-        <a href="{% url 'admin:provider_new' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+    <div class="w-full sm:w-auto">
+        <a href="{% url 'admin:provider_new' %}" class="block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-center">
             + Add Provider
         </a>
     </div>
 </div>
 
-<div class="bg-white shadow-md rounded-lg overflow-hidden">
+<!-- Desktop Table -->
+<div class="hidden lg:block bg-white shadow-md rounded-lg overflow-x-auto">
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
@@ -104,6 +105,88 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
+
+<!-- Mobile Cards -->
+<div class="lg:hidden space-y-4">
+    {% for provider in providers %}
+    <div class="bg-white shadow-md rounded-lg p-4">
+        <div class="flex items-start justify-between mb-3">
+            <div class="text-base font-medium text-gray-900">{{ provider.name }}</div>
+            {% if provider.is_active %}
+            <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                ✓ Active
+            </span>
+            {% else %}
+            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                Inactive
+            </span>
+            {% endif %}
+        </div>
+        
+        <div class="space-y-2 mb-3">
+            <div>
+                {% if provider.provider_type == 'ollama' %}
+                <span class="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-800">
+                    🦙 Ollama
+                </span>
+                {% elif provider.provider_type == 'anthropic' %}
+                <span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-800">
+                    🤖 Anthropic
+                </span>
+                {% elif provider.provider_type == 'openai' %}
+                <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                    ⚡ OpenAI
+                </span>
+                {% elif provider.provider_type == 'openrouter' %}
+                <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">
+                    🌐 OpenRouter
+                </span>
+                {% endif %}
+            </div>
+            
+            {% if provider.provider_type == 'ollama' %}
+            <div class="text-sm text-gray-600">
+                <span class="font-medium">Endpoint:</span> {{ provider.base_url|truncatechars:35 }}
+            </div>
+            {% else %}
+            <div class="text-sm text-gray-600">
+                <span class="font-medium">API Key:</span> <span class="text-gray-400">{{ provider.api_key|slice:":10" }}...</span>
+            </div>
+            {% endif %}
+            
+            {% if provider.last_tested %}
+            <div class="text-sm text-green-600">
+                ✓ Tested {{ provider.last_tested|date:"M d, H:i" }}
+            </div>
+            <div class="text-xs text-gray-400">{{ provider.test_status|truncatechars:40 }}</div>
+            {% else %}
+            <div class="text-sm text-gray-400">Not tested yet</div>
+            {% endif %}
+        </div>
+        
+        <div class="flex flex-col gap-2">
+            <a href="{% url 'admin:provider_editor' provider.id %}" class="text-center bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm font-medium">
+                Edit Provider
+            </a>
+            <a href="{% url 'admin:browse_provider_models' provider.id %}" class="text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-2 rounded text-sm font-medium">
+                Browse Models
+            </a>
+            <form method="POST" action="{% url 'admin:provider_editor' provider.id %}" onsubmit="return confirm('Delete this provider and all its models?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <button type="submit" class="w-full text-center bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 rounded text-sm font-medium">
+                    Delete Provider
+                </button>
+            </form>
+        </div>
+    </div>
+    {% empty %}
+    <div class="bg-white shadow-md rounded-lg p-8 text-center text-gray-500">
+        <div class="text-lg mb-2">No providers configured</div>
+        <p class="text-sm">Add an external Ollama server or Anthropic API to get started</p>
+    </div>
+    {% endfor %}
 </div>
 
 <div class="mt-6 bg-blue-50 border-l-4 border-blue-400 p-4">

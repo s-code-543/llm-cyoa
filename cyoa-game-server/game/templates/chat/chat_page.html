@@ -127,8 +127,7 @@
               <div 
                 class="text-[14px] leading-snug story-content" 
                 :class="message.role === 'user' ? 'text-right whitespace-pre-wrap' : ''"
-                x-html="message.role === 'assistant' ? renderMarkdown(message.content) : ''"
-                x-text="message.role !== 'assistant' ? message.content : ''"
+                x-html="message.role === 'assistant' ? renderMarkdown(message.content) : message.content"
               ></div>
             </div>
             <!-- Action buttons column for assistant messages -->
@@ -684,7 +683,6 @@ function chatApp() {
     async init() {
       const urlParams = new URLSearchParams(window.location.search);
       const convId = urlParams.get('conversation_id');
-      this.voiceMode = urlParams.get('voice') === '1';
 
       if (convId) {
         await this.loadConversation(convId);
@@ -1333,14 +1331,6 @@ function chatApp() {
           this.startVoiceListening();
         }
       }
-      // Update URL
-      const url = new URL(window.location);
-      if (this.voiceMode) {
-        url.searchParams.set('voice', '1');
-      } else {
-        url.searchParams.delete('voice');
-      }
-      window.history.replaceState({}, '', url);
     }
   }
 }
