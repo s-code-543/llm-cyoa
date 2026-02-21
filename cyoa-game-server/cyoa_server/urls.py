@@ -24,6 +24,7 @@ urlpatterns = [
     path('chat/api/conversation/<str:conversation_id>', chat_views.chat_api_get_conversation, name='chat_api_get'),
     path('chat/api/conversations', chat_views.chat_api_list_conversations, name='chat_api_list'),
     path('chat/api/delete/<str:conversation_id>', chat_views.chat_api_delete_conversation, name='chat_api_delete'),
+    path('chat/api/rollback', chat_views.chat_api_rollback_to_message, name='chat_api_rollback'),
     
     # STT (Speech-to-Text) API
     path('api/stt/upload', stt_views.stt_upload, name='stt_upload'),

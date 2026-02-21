@@ -55,3 +55,50 @@ class TestExtractGameState:
         state = extract_game_state("Turn 1 of 10\n\n1) Option A\n2) Option B")
         assert 'inventory' in state
         assert isinstance(state['inventory'], list)
+
+    def test_extracts_choices_with_dash_separator(self):
+        text = "Turn 1 of 10\n\nSome story.\n\n1- Climb the mountain\n2- Cross the river"
+        state = extract_game_state(text)
+        assert 'Climb the mountain' in state['choice1']
+        assert 'Cross the river' in state['choice2']
+
+    def test_extracts_choices_with_colon_separator(self):
+        text = "Turn 1 of 10\n\nSome story.\n\n1: Enter the cave\n2: Stay outside"
+        state = extract_game_state(text)
+        assert 'Enter the cave' in state['choice1']
+        assert 'Stay outside' in state['choice2']
+
+    def test_extracts_choices_with_bold_wrapping(self):
+        text = "Turn 1 of 10\n\nSome story.\n\n**1)** Fight the dragon\n**2)** Run away"
+        state = extract_game_state(text)
+        assert 'Fight the dragon' in state['choice1']
+        assert 'Run away' in state['choice2']
+
+    def test_extracts_choices_with_bold_number_only(self):
+        text = "Turn 1 of 10\n\nSome story.\n\n**1.** Open the door\n**2.** Go back"
+        state = extract_game_state(text)
+        assert 'Open the door' in state['choice1']
+        assert 'Go back' in state['choice2']
+
+    def test_extracts_choices_with_indentation(self):
+        text = "Turn 1 of 10\n\nSome story.\n\n  1) Search the room\n  2) Leave quickly"
+        state = extract_game_state(text)
+        assert 'Search the room' in state['choice1']
+        assert 'Leave quickly' in state['choice2']
+
+    def test_extracts_choices_mixed_formatting(self):
+        """Test various combinations of formatting in same response."""
+        text = (
+            "Turn 1 of 10\n\nSome story.\n\n"
+            "  **1-** Take the left path\n"
+            "**2:** Take the right path"
+        )
+        state = extract_game_state(text)
+        assert 'Take the left path' in state['choice1']
+        assert 'Take the right path' in state['choice2']
+
+    def test_extracts_choices_with_bold_and_colon(self):
+        text = "Turn 1 of 10\n\nSome story.\n\n**1:** Attack\n**2:** Defend"
+        state = extract_game_state(text)
+        assert 'Attack' in state['choice1']
+        assert 'Defend' in state['choice2']

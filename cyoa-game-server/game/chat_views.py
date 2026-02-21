@@ -4,6 +4,7 @@ Chat views for the CYOA frontend.
 import uuid
 import json
 import re
+import traceback
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
@@ -83,17 +84,27 @@ def extract_game_state(text):
         state['turn_current'] = int(turn_match.group(1))
         state['turn_max'] = int(turn_match.group(2))
     
-    # Extract choices - look for "1) ..." or "1. ..." patterns
-    # Split into lines and look for numbered choices
+    # Extract choices - comprehensive regex to handle many variations:
+    # - Separators: ) . ] - :
+    # - Indentation: any leading whitespace
+    # - Bold/italic wrapping: **1)** or **1.** or *1)* etc.
+    # - Examples: "1)", "1.", "1-", "1:", "**1)**", "  1.", etc.
     lines = text.split('\n')
     current_choice = None
     choice_texts = {}
     
     for line in lines:
-        # Strip common markdown formatting (**, __, etc.) to find choice number
-        stripped_line = re.sub(r'^[\s\*_#-]+', '', line)
-        # Check if line starts with a choice number (handles "1)", "1.", "1]", etc.)
-        choice_match = re.match(r'^(\d+)[.)\]]\**\s*(.+)', stripped_line)
+        # Pattern explanation:
+        # ^\s*           - optional leading whitespace (indentation)
+        # \*{0,2}        - optional markdown bold (0-2 asterisks before number)
+        # (\d+)          - capture the choice number
+        # \*{0,2}        - optional markdown bold (0-2 asterisks after number)
+        # \s*            - optional whitespace
+        # [.)\]:-]       - separator: ) . ] - :
+        # \*{0,2}        - optional markdown bold (0-2 asterisks after separator)
+        # \s*            - optional whitespace
+        # (.+)           - capture the choice text
+        choice_match = re.match(r'^\s*\*{0,2}\s*(\d+)\s*\*{0,2}\s*[.)\]:-]\s*\*{0,2}\s*(.+)', line)
         if choice_match:
             choice_num = int(choice_match.group(1))
             choice_text = choice_match.group(2).strip()
@@ -102,7 +113,7 @@ def extract_game_state(text):
             if choice_num in [1, 2]:
                 current_choice = choice_num
                 choice_texts[choice_num] = choice_text
-        elif current_choice and line.strip() and not re.match(r'^[\s\*_#-]*\d+[.)\]]', line):
+        elif current_choice and line.strip() and not re.match(r'^\s*\*{0,2}\s*\d+\s*\*{0,2}\s*[.)\]:-]', line):
             # Continuation of current choice (multi-line)
             choice_texts[current_choice] += ' ' + line.strip()
     
@@ -338,6 +349,7 @@ def chat_api_send_message(request):
                 )
                 return JsonResponse({
                     'message': {
+                        'id': assistant_msg.id,
                         'role': assistant_msg.role,
                         'content': assistant_msg.content,
                         'created_at': assistant_msg.created_at.isoformat(),
@@ -368,6 +380,7 @@ def chat_api_send_message(request):
                 )
                 return JsonResponse({
                     'message': {
+                        'id': assistant_msg.id,
                         'role': assistant_msg.role,
                         'content': assistant_msg.content,
                         'created_at': assistant_msg.created_at.isoformat(),
@@ -435,6 +448,7 @@ def chat_api_send_message(request):
         
         return JsonResponse({
             'message': {
+                'id': assistant_msg.id,
                 'role': assistant_msg.role,
                 'content': assistant_msg.content,
                 'created_at': assistant_msg.created_at.isoformat(),
@@ -464,6 +478,7 @@ def chat_api_get_conversation(request, conversation_id):
         messages_data = []
         for msg in conversation.messages.all():
             messages_data.append({
+                'id': msg.id,
                 'role': msg.role,
                 'content': msg.content,
                 'created_at': msg.created_at.isoformat(),
@@ -510,6 +525,140 @@ def chat_api_list_conversations(request):
         return JsonResponse({'conversations': conversations_data})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def chat_api_rollback_to_message(request):
+    """
+    Roll back a conversation to a specific assistant message.
+    Deletes all messages after the target and resets game session state.
+    """
+    try:
+        body = json.loads(request.body)
+        conversation_id = body.get('conversation_id')
+        message_id = body.get('message_id')
+        
+        if not conversation_id or not message_id:
+            return JsonResponse({'error': 'conversation_id and message_id required'}, status=400)
+        
+        # Get conversation owned by user
+        conversation = get_object_or_404(
+            ChatConversation,
+            conversation_id=conversation_id,
+            user=request.user
+        )
+        
+        # Get target message (must be assistant message in this conversation)
+        try:
+            target_message = ChatMessage.objects.get(
+                id=message_id,
+                conversation=conversation,
+                role='assistant'
+            )
+        except ChatMessage.DoesNotExist:
+            return JsonResponse({'error': 'Target message not found or not an assistant message'}, status=404)
+        
+        # Count messages to delete before actually deleting
+        # (delete() returns total including cascaded objects, not just ChatMessage count)
+        messages_qs = ChatMessage.objects.filter(
+            conversation=conversation,
+            id__gt=target_message.id
+        )
+        messages_to_delete = messages_qs.count()
+        messages_qs.delete()
+        
+        print(f"[ROLLBACK] Deleted {messages_to_delete} messages after message {message_id}")
+        
+        # Reset game session
+        try:
+            game_session = GameSession.objects.get(
+                session_id=conversation.conversation_id,
+                user=request.user
+            )
+            
+            # Recalculate turn number from remaining messages
+            remaining_messages = []
+            for msg in conversation.messages.all():
+                remaining_messages.append({
+                    'role': msg.role,
+                    'content': msg.content
+                })
+            
+            new_turn_number = calculate_turn_number(remaining_messages)
+            
+            game_session.turn_number = new_turn_number
+            game_session.game_over = False
+            game_session.last_death_roll = None
+            game_session.last_death_probability = None
+            game_session.save()
+            
+            print(f"[ROLLBACK] Reset game session: turn={new_turn_number}, game_over=False")
+            
+        except GameSession.DoesNotExist:
+            print(f"[ROLLBACK] No game session found for {conversation_id}")
+        
+        # Return updated conversation
+        messages_data = []
+        for msg in conversation.messages.all():
+            messages_data.append({
+                'id': msg.id,
+                'role': msg.role,
+                'content': msg.content,
+                'created_at': msg.created_at.isoformat(),
+                'metadata': msg.metadata
+            })
+        
+        # Extract game state from last assistant message
+        game_state = {'turn_current': 0, 'turn_max': 20, 'choice1': '', 'choice2': '', 'inventory': []}
+        for msg_data in reversed(messages_data):
+            if msg_data['role'] == 'assistant':
+                game_state = extract_game_state(msg_data['content'])
+                break
+        
+        return JsonResponse({
+            'success': True,
+            'deleted_count': messages_to_delete,
+            'messages': messages_data,
+            'state': game_state
+        })
+        
+    except Http404:
+        return JsonResponse({'error': 'Conversation not found'}, status=404)
+    except json.JSONDecodeError as e:
+        # Log malformed request to audit
+        AuditLog.objects.create(
+            original_text=request.body.decode('utf-8', errors='replace')[:1000],
+            refined_text=f"JSON decode error: {str(e)}",
+            was_modified=False,
+            details={
+                'type': 'error',
+                'operation': 'rollback',
+                'error_type': 'json_decode',
+                'user': request.user.username if request.user.is_authenticated else 'anonymous'
+            }
+        )
+        return JsonResponse({'error': 'Invalid request data'}, status=400)
+    except Exception as e:
+        # Log error to audit for visibility in admin GUI
+        request_context = {
+            'conversation_id': locals().get('conversation_id', 'unknown'),
+            'message_id': locals().get('message_id', 'unknown'),
+            'user': request.user.username if request.user.is_authenticated else 'anonymous'
+        }
+        AuditLog.objects.create(
+            original_text=json.dumps(request_context, indent=2),
+            refined_text=f"{type(e).__name__}: {str(e)}",
+            was_modified=False,
+            details={
+                'type': 'error',
+                'operation': 'rollback',
+                'error_type': type(e).__name__,
+                'traceback': traceback.format_exc(),
+                **request_context
+            }
+        )
+        return JsonResponse({'error': 'Rollback failed'}, status=500)
 
 
 @login_required
