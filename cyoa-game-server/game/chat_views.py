@@ -4,6 +4,7 @@ Chat views for the CYOA frontend.
 import uuid
 import json
 import re
+import traceback
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
@@ -558,13 +559,16 @@ def chat_api_rollback_to_message(request):
         except ChatMessage.DoesNotExist:
             return JsonResponse({'error': 'Target message not found or not an assistant message'}, status=404)
         
-        # Delete all messages after the target (by ID, since auto-increment PKs are monotonic)
-        deleted_count, _ = ChatMessage.objects.filter(
+        # Count messages to delete before actually deleting
+        # (delete() returns total including cascaded objects, not just ChatMessage count)
+        messages_qs = ChatMessage.objects.filter(
             conversation=conversation,
             id__gt=target_message.id
-        ).delete()
+        )
+        messages_to_delete = messages_qs.count()
+        messages_qs.delete()
         
-        print(f"[ROLLBACK] Deleted {deleted_count} messages after message {message_id}")
+        print(f"[ROLLBACK] Deleted {messages_to_delete} messages after message {message_id}")
         
         # Reset game session
         try:
@@ -614,16 +618,47 @@ def chat_api_rollback_to_message(request):
         
         return JsonResponse({
             'success': True,
-            'deleted_count': deleted_count,
+            'deleted_count': messages_to_delete,
             'messages': messages_data,
             'state': game_state
         })
         
     except Http404:
         return JsonResponse({'error': 'Conversation not found'}, status=404)
+    except json.JSONDecodeError as e:
+        # Log malformed request to audit
+        AuditLog.objects.create(
+            original_text=request.body.decode('utf-8', errors='replace')[:1000],
+            refined_text=f"JSON decode error: {str(e)}",
+            was_modified=False,
+            details={
+                'type': 'error',
+                'operation': 'rollback',
+                'error_type': 'json_decode',
+                'user': request.user.username if request.user.is_authenticated else 'anonymous'
+            }
+        )
+        return JsonResponse({'error': 'Invalid request data'}, status=400)
     except Exception as e:
-        print(f"[ROLLBACK ERROR] {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+        # Log error to audit for visibility in admin GUI
+        request_context = {
+            'conversation_id': locals().get('conversation_id', 'unknown'),
+            'message_id': locals().get('message_id', 'unknown'),
+            'user': request.user.username if request.user.is_authenticated else 'anonymous'
+        }
+        AuditLog.objects.create(
+            original_text=json.dumps(request_context, indent=2),
+            refined_text=f"{type(e).__name__}: {str(e)}",
+            was_modified=False,
+            details={
+                'type': 'error',
+                'operation': 'rollback',
+                'error_type': type(e).__name__,
+                'traceback': traceback.format_exc(),
+                **request_context
+            }
+        )
+        return JsonResponse({'error': 'Rollback failed'}, status=500)
 
 
 @login_required

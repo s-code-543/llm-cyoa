@@ -4,10 +4,9 @@ Tests for the chat rollback API — rolling back to a previous assistant turn.
 import pytest
 import json
 
-from game.models import ChatConversation, ChatMessage, GameSession
+from game.models import ChatMessage
 from tests.conftest import (
     ChatConversationFactory, ChatMessageFactory, GameSessionFactory,
-    ConfigurationFactory, SAMPLE_VALID_TURN,
 )
 
 
@@ -222,6 +221,30 @@ class TestRollbackErrors:
             content_type='application/json',
         )
         assert resp.status_code == 404
+
+
+    def test_error_logged_to_audit(self, auth_client, user):
+        """Errors should be logged to AuditLog so they're visible in admin GUI."""
+        from game.models import AuditLog
+        
+        # Malformed JSON should create an audit log entry
+        resp = auth_client.post(
+            '/chat/api/rollback',
+            data='{"invalid": json}',  # Invalid JSON
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        
+        # Check that error was logged to audit
+        audit_logs = AuditLog.objects.filter(
+            details__type='error',
+            details__operation='rollback',
+            details__error_type='json_decode'
+        )
+        assert audit_logs.exists()
+        log = audit_logs.first()
+        assert 'JSON decode error' in log.refined_text
+        assert log.was_modified is False
 
 
 # =============================================================================

@@ -127,7 +127,8 @@
               <div 
                 class="text-[14px] leading-snug story-content" 
                 :class="message.role === 'user' ? 'text-right whitespace-pre-wrap' : ''"
-                x-html="message.role === 'assistant' ? renderMarkdown(message.content) : message.content"
+                x-html="message.role === 'assistant' ? renderMarkdown(message.content) : ''"
+                x-text="message.role !== 'assistant' ? message.content : ''"
               ></div>
             </div>
             <!-- Action buttons column for assistant messages -->
@@ -939,11 +940,30 @@ function chatApp() {
           })
         });
         
-        const data = await response.json();
+        const contentType = response.headers.get('content-type') || '';
+        let data = null;
         
-        if (data.error) {
+        if (contentType.includes('application/json')) {
+          data = await response.json();
+          if (!response.ok) {
+            const message =
+              (data && (data.error || data.detail || data.message)) ||
+              ('Rollback failed with status ' + response.status);
+            throw new Error(message);
+          }
+        } else {
+          const text = await response.text();
+          const snippet = text.slice(0, 200);
+          throw new Error(
+            'Rollback failed with status ' +
+            response.status +
+            (snippet ? ': ' + snippet : '')
+          );
+        }
+        
+        if (data && data.error) {
           this.errorMessage = 'Rollback failed: ' + data.error;
-        } else if (data.success) {
+        } else if (data && data.success) {
           // Replace messages with the updated list from backend
           this.messages = data.messages || [];
           
