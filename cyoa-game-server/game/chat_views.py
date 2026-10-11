@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 
 from .models import ChatConversation, ChatMessage, GameSession, Configuration, AuditLog
 from .llm_router import call_llm
-from .config_utils import get_active_configuration, apply_pacing_template
+from .config_utils import get_active_configuration, apply_pacing_template, conversation_tts_enabled
 from .difficulty_utils import calculate_phase_ends, calculate_turn_number, should_trigger_death
 from .refusal_detector import process_potential_refusal
 from .judge_pipeline import run_judge_pipeline
@@ -162,6 +162,7 @@ def chat_api_new_conversation(request):
         
         return JsonResponse({
             'conversation_id': conversation.conversation_id,
+            'capabilities': {'tts': conversation_tts_enabled(conversation)},
             'title': conversation.title,
             'created_at': conversation.created_at.isoformat()
         })
@@ -487,6 +488,7 @@ def chat_api_get_conversation(request, conversation_id):
         
         return JsonResponse({
             'conversation_id': conversation.conversation_id,
+            'capabilities': {'tts': conversation_tts_enabled(conversation)},
             'title': conversation.title,
             'metadata': conversation.metadata,
             'messages': messages_data,

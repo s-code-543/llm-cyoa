@@ -45,3 +45,22 @@ def apply_pacing_template(prompt_text, config):
         result = result.replace(placeholder, str(value))
     
     return result
+
+
+def get_conversation_configuration(conversation):
+    """Resolve the configuration used by the existing story generation flow."""
+    config_id = (conversation.metadata or {}).get('config_id')
+    if config_id:
+        config = Configuration.objects.filter(pk=config_id).first()
+        if config:
+            return config
+    return get_active_configuration()
+
+
+def conversation_tts_enabled(conversation):
+    """Expose effective playback availability without exposing credentials."""
+    from .models import TTSSettings
+    from .tts_views import OPENAI_API_KEY
+
+    config = get_conversation_configuration(conversation)
+    return bool(config and config.enable_tts and OPENAI_API_KEY and TTSSettings.get_settings().enabled)

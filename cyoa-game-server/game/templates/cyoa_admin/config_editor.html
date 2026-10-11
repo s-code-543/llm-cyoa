@@ -169,6 +169,18 @@
         </div>
         
         <div class="border-t border-gray-200 pt-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Narrator audio</h3>
+            <label class="flex items-center">
+                <input type="checkbox" name="enable_tts" id="enable_tts" value="1"
+                       {% if form_data %}{% if form_data.enable_tts == "1" %}checked{% endif %}
+                       {% elif config.enable_tts %}checked{% endif %}
+                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <span class="ml-2 text-sm font-medium text-gray-700">Enable text-to-speech</span>
+            </label>
+            <p class="mt-1 text-sm text-gray-500">Optional. Playback also requires the global TTS service to be enabled and an OpenAI API key on the server. Microphone input works independently.</p>
+        </div>
+
+        <div class="border-t border-gray-200 pt-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">🚫 Refusal Detection & Turn Correction</h3>
             
             <div class="mb-4">

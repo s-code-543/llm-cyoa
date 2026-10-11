@@ -387,6 +387,7 @@ def config_editor(request, config_id=None):
             phase2_turns = request.POST.get('phase2_turns', '3')
             phase3_turns = request.POST.get('phase3_turns', '3')
             phase4_turns = request.POST.get('phase4_turns', '1')
+            enable_tts = request.POST.get('enable_tts') == '1'
             enable_refusal_detection = request.POST.get('enable_refusal_detection') == '1'
             classifier_prompt_id = request.POST.get('classifier_prompt') or None
             classifier_model_id = request.POST.get('classifier_model') or None
@@ -515,6 +516,7 @@ def config_editor(request, config_id=None):
                         config.phase2_turns = phase2_turns_int
                         config.phase3_turns = phase3_turns_int
                         config.phase4_turns = phase4_turns_int
+                        config.enable_tts = enable_tts
                         config.enable_refusal_detection = enable_refusal_detection
                         config.classifier_prompt = classifier_prompt
                         config.classifier_model = classifier_model
@@ -541,6 +543,7 @@ def config_editor(request, config_id=None):
                             phase2_turns=phase2_turns_int,
                             phase3_turns=phase3_turns_int,
                             phase4_turns=phase4_turns_int,
+                            enable_tts=enable_tts,
                             enable_refusal_detection=enable_refusal_detection,
                             classifier_prompt=classifier_prompt,
                             classifier_model=classifier_model,

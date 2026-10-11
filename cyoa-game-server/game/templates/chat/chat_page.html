@@ -126,9 +126,13 @@
             <div class="flex-1 min-w-0">
               <div 
                 class="text-[14px] leading-snug story-content" 
-                :class="message.role === 'user' ? 'text-right whitespace-pre-wrap' : ''"
-                x-html="message.role === 'assistant' ? renderMarkdown(message.content) : ''"
-                x-text="message.role !== 'assistant' ? message.content : ''"
+                x-show="message.role === 'assistant'"
+                x-html="renderMarkdown(message.content)"
+              ></div>
+              <div
+                class="text-[14px] leading-snug story-content text-right whitespace-pre-wrap"
+                x-show="message.role !== 'assistant'"
+                x-text="message.content"
               ></div>
             </div>
             <!-- Action buttons column for assistant messages -->
@@ -138,6 +142,7 @@
             >
               <!-- TTS speaker button -->
               <button
+                x-show="ttsEnabled"
                 @click="toggleTTS(index, message.content)"
                 :class="{
                   'bg-green-500 text-white hover:bg-green-600': ttsPlayingIndex === index,
@@ -648,6 +653,7 @@ function chatApp() {
     recorderInitialized: false,
     
     // TTS state
+    ttsEnabled: false,
     ttsPlayingIndex: null,  // Index of message currently playing audio
     ttsLoadingIndex: null,  // Index of message currently generating TTS
     
@@ -1017,6 +1023,8 @@ function chatApp() {
         const data = await response.json();
 
         if (data.conversation_id) {
+          this.ttsEnabled = data.capabilities?.tts === true;
+          CYOATTS.setConversation(data.conversation_id);
           this.conversationId = data.conversation_id;
           this.conversationTitle = data.title;
           this.messages = [];
@@ -1057,6 +1065,8 @@ function chatApp() {
         const data = await response.json();
 
         if (data.conversation_id) {
+          this.ttsEnabled = data.capabilities?.tts === true;
+          CYOATTS.setConversation(data.conversation_id);
           this.conversationId = data.conversation_id;
           this.conversationTitle = data.title;
           this.messages = data.messages || [];
@@ -1257,6 +1267,7 @@ function chatApp() {
     // === TTS Methods ===
     
     toggleTTS(messageIndex, text) {
+      if (!this.ttsEnabled) return;
       if (this.ttsPlayingIndex === messageIndex) {
         // Stop if already playing
         CYOATTS.stopAudio();
@@ -1290,6 +1301,10 @@ function chatApp() {
     },
     
     voiceCycleTTS(text) {
+      if (!this.ttsEnabled) {
+        this.startVoiceListening();
+        return;
+      }
       const lastIndex = this.messages.length - 1;
       this.ttsLoadingIndex = lastIndex;
       CYOATTS.playMessage(

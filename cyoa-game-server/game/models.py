@@ -235,6 +235,11 @@ class Configuration(models.Model):
         default=1,
         help_text="Turns for Phase 4: Finale/Conclusion Setup"
     )
+    enable_tts = models.BooleanField(
+        default=False,
+        help_text="Enable spoken narrator playback when the TTS service is configured"
+    )
+
     # Refusal detection system
     enable_refusal_detection = models.BooleanField(
         default=True,
