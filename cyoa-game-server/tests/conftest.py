@@ -496,7 +496,7 @@ def mock_ollama_models():
 @pytest.fixture
 def mock_ollama_connection():
     """Mock Ollama connection test."""
-    with patch('game.ollama_utils.test_ollama_connection') as mock:
+    with patch('game.admin_views.test_ollama_connection') as mock:
         mock.return_value = {'success': True, 'message': 'Connected'}
         yield mock
 
