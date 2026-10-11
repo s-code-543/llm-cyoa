@@ -21,3 +21,12 @@ htmlcov/
 # IDE
 .vscode/
 .idea/
+node_modules/
+frontend/dist/
+cyoa-game-server/static/frontend/
+cyoa-game-server/staticfiles/
+cyoa-game-server/db/
+.env.*
+!.env.example
+frontend/test-results/
+frontend/playwright-report/

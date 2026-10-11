@@ -1,3 +1,15 @@
+# Current development workflow (2026-10-11)
+
+These instructions supersede the historical home-machine commands below.
+- Work on codex/* development branches. Never commit on main or merge your own PRs.
+- Local runtime: `docker compose -f compose.dev.yml up -d --build`. Do not start the old Mac/NVIDIA stack, shared network or Cloudflare tunnel.
+- Tests: `./scripts/test-backend.sh` uses a disposable Docker container without app data volumes. Conda is not installed on this machine; do not create a virtual environment.
+- Frontend: `cd frontend && npm ci && npm test && npm run build`, or run tests/build through the frontend Compose service.
+- Admin stays in Django; React chat is an opt-in preview at /chat/react/ until parity is verified. Do not change the hosted deployment.
+- API keys stay on the server. Use mocked providers for routine tests.
+
+## Historical home-machine instructions (reference only)
+
 # CYOA Game Server — AI Agent Instructions
 
 ⚠️ **READ THIS FIRST - MANDATORY WORKFLOW:**

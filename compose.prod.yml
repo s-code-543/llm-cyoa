@@ -1,0 +1,28 @@
+name: llm-cyoa-prod
+services:
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.prod
+    restart: unless-stopped
+    ports: ['127.0.0.1:${CYOA_PORT:-8002}:8000']
+    environment:
+      DJANGO_DEBUG: '0'
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set a production secret key}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set production hostnames}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:?Set HTTPS origins}
+      DJANGO_SECURE_COOKIES: '1'
+      FRONTEND_DEV: '0'
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      WHISPER_API_URL: ${WHISPER_API_URL:-http://host.docker.internal:10300/v1/audio/transcriptions}
+      CLOUDFLARE_AUTH_ENABLED: ${CLOUDFLARE_AUTH_ENABLED:-false}
+      CLOUDFLARE_TEAM_DOMAIN: ${CLOUDFLARE_TEAM_DOMAIN:-}
+      CLOUDFLARE_AUD: ${CLOUDFLARE_AUD:-}
+      CLOUDFLARE_ADMIN_EMAILS: ${CLOUDFLARE_ADMIN_EMAILS:-}
+    volumes:
+      - prod-db:/app/db
+      - prod-media:/app/media
+      - ./cyoa_prompts:/story_prompts:ro
+volumes:
+  prod-db:
+  prod-media:

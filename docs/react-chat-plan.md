@@ -1,6 +1,6 @@
 # React chat migration plan
 
-Status: proposed implementation sequence, 2026-10-11. React implementation has not started.
+Status: text-chat checkpoint implemented, 2026-10-11. Development/production configurations, v1 API with request deduplication, React text chat and rollback are implemented. Django admin and original chat remain available. React audio parity, expanded browser scenarios and final cutover are still pending. Full engine extraction remains deferred.
 
 ## Scope and architecture
 

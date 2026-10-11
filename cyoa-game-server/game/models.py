@@ -1085,3 +1085,22 @@ class TTSSettings(models.Model):
     def delete(self, *args, **kwargs):
         """Prevent deletion of the singleton instance."""
         pass
+
+
+class ChatSubmission(models.Model):
+    """Durable deduplication and one mutation at a time per conversation."""
+    conversation = models.ForeignKey(ChatConversation, on_delete=models.CASCADE, related_name='submissions')
+    request_id = models.UUIDField()
+    operation = models.CharField(max_length=16)
+    payload_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, default='pending')
+    response = models.JSONField(default=dict)
+    http_status = models.PositiveSmallIntegerField(default=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['conversation', 'request_id'], name='unique_chat_request'),
+            models.UniqueConstraint(fields=['conversation'], condition=models.Q(status='pending'), name='one_pending_chat_submission'),
+        ]

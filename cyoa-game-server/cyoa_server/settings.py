@@ -9,13 +9,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-key-change-in-production')
 
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', '1').lower() in ('1', 'true', 'yes')
 
-ALLOWED_HOSTS = ['cyoa.mac.stargate.lan', 'cyoa.chat-sdp.org', 'localhost', '127.0.0.1', 'cyoa-game-server', 'host.docker.internal']
+if not DEBUG and SECRET_KEY == 'dev-secret-key-change-in-production':
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured('DJANGO_SECRET_KEY is required in production')
+
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'cyoa.mac.stargate.lan,cyoa.chat-sdp.org,localhost,127.0.0.1,cyoa-game-server,host.docker.internal').split(',')
 
 # Proxy SSL awareness
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-CSRF_TRUSTED_ORIGINS = ['https://cyoa.mac.stargate.lan', 'https://cyoa.chat-sdp.org']
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', 'https://cyoa.mac.stargate.lan,https://cyoa.chat-sdp.org').split(',') if origin.strip()]
+SESSION_COOKIE_SECURE = os.environ.get('DJANGO_SECURE_COOKIES', '0') == '1'
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
+FRONTEND_DEV = os.environ.get('FRONTEND_DEV', '0') == '1'
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -29,6 +36,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'game.cors_middleware.PWACorsMiddleware',  # Add CORS headers to PWA assets
@@ -62,7 +70,7 @@ WSGI_APPLICATION = 'cyoa_server.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db' / 'db.sqlite3',
+        'NAME': Path(os.environ.get('DJANGO_DATABASE_PATH', str(BASE_DIR / 'db' / 'db.sqlite3'))),
     }
 }
 
@@ -86,7 +94,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Media files (user uploads)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', str(BASE_DIR / 'media')))
 
 # Login URL
 LOGIN_URL = '/admin/login/'
@@ -111,3 +119,11 @@ CLOUDFLARE_ADMIN_EMAILS = [
     e.strip() for e in os.environ.get('CLOUDFLARE_ADMIN_EMAILS', '').split(',')
     if e.strip()
 ]
+
+# Correlate versioned player mutations without logging payloads or provider keys.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'chat_console': {'class': 'logging.StreamHandler'}},
+    'loggers': {'game.chat_api': {'handlers': ['chat_console'], 'level': 'INFO', 'propagate': False}},
+}

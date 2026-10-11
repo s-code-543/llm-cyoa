@@ -2,11 +2,17 @@
 URL configuration for cyoa_server project.
 """
 from django.urls import path, include
-from game import chat_views
+from game import chat_views, chat_api
 from game import stt_views
 from game import pwa_views, tts_views
 
 urlpatterns = [
+    path('chat/react/', chat_api.react_chat, name='react_chat'),
+    path('api/v1/chat/bootstrap', chat_api.bootstrap),
+    path('api/v1/chat/conversations', chat_api.conversations),
+    path('api/v1/chat/conversations/<str:conversation_id>', chat_api.detail),
+    path('api/v1/chat/conversations/<str:conversation_id>/turns', chat_api.send),
+    path('api/v1/chat/conversations/<str:conversation_id>/rollback', chat_api.rollback),
     # PWA root-level assets (must be above catch-all patterns)
     path('sw.js', pwa_views.service_worker, name='service_worker'),
     path('favicon.ico', pwa_views.favicon_ico, name='favicon_ico'),

@@ -10,7 +10,7 @@ from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 
-from .models import ChatConversation, ChatMessage, GameSession, Configuration, AuditLog
+from .models import ChatConversation, ChatMessage, GameSession, Configuration, AuditLog, ChatSubmission
 from .llm_router import call_llm
 from .config_utils import get_active_configuration, apply_pacing_template, conversation_tts_enabled
 from .difficulty_utils import calculate_phase_ends, calculate_turn_number, should_trigger_death
@@ -172,13 +172,17 @@ def chat_api_new_conversation(request):
 
 @login_required
 @require_http_methods(["POST"])
-def chat_api_send_message(request):
+def chat_api_send_message(request, *, payload=None, submission_id=None):
     """
     Send a message to the LLM and get a response.
     """
     try:
-        body = json.loads(request.body)
+        body = payload if payload is not None else json.loads(request.body)
         conversation_id = body.get('conversation_id')
+        if not submission_id and ChatSubmission.objects.filter(
+            conversation__conversation_id=conversation_id, status='pending'
+        ).exists():
+            return JsonResponse({'error': 'Another action is running; reload before trying again'}, status=409)
         user_message = body.get('message', '').strip()
         
         if not conversation_id or not user_message:
@@ -531,14 +535,18 @@ def chat_api_list_conversations(request):
 
 @login_required
 @require_http_methods(["POST"])
-def chat_api_rollback_to_message(request):
+def chat_api_rollback_to_message(request, *, payload=None, submission_id=None):
     """
     Roll back a conversation to a specific assistant message.
     Deletes all messages after the target and resets game session state.
     """
     try:
-        body = json.loads(request.body)
+        body = payload if payload is not None else json.loads(request.body)
         conversation_id = body.get('conversation_id')
+        if not submission_id and ChatSubmission.objects.filter(
+            conversation__conversation_id=conversation_id, status='pending'
+        ).exists():
+            return JsonResponse({'error': 'Another action is running; reload before trying again'}, status=409)
         message_id = body.get('message_id')
         
         if not conversation_id or not message_id:
