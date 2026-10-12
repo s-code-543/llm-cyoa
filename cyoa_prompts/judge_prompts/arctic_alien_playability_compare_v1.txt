@@ -5,6 +5,8 @@ QUESTION
 Is the revised turn more fair and playable than the original turn?
 
 CRITERIA
+- Preserve legitimate death, defeat, victory, and random difficulty endings. Reject a revision that undoes an established ending or adds continuation choices to it.
+- Apply survival-path criteria only to ongoing challenges. Not every choice must be safe.
 - Prefer the turn that offers meaningful choices and a plausible path to survival.
 - Penalize overwhelming, unavoidable, or unbeatable danger.
 - The revised turn should not remove all tension; it should remain challenging but playable.

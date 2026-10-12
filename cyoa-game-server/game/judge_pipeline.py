@@ -102,7 +102,9 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                     messages, current_turn, step.classifier_use_full_context
                 )
                 classifier_content = f"{step.classifier_question}\n\n{current_turn}"
-                classifier_messages = [{'role': 'user', 'content': classifier_content}]
+                classifier_messages = (list(messages) if step.classifier_use_full_context else []) + [
+                    {'role': 'user', 'content': classifier_content}
+                ]
                 
                 classifier_response = call_llm(
                     messages=classifier_messages,
@@ -112,7 +114,10 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                     disable_thinking=True
                 )
                 step_result['classifier_response'] = classifier_response
-                needs_correction = _parse_boolean_response(classifier_response, default=True)
+                # PASS/FAIL describes validity; YES/NO answers needs-correction.
+                verdict = classifier_response.strip().splitlines()[0].strip().upper() if classifier_response.strip() else ''
+                needs_correction = (False if verdict == 'PASS' else True if verdict == 'FAIL'
+                                    else _parse_boolean_response(classifier_response, default=True))
                 step_result['needs_correction'] = needs_correction
                 
                 if not needs_correction:
@@ -168,7 +173,9 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                         f"CORRECTED:\n{rewrite_text}"
                     )
                     compare_response = call_llm(
-                        messages=[{'role': 'user', 'content': compare_content}],
+                        messages=(list(messages) if step.compare_use_full_context else []) + [
+                            {'role': 'user', 'content': compare_content}
+                        ],
                         system_prompt=step.compare_prompt.prompt_text,
                         llm_model=step.compare_model,
                         timeout=step.compare_timeout,

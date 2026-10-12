@@ -5,6 +5,8 @@ GOAL
 Decide if the player has a fair chance to act meaningfully. The turn should not overwhelm the player with unbeatable enemies, unavoidable hazards, or instant-death scenarios that make choices futile.
 
 EVALUATION RULES
+- PASS for a legitimate terminal consequence, death, defeat, or victory, including a random difficulty ending. Such endings do not require a surviving path or choices.
+- Evaluate impossible odds below only for ongoing challenges, not established endings.
 - FAIL if threats are effectively unbeatable, unavoidable, or so overwhelming that both choices are futile.
 - FAIL if the turn introduces sudden, extreme danger with no plausible player agency.
 - PASS if the player has at least one reasonable, viable path forward.

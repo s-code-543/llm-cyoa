@@ -85,7 +85,9 @@ def snapshot(conversation):
         } for msg in messages if msg.role != 'system'],
         'state': {
             'turn': state['turn_current'], 'max_turns': state['turn_max'],
-            'choices': [text for text in (state['choice1'], state['choice2']) if text],
+            'choices': [] if session and session.game_over else [
+                text for text in (state['choice1'], state['choice2']) if text
+            ],
             'inventory': inventory,
             'blocked': bool(last_assistant and last_assistant.metadata.get('is_error')),
             'game_over': bool(session and session.game_over),

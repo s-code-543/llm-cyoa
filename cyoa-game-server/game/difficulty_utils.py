@@ -52,7 +52,7 @@ def calculate_turn_number(filtered_messages):
     return turn_number
 
 
-def should_trigger_death(turn_number, max_turns, difficulty_profile, game_session):
+def should_trigger_death(turn_number, max_turns, difficulty_profile, game_session, persist=True):
     """
     Determine if death should be triggered based on difficulty curve.
     
@@ -89,7 +89,8 @@ def should_trigger_death(turn_number, max_turns, difficulty_profile, game_sessio
     if game_session:
         game_session.last_death_probability = death_probability
         game_session.last_death_roll = roll
-        game_session.save()
+        if persist:
+            game_session.save()
     
     if will_die:
         print(f"[DIFFICULTY] ✓ Death roll succeeded - will use game-ending prompt")

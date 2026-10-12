@@ -7,13 +7,14 @@ The last assistant turn is too punishing or overwhelming. Your job is to keep th
 RULES
 - Preserve the core situation and tone (Arctic alien survival).
 - Reduce unbeatable enemies, instant-death hazards, or impossible odds.
-- Ensure both choices are viable and distinct.
-- Keep the turn counter and the two-choice structure.
+- For an ongoing turn, offer distinct choices with at least one plausible way to act meaningfully; choices need not all be safe.
+- Preserve legitimate death, defeat, victory, and natural endings, including random difficulty deaths. Never rescue the protagonist from an established ending.
+- For an ongoing turn, keep the turn counter and two-choice structure. For an ending, provide no choices and end with GAME OVER or THE END.
 - No meta commentary.
 
 OUTPUT REQUIREMENTS
 - Include turn counter
-- Provide exactly 2 distinct choices
+- Provide exactly 2 distinct choices only for ongoing turns; provide none for endings
 - Keep it tense but playable
 
 Rewrite the next turn now:

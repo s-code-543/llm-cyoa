@@ -618,3 +618,22 @@ class TestJudgePipelineIntegration:
         assert step_result['attempts'][0]['approved'] is False
         assert step_result['attempts'][1]['approved'] is True
         assert step_result['used_rewrite'] is True
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('verdict, expected_calls', [('PASS', 1), ('FAIL', 3)])
+def test_validity_verdicts_and_context_flags(verdict, expected_calls):
+    from tests.conftest import JudgeStepFactory
+    step = JudgeStepFactory(classifier_prompt=PromptFactory(prompt_type='classifier'),
+                            classifier_model=LLMModelFactory(),
+                            classifier_use_full_context=True, compare_use_full_context=True)
+    history = [{'role': 'user', 'content': 'Earlier action'},
+               {'role': 'assistant', 'content': 'Earlier story'}]
+    with patch('game.judge_pipeline.call_llm', side_effect=[verdict, 'Rewrite', 'YES']) as llm:
+        result = run_judge_pipeline(history, 'Candidate', step.configuration)
+    assert llm.call_count == expected_calls
+    assert llm.call_args_list[0].kwargs['messages'][:2] == history
+    assert 'Candidate' in llm.call_args_list[0].kwargs['messages'][-1]['content']
+    if verdict == 'FAIL':
+        assert llm.call_args_list[2].kwargs['messages'][:2] == history
+        assert result['final_turn'] == 'Rewrite'
