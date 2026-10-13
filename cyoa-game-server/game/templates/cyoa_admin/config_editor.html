@@ -9,6 +9,17 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="save">
         
+        <details class="border rounded p-4">
+            <summary class="cursor-pointer font-medium">Turn workflow</summary>
+            <div id="workflow-steps" class="space-y-3 my-3"></div>
+            <select id="workflow-kind" aria-label="New step type" class="border rounded p-2"></select>
+            <button type="button" id="workflow-add" class="border rounded p-2">Add step</button>
+            <details class="my-3"><summary>Advanced: raw workflow JSON</summary>
+            <p class="text-sm text-gray-600 my-2">Leave {} to use the default workflow. Version 1 accepts an ordered list of named nodes with optional state conditions. New games use edits; ongoing games retain their saved workflow.</p>
+            <textarea id="workflow-json" name="workflow" rows="16" class="w-full border rounded p-2 font-mono text-sm" spellcheck="false">{% if form_data %}{{ form_data.workflow }}{% else %}{{ workflow_json }}{% endif %}</textarea>
+            </details>
+        </details>
+
         <div>
             <label for="name" class="block text-sm font-medium text-gray-700 mb-2">Configuration Name *</label>
             <input type="text" name="name" id="name" required
@@ -542,5 +553,71 @@ async function refreshModels() {
         alert('Error refreshing models: ' + error.message);
     }
 }
+
+// The JSON remains the submitted source of truth; controls preserve unknown fields.
+const workflowRaw = document.getElementById('workflow-json');
+const workflowCards = document.getElementById('workflow-steps');
+const workflowKinds = ['RunPython','GateInventory','ApplyDifficulty','ApplyRandomPrompt','ConcatenatePrompt','GenerateTurn','ReWriteRefusal','ReWriteJudge','ExtractJSON','ApplyStateChanges','ValidateTurn','SaveGame'];
+const workflowHelp = {
+ RunPython: 'Prepare hidden state using restricted Python.',
+ GateInventory: 'Limit unsolicited loot. Deliberately taking available items is exempt.',
+ ApplyDifficulty: 'Roll the configured difficulty for an ending.',
+ ApplyRandomPrompt: 'Randomly append a narrative instruction.',
+ ConcatenatePrompt: 'Give the narrator instructions and hidden state.',
+ GenerateTurn: 'Write the turn using the storyteller model configured below.',
+ ReWriteRefusal: 'Detect refusals and try an in-world correction.',
+ ReWriteJudge: 'Run the optional judges configured below.',
+ ExtractJSON: 'Separate hidden state from visible narration.',
+ ApplyStateChanges: 'Accept permitted narrator changes to hidden state.',
+ ValidateTurn: 'Check the turn before committing it.', SaveGame: 'Save the accepted turn and hidden state together.'
+};
+let workflowData;
+function storeWorkflow() { workflowRaw.value = JSON.stringify(workflowData, null, 2); }
+function renderWorkflow() {
+ workflowCards.replaceChildren();
+ try { workflowData = JSON.parse(workflowRaw.value || '{}'); }
+ catch (_) { workflowCards.textContent = 'Invalid JSON: repair it in Advanced below.'; return; }
+ const steps = workflowData.nodes || [];
+ if (!steps.length) { workflowCards.textContent = 'Default: difficulty → context → storyteller → refusal repair → optional judge → validate → save.'; }
+ steps.forEach((step, index) => {
+  const card = document.createElement('div'); card.className = 'border rounded p-3 space-y-2';
+  const title = document.createElement('strong'); title.textContent = `${index + 1}. ${step.name || step.type}`; card.append(title);
+  const help = document.createElement('p'); help.textContent = workflowHelp[step.type] || ''; card.append(help);
+  const fields = {name: ['Step name', 'text']};
+  if (step.type === 'GateInventory') Object.assign(fields, {probability:['Unsolicited loot probability (0–1)','number',0.25], cooldown_turns:['Quiet turns after a gift','number',2],max_new_items:['Maximum unsolicited items','number',1],verify_narrative:['Verify inventory with correction model (adds a call)','checkbox',true]});
+  if (step.type === 'RunPython') fields.code=['Python code','textarea',''];
+  if (step.type === 'ConcatenatePrompt') Object.assign(fields,{prompt:['Narrator instructions','textarea',''],include_state:['Include hidden state','checkbox',true],target:['Prompt role (system or user)','text','system']});
+  if (step.type === 'ApplyRandomPrompt') Object.assign(fields,{probability:['Probability (0–1)','number',0],prompt:['Instruction','textarea','']});
+  if (step.type === 'ApplyStateChanges') fields.allowed_keys=['Editable state fields (comma separated)','list',[]];
+  Object.entries(fields).forEach(([key,[label,type,fallback]]) => {
+   const row=document.createElement('label'); row.className='block text-sm'; row.append(document.createTextNode(label+' '));
+   const input=document.createElement(type==='textarea'?'textarea':'input'); input.className='border rounded p-2 w-full';
+   if(type!=='textarea') input.type=type==='list'?'text':type;
+   const value=step[key] ?? fallback ?? '';
+   if(type==='checkbox') {input.checked=value; input.className='ml-2';} else input.value=type==='list'?value.join(', '):value;
+   if(type==='number') input.step='any';
+   input.addEventListener('input',()=>{ step[key]=type==='checkbox'?input.checked:type==='number'?Number(input.value):type==='list'?input.value.split(',').map(x=>x.trim()).filter(Boolean):input.value; storeWorkflow(); });
+   row.append(input);card.append(row);
+  });
+  [['↑',index-1],['↓',index+1],['Remove',null]].forEach(([label,target])=>{
+   const button=document.createElement('button');button.type='button';button.textContent=label;button.className='border rounded px-2 mr-2';
+   button.disabled=target!==null&&(target<0||target>=steps.length);
+   button.onclick=()=>{if(target===null) steps.splice(index,1);else [steps[index],steps[target]]=[steps[target],steps[index]];storeWorkflow();renderWorkflow();};card.append(button);
+  });
+  workflowCards.append(card);
+ });
+}
+workflowRaw.addEventListener('change',renderWorkflow);
+const workflowSelect=document.getElementById('workflow-kind');
+workflowKinds.forEach(kind=>{const option=document.createElement('option');option.value=kind;option.textContent=kind+' — '+workflowHelp[kind];workflowSelect.append(option);});
+document.getElementById('workflow-add').onclick=()=>{
+ const kind=workflowSelect.value;
+ if(!workflowKinds.includes(kind)) return;
+ if(!workflowData.nodes) workflowData={version:1,nodes:[{type:'ApplyDifficulty'},{type:'ConcatenatePrompt',include_state:false},{type:'GenerateTurn'},{type:'ReWriteRefusal'},{type:'ReWriteJudge'},{type:'ValidateTurn'},{type:'SaveGame'}]};
+ const pre=['RunPython','GateInventory','ApplyDifficulty','ApplyRandomPrompt','ConcatenatePrompt'];
+ const at=pre.includes(kind)?workflowData.nodes.findIndex(n=>n.type==='GenerateTurn'):workflowData.nodes.findIndex(n=>n.type==='ValidateTurn');
+ workflowData.nodes.splice(at,0,{type:kind});storeWorkflow();renderWorkflow();
+};
+renderWorkflow();
 </script>
 {% endblock %}

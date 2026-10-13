@@ -17,6 +17,7 @@ from .ollama_utils import get_ollama_models, test_ollama_connection
 from .anthropic_utils import test_anthropic_connection, get_anthropic_models
 from .openai_utils import test_openai_connection, get_openai_models
 from .openrouter_utils import test_openrouter_connection, get_openrouter_models
+import json
 import markdown2
 
 
@@ -457,6 +458,12 @@ def config_editor(request, config_id=None):
                 messages.error(request, error_msg)
             else:
                 try:
+                    from .engine.turn_execution import validate_workflow
+                    workflow = json.loads(request.POST.get('workflow', json.dumps(config.workflow if config else {})) or '{}')
+                    if workflow:
+                        validate_workflow(workflow)
+                    elif not isinstance(workflow, dict):
+                        raise ValueError('Workflow must be a JSON object')
                     adventure_prompt = Prompt.objects.get(pk=adventure_prompt_id)
                     game_ending_prompt = Prompt.objects.get(pk=game_ending_prompt_id)
                     storyteller_model = LLMModel.objects.get(pk=storyteller_model_id)
@@ -500,6 +507,7 @@ def config_editor(request, config_id=None):
                     
                     if config:
                         # Update existing
+                        config.workflow = workflow
                         config.name = name
                         config.description = description
                         config.adventure_prompt = adventure_prompt
@@ -528,6 +536,7 @@ def config_editor(request, config_id=None):
                         # Create new
                         config = Configuration.objects.create(
                             name=name,
+                            workflow=workflow,
                             description=description,
                             adventure_prompt=adventure_prompt,
                             storyteller_model=storyteller_model,
@@ -620,8 +629,8 @@ def config_editor(request, config_id=None):
                     messages.error(request, 'Invalid prompt selection')
                 except LLMModel.DoesNotExist:
                     messages.error(request, 'Invalid model selection')
-                except ValueError:
-                    messages.error(request, 'Invalid timeout value or judge step configuration')
+                except ValueError as exc:
+                    messages.error(request, f'Invalid configuration: {exc}')
     
     # Preserve form data on validation errors
     form_data = None
@@ -640,6 +649,7 @@ def config_editor(request, config_id=None):
         'judge_prompts': judge_prompts,
         'judge_steps': JudgeStep.objects.filter(configuration=config).order_by('order', 'id') if config else [],
         'form_data': form_data,
+        'workflow_json': json.dumps(config.workflow if config else {}, indent=2),
     }
     return render(request, 'cyoa_admin/config_editor.html', context)
 

@@ -3,9 +3,7 @@ Chat views for the CYOA frontend.
 """
 import uuid
 import json
-import re
 import traceback
-from django.db import transaction
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
@@ -13,8 +11,10 @@ from django.contrib.auth.decorators import login_required
 
 from .models import ChatConversation, ChatMessage, GameSession, Configuration, AuditLog, ChatSubmission
 from .llm_router import call_llm
-from .config_utils import get_active_configuration, apply_pacing_template, conversation_tts_enabled
-from .difficulty_utils import should_trigger_death
+from .config_utils import conversation_tts_enabled
+from .response_format import extract_game_state, is_story_ending, public_metadata, public_content
+from .engine.turn_execution import execute_turn
+from .engine.nodes import TurnUnavailable
 from .refusal_detector import process_potential_refusal
 from .judge_pipeline import run_judge_pipeline
 
@@ -63,88 +63,8 @@ def chat_page(request):
     """
     Main chat page view.
     """
-    return render(request, 'chat/chat_page.html')
-
-
-def is_story_ending(text):
-    """Recognize explicit terminal markers, never incidental mentions in prose."""
-    return bool(re.search(
-        r'^\s*(?:\*{1,2}|#{1,6}\s*)?(?:GAME OVER|THE END|VICTORY|DEFEAT)'
-        r'(?:[.!])?(?:\*{1,2})?\s*$', text, re.IGNORECASE | re.MULTILINE
-    ))
-
-
-ENDING_INSTRUCTION = (
-    "\n\nIf the protagonist dies, loses definitively, wins, or reaches any natural "
-    "ending, end immediately with GAME OVER or THE END on its own line and no "
-    "choices. These endings may happen before the final scheduled turn."
-)
-
-
-def extract_game_state(text):
-    """
-    Extract turn info and choices from LLM response.
-    Returns dict with turn_current, turn_max, choice1, choice2.
-    """
-    state = {
-        'turn_current': 0,
-        'turn_max': 20,
-        'choice1': '',
-        'choice2': '',
-        'inventory': []
-    }
-    
-    # Extract "Turn X of Y" or "Turn X/Y"
-    turn_match = re.search(r'Turn\s+(\d+)\s*(?:of|/)\s*(\d+)', text, re.IGNORECASE)
-    if turn_match:
-        state['turn_current'] = int(turn_match.group(1))
-        state['turn_max'] = int(turn_match.group(2))
-    
-    # Extract choices - comprehensive regex to handle many variations:
-    # - Separators: ) . ] - :
-    # - Indentation: any leading whitespace
-    # - Bold/italic wrapping: **1)** or **1.** or *1)* etc.
-    # - Examples: "1)", "1.", "1-", "1:", "**1)**", "  1.", etc.
-    lines = text.split('\n')
-    current_choice = None
-    choice_texts = {}
-    
-    for line in lines:
-        # Pattern explanation:
-        # ^\s*           - optional leading whitespace (indentation)
-        # \*{0,2}        - optional markdown bold (0-2 asterisks before number)
-        # (\d+)          - capture the choice number
-        # \*{0,2}        - optional markdown bold (0-2 asterisks after number)
-        # \s*            - optional whitespace
-        # [.)\]:-]       - separator: ) . ] - :
-        # \*{0,2}        - optional markdown bold (0-2 asterisks after separator)
-        # \s*            - optional whitespace
-        # (.+)           - capture the choice text
-        choice_match = re.match(r'^\s*\*{0,2}\s*(\d+)\s*\*{0,2}\s*[.)\]:-]\s*\*{0,2}\s*(.+)', line)
-        if choice_match:
-            choice_num = int(choice_match.group(1))
-            choice_text = choice_match.group(2).strip()
-            # Clean up any remaining markdown formatting from choice text
-            choice_text = re.sub(r'^\*+|\*+$', '', choice_text).strip()
-            if choice_num in [1, 2]:
-                current_choice = choice_num
-                choice_texts[choice_num] = choice_text
-        elif current_choice and line.strip() and not re.match(r'^\s*\*{0,2}\s*\d+\s*\*{0,2}\s*[.)\]:-]', line):
-            # Continuation of current choice (multi-line)
-            choice_texts[current_choice] += ' ' + line.strip()
-    
-    # Assign to state
-    if 1 in choice_texts:
-        state['choice1'] = choice_texts[1]
-    if 2 in choice_texts:
-        state['choice2'] = choice_texts[2]
-    
-    # Debug output
-    print(f"[EXTRACT_STATE] Turn: {state['turn_current']}/{state['turn_max']}")
-    print(f"[EXTRACT_STATE] Choice 1: {state['choice1'][:50] if state['choice1'] else 'NOT FOUND'}")
-    print(f"[EXTRACT_STATE] Choice 2: {state['choice2'][:50] if state['choice2'] else 'NOT FOUND'}")
-    
-    return state
+    from .chat_api import react_chat
+    return react_chat(request)
 
 
 @login_required
@@ -211,265 +131,13 @@ def chat_api_send_message(request, *, payload=None, submission_id=None):
             defaults={'title': 'New Adventure'}
         )
         
-        # Failed generation must not add an unmatched action to story history.
-        history = list(conversation.messages.order_by('id'))
-        messages = [
-            {'role': msg.role, 'content': msg.content}
-            for msg in history if not msg.metadata.get('is_error')
-        ]
-        turn_number = sum(msg.role == 'assistant' and not msg.metadata.get('is_error')
-                          for msg in history) + 1
-        messages.append({'role': 'user', 'content': user_message})
-
-        # Get configuration (from conversation metadata or active)
-        config = None
-        config_id = conversation.metadata.get('config_id') if conversation.metadata else None
-        if config_id:
-            try:
-                config = Configuration.objects.get(id=config_id)
-                print(f"[CHAT] Using conversation's config: {config.name}")
-            except Configuration.DoesNotExist:
-                print(f"[CHAT] Config {config_id} not found, using active")
-                config = get_active_configuration()
-        else:
-            config = get_active_configuration()
-        
-        max_turns = config.total_turns if config else 20
-        game_session = GameSession.objects.filter(
-            session_id=conversation.conversation_id, user=request.user
-        ).first()
-        if game_session and game_session.game_over:
-            return JsonResponse({'error': 'This adventure has ended'}, status=409)
-        if history and history[-1].metadata.get('is_error'):
-            return JsonResponse({'error': 'This adventure is blocked'}, status=409)
-        if game_session is None:
-            game_session = GameSession(
-                session_id=conversation.conversation_id, user=request.user,
-                conversation_fingerprint=conversation.conversation_id,
-                configuration=config, max_turns=max_turns
-            )
-        # Work on an in-memory session until the response is ready to commit.
-        game_session.turn_number = turn_number
-
-        # Check if death should trigger (difficulty engine)
-        use_game_ending_prompt = False
-        if config and config.difficulty:
-            use_game_ending_prompt = should_trigger_death(
-                turn_number=turn_number,
-                max_turns=game_session.max_turns,
-                difficulty_profile=config.difficulty,
-                game_session=game_session,
-                persist=False
-            )
-            
-            if use_game_ending_prompt:
-                print(f"[CHAT] ☠️  Death triggered! Using game-ending prompt")
-                game_session.game_over = True
-        
-        # Get adventure prompt as system message (or game-ending prompt if death triggered)
-        system_prompt = None
-        if config:
-            if use_game_ending_prompt and config.game_ending_prompt:
-                # Use game-ending prompt for death scenes
-                system_prompt = config.game_ending_prompt.prompt_text
-                print(f"[CHAT] Using game-ending prompt: {len(system_prompt)} chars")
-            elif config.adventure_prompt:
-                # Use normal adventure prompt with template replacement
-                system_prompt = apply_pacing_template(
-                    config.adventure_prompt.prompt_text,
-                    config
-                )
-                print(f"[CHAT] Applied pacing template to adventure prompt")
-        
-        system_prompt = (system_prompt or "") + ENDING_INSTRUCTION
-        if use_game_ending_prompt and not config.game_ending_prompt:
-            system_prompt += (
-                "\nThe difficulty roll requires the protagonist to die or fail on this "
-                "turn. Narrate the final consequence now, with no choices."
-            )
-
-        # Determine model to use
-        if not config or not config.storyteller_model:
-            return JsonResponse({'error': 'No storyteller model configured'}, status=500)
-        
-        print(f"[CHAT] Calling LLM with model: {config.storyteller_model.name}")
-        
-        # Call LLM (using storyteller model from config)
-        llm_response = call_llm(
-            messages=messages,
-            system_prompt=system_prompt,
-            llm_model=config.storyteller_model,
-            timeout=config.storyteller_timeout
+        result = execute_turn(
+            conversation, user_message, call_llm=call_llm,
+            correct_refusal=process_potential_refusal, judge_turn=run_judge_pipeline,
         )
-        
-        # Process potential refusal (only if not a game-ending turn)
-        final_response = llm_response
-        refusal_info = {
-            'was_refusal': False,
-            'classifier_response': '',
-            'was_corrected': False,
-            'original_text': '',
-            'turn_1_refusal': False,
-            'all_attempts_failed': False,
-            'attempts': []
-        }
-        
-        if config:
-            refusal_result = process_potential_refusal(
-                messages=messages,
-                story_turn=llm_response,
-                config=config,
-                user_message=user_message,
-                is_game_ending=use_game_ending_prompt,
-                turn_number=turn_number,
-                max_retries=3
-            )
-            
-            final_response = refusal_result['final_turn']
-            refusal_info = {
-                'was_refusal': refusal_result['was_refusal'],
-                'classifier_response': refusal_result['classifier_response'],
-                'was_corrected': refusal_result['was_corrected'],
-                'original_text': llm_response if refusal_result['was_refusal'] else '',
-                'turn_1_refusal': refusal_result.get('turn_1_refusal', False),
-                'all_attempts_failed': refusal_result.get('all_attempts_failed', False),
-                'attempts': refusal_result.get('attempts', [])
-            }
-            
-            # Log to audit if refusal was detected (before early returns)
-            if refusal_info['was_refusal']:
-                AuditLog.objects.create(
-                    original_text=llm_response,
-                    refined_text=final_response,
-                    was_modified=refusal_info['was_corrected'],
-                    was_refusal=True,
-                    classifier_response=refusal_info['classifier_response'],
-                    prompt_used=config.classifier_prompt,
-                    correction_prompt_used=config.turn_correction_prompt if refusal_info['was_corrected'] else None,
-                    details={'type': 'refusal', 'refusal_info': {
-                        k: v for k, v in refusal_info.items() if k != 'attempts'
-                    }}
-                )
-                print(f"[CHAT] Refusal logged to audit (corrected={refusal_info['was_corrected']})")
-            
-            # Handle turn 1 refusal - save error message and return
-            if refusal_info['turn_1_refusal']:
-                error_text = "The AI is a petulant child and refused to play your game. Sorry about that, try again but maybe tone it down like 10%"
-                with transaction.atomic():
-                    ChatMessage.objects.create(conversation=conversation, role="user", content=user_message)
-                    assistant_msg = ChatMessage.objects.create(
-                        conversation=conversation, role='assistant', content=error_text,
-                        metadata={'is_error': True, 'refusal_info': refusal_info}
-                    )
-                return JsonResponse({
-                    'message': {
-                        'id': assistant_msg.id,
-                        'role': assistant_msg.role,
-                        'content': assistant_msg.content,
-                        'created_at': assistant_msg.created_at.isoformat(),
-                        'refusal_info': refusal_info,
-                        'is_error': True
-                    },
-                    'state': {
-                        'inventory': [],
-                        'turn_current': 0,
-                        'turn_max': max_turns,
-                        'choice1': '',
-                        'choice2': ''
-                    },
-                    'game_blocked': True
-                })
-            
-            # Handle all attempts failed (turn 2+) - save error message and return
-            if refusal_info['all_attempts_failed']:
-                error_text = "The AI is a petulant child and refused to play your game. Sorry about that, try again but maybe tone it down like 10%"
-                with transaction.atomic():
-                    ChatMessage.objects.create(conversation=conversation, role="user", content=user_message)
-                    assistant_msg = ChatMessage.objects.create(
-                        conversation=conversation, role='assistant', content=error_text,
-                        metadata={'is_error': True, 'refusal_info': refusal_info}
-                    )
-                return JsonResponse({
-                    'message': {
-                        'id': assistant_msg.id,
-                        'role': assistant_msg.role,
-                        'content': assistant_msg.content,
-                        'created_at': assistant_msg.created_at.isoformat(),
-                        'refusal_info': refusal_info,
-                        'is_error': True
-                    },
-                    'state': extract_game_state(next((m['content'] for m in reversed(messages)
-                                                        if m['role'] == 'assistant'), '')),
-                    'game_blocked': True
-                })
-            
-        # Run judge pipeline (post-refusal corrections)
-        judge_info = None
-        audit_logged = refusal_info['was_refusal']  # Already logged if refusal
-        if config and not (use_game_ending_prompt or is_story_ending(final_response)):
-            judge_input_turn = final_response
-            judge_result = run_judge_pipeline(messages, final_response, config)
-            if judge_result.get('steps'):
-                final_response = judge_result['final_turn']
-                judge_info = judge_result
-                judge_steps = list(config.judge_steps.all().order_by('order', 'id'))
-                # Use first step's classifier prompt if available, otherwise compare prompt
-                first_step_prompt = None
-                if judge_steps:
-                    first_step_prompt = judge_steps[0].classifier_prompt or judge_steps[0].compare_prompt
-                AuditLog.objects.create(
-                    original_text=judge_input_turn,
-                    refined_text=final_response,
-                    was_modified=judge_result.get('was_modified', False),
-                    was_refusal=False,
-                    prompt_used=first_step_prompt,
-                    details={'type': 'judge', **judge_result}
-                )
-                audit_logged = True
-        
-        # Always log happy-path turns that weren't already logged by refusal or judge
-        if not audit_logged:
-            AuditLog.objects.create(
-                original_text=llm_response,
-                refined_text=final_response,
-                was_modified=False,
-                was_refusal=False,
-                prompt_used=config.adventure_prompt if config else None,
-                details={'type': 'happy_path', 'turn_number': turn_number}
-            )
-
-        game_state = extract_game_state(final_response)
-        game_state['turn_current'] = turn_number
-        game_state['turn_max'] = game_session.max_turns
-        game_session.game_over = (use_game_ending_prompt or is_story_ending(final_response)
-                                  or turn_number >= game_session.max_turns)
-        if game_session.game_over:
-            game_state['choice1'] = game_state['choice2'] = ''
-        game_state['game_over'] = game_session.game_over
-        with transaction.atomic():
-            ChatMessage.objects.create(conversation=conversation, role='user', content=user_message)
-            assistant_msg = ChatMessage.objects.create(
-                conversation=conversation, role='assistant', content=final_response,
-                metadata={
-                    'refusal_info': refusal_info if refusal_info['was_refusal'] else None,
-                    'judge_info': judge_info,
-                    'game_over': game_session.game_over,
-                    'turn_number': turn_number,
-                }
-            )
-            game_session.save()
-
-        return JsonResponse({
-            'message': {
-                'id': assistant_msg.id,
-                'role': assistant_msg.role,
-                'content': assistant_msg.content,
-                'created_at': assistant_msg.created_at.isoformat(),
-                'refusal_info': refusal_info if refusal_info['was_refusal'] else None,
-                'judge_info': judge_info
-            },
-            'state': game_state
-        })
+        return JsonResponse(result)
+    except TurnUnavailable as e:
+        return JsonResponse({'error': str(e)}, status=409)
     except Exception as e:
         print(f"[CHAT ERROR] {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -493,9 +161,9 @@ def chat_api_get_conversation(request, conversation_id):
             messages_data.append({
                 'id': msg.id,
                 'role': msg.role,
-                'content': msg.content,
+                'content': public_content(msg.content, msg.metadata) if msg.role == 'assistant' else msg.content,
                 'created_at': msg.created_at.isoformat(),
-                'metadata': msg.metadata
+                'metadata': public_metadata(msg.metadata)
             })
         
         return JsonResponse({
@@ -605,8 +273,12 @@ def chat_api_rollback_to_message(request, *, payload=None, submission_id=None):
             game_session.game_over = bool(target_message.metadata.get('game_over')
                                           or is_story_ending(target_message.content)
                                           or new_turn_number >= game_session.max_turns)
-            game_session.last_death_roll = None
-            game_session.last_death_probability = None
+            snapshot = target_message.metadata.get('engine_snapshot', {})
+            game_session.hidden_state = snapshot.get('state', {})
+            game_session.workflow_snapshot = snapshot.get('workflow', {})
+            game_session.random_seed = snapshot.get('seed', '')
+            game_session.last_death_roll = snapshot.get('last_death_roll')
+            game_session.last_death_probability = snapshot.get('last_death_probability')
             game_session.save()
             
             print(f"[ROLLBACK] Reset game session: turn={new_turn_number}, game_over=False")
@@ -620,9 +292,9 @@ def chat_api_rollback_to_message(request, *, payload=None, submission_id=None):
             messages_data.append({
                 'id': msg.id,
                 'role': msg.role,
-                'content': msg.content,
+                'content': public_content(msg.content, msg.metadata) if msg.role == 'assistant' else msg.content,
                 'created_at': msg.created_at.isoformat(),
-                'metadata': msg.metadata
+                'metadata': public_metadata(msg.metadata)
             })
         
         # Extract game state from last assistant message

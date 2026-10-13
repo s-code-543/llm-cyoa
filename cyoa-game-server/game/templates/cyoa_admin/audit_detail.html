@@ -49,13 +49,13 @@
             </div>
             {% if log.was_refusal %}
             <div>
-                <p class="text-sm font-medium text-gray-500">Classifier Response</p>
-                <p class="mt-1 text-sm text-gray-900">{{ log.classifier_response|default:"N/A" }}</p>
+                <p class="text-sm font-medium text-gray-500">Initial Classifier Response</p>
+                <p class="mt-1 text-sm text-gray-900">{{ log.details.refusal_info.attempts.0.classifier_response|default:log.classifier_response|default:"N/A" }}</p>
             </div>
             {% endif %}
             {% if log.details %}
             <div class="col-span-2">
-                <p class="text-sm font-medium text-gray-500">Judge Details</p>
+                <p class="text-sm font-medium text-gray-500">Execution Details</p>
                 <pre class="mt-1 text-xs bg-gray-50 rounded p-3 whitespace-pre-wrap text-gray-700">{{ log.details }}</pre>
             </div>
             {% endif %}
@@ -77,7 +77,7 @@
         <!-- Refined -->
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-3 border-b border-gray-200 {% if log.was_modified %}bg-yellow-50{% else %}bg-green-50{% endif %}">
-                <h3 class="text-sm font-medium text-gray-900">Final Output (After Judge)</h3>
+                <h3 class="text-sm font-medium text-gray-900">Accepted Output</h3>
             </div>
             <div class="px-4 py-5 sm:p-6">
                 <pre class="whitespace-pre-wrap text-sm text-gray-900 font-mono">{{ log.refined_text }}</pre>

@@ -649,3 +649,31 @@ progress::-webkit-progress-value {
     max-height: none;
   }
 }
+
+.voice-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+.voice-controls button {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #d8d1c5;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.voice-controls button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.voice-controls p {
+  width: 100%;
+  margin: 0;
+  font-size: 0.85rem;
+}
+.composer-area > .primary {
+  margin-bottom: 0.8rem;
+}

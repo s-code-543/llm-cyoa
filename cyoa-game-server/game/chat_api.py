@@ -17,6 +17,7 @@ from django.views.decorators.cache import never_cache
 from django.contrib.auth.decorators import login_required
 
 from . import chat_views
+from .response_format import public_content
 from .config_utils import get_conversation_configuration, conversation_tts_enabled
 from .models import ChatConversation, Configuration, GameSession, ChatSubmission
 
@@ -62,7 +63,7 @@ def snapshot(conversation):
     last_story = next((msg for msg in reversed(messages) if msg.role == 'assistant' and not msg.metadata.get('is_error')), None)
     last_assistant = next((msg for msg in reversed(messages) if msg.role == 'assistant'), None)
     session = GameSession.objects.filter(session_id=conversation.conversation_id, user=conversation.user).first()
-    state = chat_views.extract_game_state(last_story.content) if last_story else {
+    state = chat_views.extract_game_state(public_content(last_story.content, last_story.metadata)) if last_story else {
         'turn_current': 0, 'turn_max': config.total_turns if config else 20,
         'choice1': '', 'choice2': '', 'inventory': [],
     }
@@ -74,13 +75,17 @@ def snapshot(conversation):
         match = re.search(r'(?im)^\s*\*{0,2}Inventory\*{0,2}\s*:\s*\*{0,2}([^\n]+)', last_story.content)
         if match:
             inventory = [item.strip(' *') for item in match.group(1).split(',') if item.strip(' *')]
+    if session and isinstance(session.hidden_state.get('inventory'), list):
+        items = session.hidden_state['inventory']
+        if all(isinstance(item, str) for item in items):
+            inventory = items
     pending = conversation.submissions.filter(status='pending').first()
     return {
         'id': conversation.conversation_id,
         'title': conversation.title,
         'configuration': {'id': config.pk, 'name': config.name} if config else None,
         'messages': [{
-            'id': msg.pk, 'role': msg.role, 'content': msg.content,
+            'id': msg.pk, 'role': msg.role, 'content': public_content(msg.content, msg.metadata) if msg.role == 'assistant' else msg.content,
             'created_at': msg.created_at.isoformat(), 'is_error': bool(msg.metadata.get('is_error')),
         } for msg in messages if msg.role != 'system'],
         'state': {

@@ -61,7 +61,7 @@ test("does not create a conversation on mount and requires an explicit start", a
   fireEvent.change(screen.getByRole("combobox", { name: "Adventure" }), {
     target: { value: "1" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Begin adventure →" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open adventure →" }));
   await screen.findByText("The snow is deep.");
   expect(
     api.mock.calls.filter(
@@ -76,7 +76,7 @@ test("a failed send preserves the action draft and does not automatically retry"
   fireEvent.change(screen.getByRole("combobox", { name: "Adventure" }), {
     target: { value: "1" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Begin adventure →" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open adventure →" }));
   const action = await screen.findByLabelText("Your action");
   api.mockImplementation(async (path) => {
     if (path.endsWith("/turns")) throw new Error("Connection lost");
@@ -99,7 +99,7 @@ test("renders the authoritative next turn and sends a chosen action only once", 
   fireEvent.change(screen.getByRole("combobox", { name: "Adventure" }), {
     target: { value: "1" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Begin adventure →" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open adventure →" }));
   await screen.findByText("The snow is deep.");
   api.mockImplementation(async (path) =>
     path.endsWith("/turns")
@@ -161,7 +161,7 @@ test("rollback requires confirmation and accepts the returned transcript", async
   fireEvent.change(screen.getByRole("combobox", { name: "Adventure" }), {
     target: { value: "1" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Begin adventure →" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open adventure →" }));
   fireEvent.click(
     await screen.findByRole("button", { name: "↶ Continue from here" }),
   );

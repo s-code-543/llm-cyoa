@@ -44,7 +44,7 @@ def _build_context_messages(messages: List[Dict], turn_text: str, use_full_conte
         return [{'role': 'user', 'content': turn_text}]
 
 
-def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
+def run_judge_pipeline(messages, story_turn: str, config, llm_call=None) -> Dict[str, Any]:
     """
     Run configured judge steps in order on a story turn.
     
@@ -65,6 +65,7 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
             'steps': list - Details of each step execution
         }
     """
+    invoke = llm_call or call_llm
     result = {
         'final_turn': story_turn,
         'was_modified': False,
@@ -106,7 +107,7 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                     {'role': 'user', 'content': classifier_content}
                 ]
                 
-                classifier_response = call_llm(
+                classifier_response = invoke(
                     messages=classifier_messages,
                     system_prompt=step.classifier_prompt.prompt_text,
                     llm_model=step.classifier_model,
@@ -158,7 +159,7 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                             'content': f"{step.rewrite_instruction}\n\nTURN TO FIX:\n{current_turn}"
                         }]
                     
-                    rewrite_text = call_llm(
+                    rewrite_text = invoke(
                         messages=rewrite_messages,
                         system_prompt=step.rewrite_prompt.prompt_text,
                         llm_model=step.rewrite_model,
@@ -172,7 +173,7 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                         f"ORIGINAL:\n{current_turn}\n\n"
                         f"CORRECTED:\n{rewrite_text}"
                     )
-                    compare_response = call_llm(
+                    compare_response = invoke(
                         messages=(list(messages) if step.compare_use_full_context else []) + [
                             {'role': 'user', 'content': compare_content}
                         ],

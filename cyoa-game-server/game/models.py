@@ -164,6 +164,8 @@ class Configuration(models.Model):
         null=True,
         help_text="Model to use for story generation"
     )
+    workflow = models.JSONField(default=dict, blank=True, help_text="Versioned turn workflow; empty uses the default")
+
     storyteller_timeout = models.IntegerField(
         default=60,
         help_text="Timeout in seconds for storyteller generation (default: 60)"
@@ -714,6 +716,10 @@ class GameSession(models.Model):
         help_text="Configuration snapshot when session started"
     )
     
+    hidden_state = models.JSONField(default=dict, blank=True)
+    workflow_snapshot = models.JSONField(default=dict, blank=True)
+    random_seed = models.CharField(max_length=64, blank=True, default="")
+
     # Game state
     turn_number = models.IntegerField(
         default=0,

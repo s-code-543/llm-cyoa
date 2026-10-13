@@ -144,28 +144,19 @@ export function ChatPage() {
   ].some(
     (e) => e instanceof ApiError && (e.status === 401 || e.status === 403),
   );
-  const legacy = id ? `/chat/?conversation_id=${id}` : "/";
   return (
     <div className="app">
       <header className="masthead">
         <a className="wordmark" href="/">
-          CYOA<span>THE STORY IS YOURS</span>
+          CYOA
         </a>
         <nav>
-          <span className="preview">REACT PREVIEW</span>
-          <a href={legacy}>Original chat ↗</a>
           <a href="/">Adventures</a>
         </nav>
       </header>
       <main className="workspace">
         <aside className="journal">
-          <p className="eyebrow">FIELD NOTES</p>
           <h1>{game?.title ?? "Your next adventure"}</h1>
-          <p className="subtitle">
-            Choose a direction.
-            <br />
-            See where the story takes you.
-          </p>
           {game && (
             <>
               <div className="turn">
@@ -197,7 +188,6 @@ export function ChatPage() {
               </a>
             </>
           )}
-          <div className="journal-footer">Every choice leaves a mark.</div>
         </aside>
         <section className="story-panel" aria-label="Adventure">
           <div className="story-heading">
@@ -217,7 +207,10 @@ export function ChatPage() {
                 <br />
                 for your first move.
               </h2>
-              <p>Select an adventure, then tell the narrator what you do.</p>
+              <p>
+                Select an adventure. Start with the opening button or write your
+                own first action.
+              </p>
               <label htmlFor="configuration">Adventure</label>
               <select
                 id="configuration"
@@ -242,7 +235,7 @@ export function ChatPage() {
                   create.mutate();
                 }}
               >
-                {create.isPending ? "Opening…" : "Begin adventure →"}
+                {create.isPending ? "Opening…" : "Open adventure →"}
               </button>
             </div>
           )}
@@ -272,6 +265,7 @@ export function ChatPage() {
                 </div>
               )}
               <ActionComposer
+                opening={game.messages.length === 0}
                 choices={game.state.choices}
                 busy={busy}
                 finished={Boolean(finished)}

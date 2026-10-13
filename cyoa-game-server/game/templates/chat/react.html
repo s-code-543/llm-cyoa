@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -11,7 +12,8 @@
 </head>
 <body>
   <div id="root"></div>
-  <noscript>Enable JavaScript to play. <a href="/chat/">Open the original chat</a>.</noscript>
+  <noscript>Enable JavaScript to play.</noscript>
+  <script src="{% static 'js/recorder.js' %}"></script>
   {% if frontend_dev %}
   <script type="module">
     import RefreshRuntime from '/frontend/@react-refresh';

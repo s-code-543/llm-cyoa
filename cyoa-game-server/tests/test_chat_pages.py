@@ -1,6 +1,7 @@
 """
 Tests for home page and chat page views — auth required.
 """
+from django.test import override_settings
 import pytest
 import json
 
@@ -57,9 +58,12 @@ class TestChatPage:
         resp = client.get('/chat/')
         assert resp.status_code == 302
 
+    @override_settings(FRONTEND_DEV=True)
     def test_chat_page_loads(self, auth_client):
-        resp = auth_client.get('/chat/')
+        resp = auth_client.get('/chat/?config=1')
         assert resp.status_code == 200
+        assert 'chat/react.html' in [t.name for t in resp.templates]
+        assert b'js/recorder.js' in resp.content
 
 
 @pytest.mark.django_db
@@ -86,6 +90,8 @@ class TestFullGameFlow:
         ]
         no = {'was_refusal': False, 'classifier_response': '', 'was_corrected': False}
 
+        # This fixture scripts a surviving playthrough; random-death behavior has separate tests.
+        self.config.difficulty = None
         self.config.total_turns = 3
         self.config.save()
 

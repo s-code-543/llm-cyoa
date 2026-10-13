@@ -76,7 +76,8 @@ def call_llm(messages, system_prompt=None, llm_model=None, timeout=30, disable_t
             system_prompt,
             routing_info['model'],
             routing_info['api_key'],
-            timeout=timeout
+            timeout=timeout,
+            disable_thinking=disable_thinking
         )
     
     else:

@@ -167,7 +167,15 @@ def get_openrouter_models(api_key, timeout=10):
         return []
 
 
-def call_openrouter(messages, system_prompt, model, api_key, timeout=30):
+class MeteredText(str):
+    """String-compatible response retaining provider billing metadata for audits."""
+    def __new__(cls, content, result):
+        value = super().__new__(cls, content)
+        value.billing = {'generation_id': result.get('id'), 'usage': result.get('usage', {})}
+        return value
+
+
+def call_openrouter(messages, system_prompt, model, api_key, timeout=30, disable_thinking=False):
     """
     Call OpenRouter API with messages using OpenAI-compatible format.
     
@@ -213,6 +221,9 @@ def call_openrouter(messages, system_prompt, model, api_key, timeout=30):
         "messages": api_messages
     }
     
+    if disable_thinking:
+        payload["reasoning"] = {"effort": "none"}
+
     print(f"[OPENROUTER] Calling {model} with {len(api_messages)} messages")
     
     try:
@@ -238,7 +249,7 @@ def call_openrouter(messages, system_prompt, model, api_key, timeout=30):
         if 'choices' in result and len(result['choices']) > 0:
             content = result['choices'][0]['message']['content']
             print(f"[OPENROUTER] Received {len(content)} chars")
-            return content
+            return MeteredText(content, result)
         else:
             raise Exception("No response content in OpenRouter API result")
     

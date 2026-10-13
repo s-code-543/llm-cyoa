@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "type": "RunPython",
+      "code": "if input['turn'] == 1:\n    state['alien'] = choice(['heat_seeking', 'nest_defender', 'power_dependent'])\n    state['inventory'] = []\nstate['death_probability'] = min(0.35, 0.02 * input['turn'])"
+    },
+    {
+      "type": "ApplyRandomPrompt",
+      "probability_key": "death_probability",
+      "ending": true,
+      "prompt": "Misfortune strikes. End the protagonist's adventure with a contextual death or catastrophic failure."
+    },
+    {
+      "type": "ConcatenatePrompt",
+      "include_state": true,
+      "target": "system",
+      "prompt": "Keep the alien's selected nature fixed. heat_seeking means it follows heat and is slowed by cold; nest_defender means it defends its nest and avoids distant pursuit; power_dependent means it requires powered station infrastructure. Reveal these facts gradually through evidence. Never name the hidden scenario or quote game state. Narrate inventory changes and propose updates only to inventory."
+    },
+    {"type": "GenerateTurn"},
+    {"type": "ReWriteRefusal", "max_attempts": 3},
+    {"type": "ExtractJSON", "mode": "merge"},
+    {"type": "ApplyStateChanges", "allowed_keys": ["inventory"]},
+    {"type": "ValidateTurn"},
+    {"type": "SaveGame"}
+  ]
+}

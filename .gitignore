@@ -30,3 +30,6 @@ cyoa-game-server/db/
 !.env.example
 frontend/test-results/
 frontend/playwright-report/
+
+# Disposable local gameplay observations
+docs/*playtest*.md
