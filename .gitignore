@@ -18,6 +18,9 @@ venv/
 htmlcov/
 .coverage
 
+# Super Intelligence
+.copilot-instructions.md
+
 # IDE
 .vscode/
 .idea/
