@@ -35,7 +35,7 @@ Exit: documented request/response types with backend contract tests, including o
 
 ## 3. Build the text chat vertical slice alongside legacy
 
-Add an opt-in React route such as /chat/react/ while retaining /chat/ during validation. Reuse query parameters for conversation/config selection. Django renders a small shell with CSRF/bootstrap data; React owns its DOM completely. Do not mix Alpine and React inside the chat root.
+(Completed: the React app now owns `/`, `/chat` and `/manage/*`; the Django templates were removed, and `/admin/*` redirects to `/manage/*`. Django's built-in admin lives at `/django-admin/` for users and groups.) Originally: add an opt-in React route such as /chat/react/ while retaining /chat/ during validation. Reuse query parameters for conversation/config selection. Django renders a small shell with CSRF/bootstrap data; React owns its DOM completely. Do not mix Alpine and React inside the chat root.
 
 Suggested layout:
 

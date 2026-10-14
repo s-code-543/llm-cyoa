@@ -9,12 +9,10 @@ from functools import wraps
 
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
-from django.conf import settings
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import never_cache
-from django.contrib.auth.decorators import login_required
 
 from . import chat_views
 from .response_format import public_content
@@ -102,21 +100,6 @@ def snapshot(conversation):
     }
 
 
-@login_required
-@never_cache
-def react_chat(request):
-    context = {'frontend_dev': settings.FRONTEND_DEV}
-    if not settings.FRONTEND_DEV:
-        manifest_path = settings.BASE_DIR / 'static' / 'frontend' / '.vite' / 'manifest.json'
-        if not manifest_path.exists():
-            return render(request, 'chat/react_unavailable.html', status=503)
-        manifest = json.loads(manifest_path.read_text())
-        entry = manifest['src/main.tsx']
-        context['frontend_script'] = '/static/frontend/' + entry['file']
-        context['frontend_styles'] = ['/static/frontend/' + css for css in entry.get('css', [])]
-    return render(request, 'chat/react.html', context)
-
-
 @player_api
 @require_http_methods(['GET'])
 def bootstrap(request):
@@ -144,9 +127,13 @@ def conversations(request):
 
 
 @player_api
-@require_http_methods(['GET'])
+@require_http_methods(['GET', 'DELETE'])
 def detail(request, conversation_id):
-    return JsonResponse({'conversation': snapshot(owned(request, conversation_id))})
+    conversation = owned(request, conversation_id)
+    if request.method == 'DELETE':
+        GameSession.objects.filter(session_id=conversation_id, user=request.user).update(game_over=True)
+        return JsonResponse({'deleted': True})
+    return JsonResponse({'conversation': snapshot(conversation)})
 
 
 def mutate(request, conversation_id, operation):

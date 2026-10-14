@@ -1,3 +1,4 @@
+import { apiFetch } from "./client";
 export type Message = {
   id: number;
   role: "user" | "assistant";
@@ -27,45 +28,7 @@ export type Envelope = {
   request_id?: string;
   elapsed_ms?: number;
 };
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public code: string,
-    public conversation?: Conversation,
-  ) {
-    super(message);
-  }
-}
+export { ApiError } from "./client";
 export async function request<T>(path: string, payload?: unknown): Promise<T> {
-  const token =
-    document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
-      ?.content ?? "";
-  const response = await fetch(`/api/v1/chat/${path}`, {
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json", "X-CSRFToken": token },
-    ...(payload !== undefined
-      ? { method: "POST", body: JSON.stringify(payload) }
-      : {}),
-  });
-  if (
-    !(response.headers.get("content-type") ?? "").includes("application/json")
-  ) {
-    throw new ApiError(
-      response.status === 403
-        ? "Your session or security token expired. Sign in again."
-        : "The server is unavailable. Reload before trying again.",
-      response.status,
-      "invalid_response",
-    );
-  }
-  const data = await response.json();
-  if (!response.ok)
-    throw new ApiError(
-      data.error?.message ?? "Request failed",
-      response.status,
-      data.error?.code ?? "request_failed",
-      data.conversation,
-    );
-  return data as T;
+  return apiFetch<T>(`/api/v1/chat/${path}`, { payload });
 }

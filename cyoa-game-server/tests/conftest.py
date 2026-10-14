@@ -483,17 +483,6 @@ def mock_call_llm_refusal():
 
 
 @pytest.fixture
-def mock_ollama_models():
-    """Mock Ollama model listing."""
-    with patch('game.admin_views.get_ollama_models') as mock:
-        mock.return_value = [
-            {'id': 'llama3:8b', 'name': 'Llama 3 8B', 'size': 4000000000},
-            {'id': 'qwen:4b', 'name': 'Qwen 4B', 'size': 2000000000},
-        ]
-        yield mock
-
-
-@pytest.fixture
 def mock_ollama_connection():
     """Mock Ollama connection test."""
     with patch('game.admin_views.test_ollama_connection') as mock:

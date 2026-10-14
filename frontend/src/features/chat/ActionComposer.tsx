@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Button, TextArea } from "@heroui/react";
 
 declare const CYOARecorder: {
   init(callbacks: {
@@ -76,22 +77,79 @@ export function ActionComposer({
     };
   }, []);
   const voiceBusy = voice === "recording" || voice === "processing";
+  const swatches = [
+    "bg-grape-soft text-grape hover:border-grape",
+    "bg-coral-soft text-coral hover:border-coral",
+    "bg-mint-soft text-mint hover:border-mint",
+    "bg-sun-soft text-sun hover:border-sun",
+  ];
   return (
-    <div className="composer-area">
+    <div className="flex flex-col gap-4">
       {opening && !finished && (
-        <button
-          className="primary"
-          disabled={busy || voiceBusy}
-          onClick={() => onSubmit("Begin the Adventure")}
+        <Button
+          variant="primary"
+          size="lg"
+          className="self-start text-white bg-linear-to-r from-brand to-brand-coral"
+          isDisabled={busy || voiceBusy}
+          onPress={() => onSubmit("Begin the Adventure")}
         >
           Begin the Adventure
-        </button>
+        </Button>
       )}
-      <div className="voice-controls">
-        <button
+      {!finished && choices.length > 0 && (
+        <div
+          className="grid gap-3 sm:grid-cols-2"
+          aria-label="Suggested actions"
+        >
+          {choices.map((choice, index) => (
+            <button
+              key={index}
+              disabled={busy || voiceBusy}
+              onClick={() => onSubmit(choice)}
+              className={`group flex items-center gap-3 rounded-2xl border-2 border-transparent p-4 text-left font-semibold text-foreground shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:pointer-events-none disabled:opacity-50 ${swatches[index % swatches.length]}`}
+            >
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-surface text-xs font-bold shadow-sm">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="flex-1">{choice}</span>
+              <b className="opacity-0 transition group-hover:opacity-100">↗</b>
+            </button>
+          ))}
+        </div>
+      )}
+      <form
+        className="flex items-end gap-2 rounded-3xl border border-grape/15 bg-surface p-2 shadow-lg shadow-grape/10 focus-within:border-grape/50"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!voiceBusy) onSubmit(draft);
+        }}
+      >
+        <TextArea
+          aria-label="Your action"
+          placeholder="What do you do next?"
+          value={draft}
+          rows={2}
+          maxLength={20000}
+          disabled={busy || finished}
+          className="min-h-14 flex-1 resize-none border-0 bg-transparent shadow-none outline-none"
+          onChange={(e) => onDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
+              e.preventDefault();
+              if (!voiceBusy) onSubmit(draft);
+            }
+          }}
+        />
+        <Button
           type="button"
-          disabled={busy || finished || voice === "processing"}
-          onClick={() => {
+          variant="secondary"
+          className={voice === "recording" ? "animate-pulse bg-brand-coral text-white" : ""}
+          isDisabled={busy || finished || voice === "processing"}
+          onPress={() => {
             if (typeof CYOARecorder === "undefined") {
               setVoiceError("Dictation is unavailable. Reload the page.");
               return;
@@ -108,89 +166,55 @@ export function ActionComposer({
             : voice === "processing"
               ? "Transcribing…"
               : "Dictate action"}
-        </button>
-        {voice === "recording" && (
-          <button type="button" onClick={() => CYOARecorder.cancelRecording()}>
-            Cancel recording
-          </button>
-        )}
-        {voice === "error" && (
-          <>
-            <button
-              type="button"
-              disabled={busy || finished}
-              onClick={() => void CYOARecorder.retryTranscription()}
-            >
-              Retry transcription
-            </button>
-            <button
-              type="button"
-              onClick={() => void CYOARecorder.discardRecording()}
-            >
-              Discard recording
-            </button>
-          </>
-        )}
-        {voiceError && <p role="alert">{voiceError}</p>}
-        {voice === "processing" && (
-          <p role="status">Transcribing your recording…</p>
-        )}
-      </div>
-      {!finished && choices.length > 0 && (
-        <div className="choices" aria-label="Suggested actions">
-          {choices.map((choice, index) => (
-            <button
-              key={index}
-              disabled={busy || voiceBusy}
-              onClick={() => onSubmit(choice)}
-            >
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              {choice}
-              <b>↗</b>
-            </button>
-          ))}
-        </div>
-      )}
-      <form
-        className="composer"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!voiceBusy) onSubmit(draft);
-        }}
-      >
-        <label className="sr-only" htmlFor="action">
-          Your action
-        </label>
-        <textarea
-          id="action"
-          placeholder="What do you do next?"
-          value={draft}
-          maxLength={20000}
-          disabled={busy || finished}
-          onChange={(e) => onDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (
-              e.key === "Enter" &&
-              !e.shiftKey &&
-              !e.nativeEvent.isComposing
-            ) {
-              e.preventDefault();
-              if (!voiceBusy) onSubmit(draft);
-            }
-          }}
-        />
-        <button
-          className="send"
+        </Button>
+        <Button
           type="submit"
-          disabled={busy || voiceBusy || finished || !draft.trim()}
+          variant="primary"
+          isIconOnly
+          className="rounded-full text-white bg-linear-to-br from-brand to-brand-coral"
+          isDisabled={busy || voiceBusy || finished || !draft.trim()}
           aria-label="Send action"
         >
           ↑
-        </button>
+        </Button>
       </form>
-      <p className="composer-hint">
-        Enter to send · Shift + Enter for a new line
-      </p>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {voice === "recording" && (
+          <Button size="sm" variant="ghost" onPress={() => CYOARecorder.cancelRecording()}>
+            Cancel recording
+          </Button>
+        )}
+        {voice === "error" && (
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={busy || finished}
+              onPress={() => void CYOARecorder.retryTranscription()}
+            >
+              Retry transcription
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => void CYOARecorder.discardRecording()}
+            >
+              Discard recording
+            </Button>
+          </>
+        )}
+        {voiceError && (
+          <p role="alert" className="text-danger">
+            {voiceError}
+          </p>
+        )}
+        {voice === "processing" && (
+          <p role="status">Transcribing your recording…</p>
+        )}
+        <p className="ml-auto text-xs text-muted">
+          Enter to send · Shift + Enter for a new line
+        </p>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import Markdown from "react-markdown";
+import { Button, Chip } from "@heroui/react";
 import type { Message } from "../../api/chat";
 
 type Props = {
@@ -14,51 +15,82 @@ export function Transcript({ messages, busy, waiting, onRollback }: Props) {
     end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
   return (
-    <div className="transcript" aria-label="Conversation">
+    <div className="flex flex-col gap-5" aria-label="Conversation">
       {!messages.length && (
-        <div className="empty">
-          <span className="ornament">✦</span>
-          <h2>How does your story begin?</h2>
-          <p>Describe your first action below.</p>
+        <div className="rounded-3xl border-2 border-dashed border-grape/25 bg-surface/60 px-6 py-12 text-center">
+          <span className="text-4xl text-sun">✦</span>
+          <h2 className="mt-2 font-story text-2xl">How does your story begin?</h2>
+          <p className="mt-1 text-muted">Describe your first action below.</p>
         </div>
       )}
-      {messages.map((message, index) => (
-        <article
-          key={message.id}
-          className={`message ${message.role} ${message.is_error ? "error-message" : ""}`}
-        >
-          <div className="message-label">
-            {message.role === "user" ? "YOUR MOVE" : "NARRATOR"}
-            <span>
-              {new Date(message.created_at).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-          </div>
-          {message.role === "assistant" ? (
-            <div className="prose">
+      {messages.map((message, index) => {
+        const time = new Date(message.created_at).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        if (message.role === "user")
+          return (
+            <article
+              key={message.id}
+              className="ml-auto flex max-w-[85%] flex-col items-end gap-1.5"
+            >
+              <div className="flex items-center gap-2 text-xs font-bold tracking-widest text-grape">
+                YOUR MOVE
+                <span className="font-normal text-muted">{time}</span>
+              </div>
+              <p className="rounded-3xl rounded-tr-md text-white bg-linear-to-br from-brand to-brand-coral px-5 py-3 whitespace-pre-wrap text-white shadow-lg shadow-grape/25">
+                {message.content}
+              </p>
+            </article>
+          );
+        return (
+          <article
+            key={message.id}
+            className={`relative max-w-[95%] overflow-hidden rounded-3xl rounded-tl-md border bg-surface p-6 pl-8 shadow-lg shadow-grape/10 ${
+              message.is_error ? "border-danger/40 bg-coral-soft" : "border-grape/10"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`absolute inset-y-0 left-0 w-2.5 ${
+                message.is_error
+                  ? "bg-danger"
+                  : "bg-linear-to-b from-sun via-coral to-grape"
+              }`}
+            />
+            <div className="mb-3 flex items-center gap-2">
+              <Chip color={message.is_error ? "danger" : "accent"} size="sm">
+                {message.is_error ? "HICCUP" : "NARRATOR"}
+              </Chip>
+              <span className="text-xs text-muted">{time}</span>
+            </div>
+            <div className="story-prose">
               <Markdown skipHtml>{message.content}</Markdown>
             </div>
-          ) : (
-            <p className="user-text">{message.content}</p>
-          )}
-          {message.role === "assistant" &&
-            !message.is_error &&
-            index < messages.length - 1 && (
-              <button
-                className="text-button"
-                disabled={busy}
-                onClick={() => onRollback(message)}
+            {!message.is_error && index < messages.length - 1 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-3"
+                isDisabled={busy}
+                onPress={() => onRollback(message)}
               >
                 ↶ Continue from here
-              </button>
+              </Button>
             )}
-        </article>
-      ))}
+          </article>
+        );
+      })}
       {waiting && (
-        <div className="narrating" role="status">
-          <span />
+        <div
+          className="flex items-center gap-3 self-start rounded-full bg-surface px-5 py-3 text-sm text-muted shadow-md"
+          role="status"
+        >
+          <span className="flex gap-1.5" aria-hidden>
+            <span className="dot-bob bg-grape" />
+            <span className="dot-bob bg-coral" />
+            <span className="dot-bob bg-sun" />
+          </span>
           The narrator is writing your next chapter…
         </div>
       )}

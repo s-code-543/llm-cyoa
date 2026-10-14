@@ -56,20 +56,20 @@ def test_tts_requires_owned_conversation(auth_client, admin_user, configuration)
 
 @pytest.mark.django_db
 @pytest.mark.parametrize('enabled', [True, False])
-def test_admin_can_toggle_adventure_tts(admin_client, configuration, game_ending_prompt, mock_ollama_models, enabled):
+def test_admin_can_toggle_adventure_tts(admin_client, configuration, game_ending_prompt, enabled):
+    configuration.enable_tts = not enabled
+    configuration.save()
     payload = {
-        'action': 'save', 'name': configuration.name,
+        'name': configuration.name,
         'adventure_prompt': configuration.adventure_prompt_id,
         'storyteller_model': configuration.storyteller_model_id,
         'game_ending_prompt': game_ending_prompt.id,
-        'total_turns': 10, 'phase1_turns': 3, 'phase2_turns': 3,
-        'phase3_turns': 3, 'phase4_turns': 1,
+        'enable_tts': enabled,
     }
-    if enabled:
-        payload['enable_tts'] = '1'
-    configuration.enable_tts = not enabled
-    configuration.save()
-    response = admin_client.post(f'/admin/configurations/{configuration.id}/', payload)
-    assert response.status_code == 302
+    response = admin_client.put(
+        f'/api/v1/admin/configurations/{configuration.id}',
+        json.dumps(payload), content_type='application/json',
+    )
+    assert response.status_code == 200
     configuration.refresh_from_db()
     assert configuration.enable_tts is enabled

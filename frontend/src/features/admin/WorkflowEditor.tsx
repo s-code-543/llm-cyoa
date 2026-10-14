@@ -1,0 +1,173 @@
+import { useState } from "react";
+import type { Workflow, WorkflowNode } from "../../api/admin";
+
+export const WORKFLOW_HELP: Record<string, string> = {
+  RunPython: "Prepare hidden state using restricted Python.",
+  GateInventory: "Limit unsolicited loot. Deliberately taking available items is exempt.",
+  ApplyDifficulty: "Roll the configured difficulty for an ending.",
+  ApplyRandomPrompt: "Randomly append a narrative instruction.",
+  ConcatenatePrompt: "Give the narrator instructions and hidden state.",
+  GenerateTurn: "Write the turn using the storyteller model.",
+  ReWriteRefusal: "Detect refusals and try an in-world correction.",
+  ReWriteJudge: "Run the optional judges configured below.",
+  ExtractJSON: "Separate hidden state from visible narration.",
+  ApplyStateChanges: "Accept permitted narrator changes to hidden state.",
+  ValidateTurn: "Check the turn before committing it.",
+  SaveGame: "Save the accepted turn and hidden state together.",
+};
+const PRE_GENERATION = ["RunPython", "GateInventory", "ApplyDifficulty", "ApplyRandomPrompt", "ConcatenatePrompt"];
+export const DEFAULT_NODES: WorkflowNode[] = [
+  { type: "ApplyDifficulty" },
+  { type: "ConcatenatePrompt", include_state: false },
+  { type: "GenerateTurn" },
+  { type: "ReWriteRefusal" },
+  { type: "ReWriteJudge" },
+  { type: "ValidateTurn" },
+  { type: "SaveGame" },
+];
+
+type FieldSpec = {
+  key: string;
+  label: string;
+  kind: "text" | "number" | "checkbox" | "textarea" | "list";
+  fallback: unknown;
+};
+
+function fieldsFor(type: string): FieldSpec[] {
+  const fields: FieldSpec[] = [{ key: "name", label: "Step name", kind: "text", fallback: "" }];
+  if (type === "GateInventory")
+    fields.push(
+      { key: "probability", label: "Unsolicited loot probability (0–1)", kind: "number", fallback: 0.25 },
+      { key: "cooldown_turns", label: "Quiet turns after a gift", kind: "number", fallback: 2 },
+      { key: "max_new_items", label: "Maximum unsolicited items", kind: "number", fallback: 1 },
+      { key: "verify_narrative", label: "Verify inventory with correction model (adds a call)", kind: "checkbox", fallback: true },
+    );
+  if (type === "RunPython") fields.push({ key: "code", label: "Python code", kind: "textarea", fallback: "" });
+  if (type === "ConcatenatePrompt")
+    fields.push(
+      { key: "prompt", label: "Narrator instructions", kind: "textarea", fallback: "" },
+      { key: "include_state", label: "Include hidden state", kind: "checkbox", fallback: true },
+      { key: "target", label: "Prompt role (system or user)", kind: "text", fallback: "system" },
+    );
+  if (type === "ApplyRandomPrompt")
+    fields.push(
+      { key: "probability", label: "Probability (0–1)", kind: "number", fallback: 0 },
+      { key: "prompt", label: "Instruction", kind: "textarea", fallback: "" },
+    );
+  if (type === "ApplyStateChanges")
+    fields.push({ key: "allowed_keys", label: "Editable state fields (comma separated)", kind: "list", fallback: [] });
+  return fields;
+}
+
+function StepField({ spec, step, onChange }: { spec: FieldSpec; step: WorkflowNode; onChange: (value: unknown) => void }) {
+  const value = step[spec.key] ?? spec.fallback;
+  if (spec.kind === "checkbox")
+    return (
+      <label>
+        <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} /> {spec.label}
+      </label>
+    );
+  if (spec.kind === "textarea")
+    return (
+      <label>
+        {spec.label}
+        <textarea rows={4} value={String(value)} onChange={(e) => onChange(e.target.value)} />
+      </label>
+    );
+  if (spec.kind === "list")
+    return (
+      <label>
+        {spec.label}
+        <input
+          defaultValue={(value as string[]).join(", ")}
+          onBlur={(e) => onChange(e.target.value.split(",").map((x) => x.trim()).filter(Boolean))}
+        />
+      </label>
+    );
+  return (
+    <label>
+      {spec.label}
+      <input
+        type={spec.kind}
+        step={spec.kind === "number" ? "any" : undefined}
+        value={String(value)}
+        onChange={(e) => onChange(spec.kind === "number" ? Number(e.target.value) : e.target.value)}
+      />
+    </label>
+  );
+}
+
+export function WorkflowEditor({ value, onChange }: { value: Workflow; onChange: (next: Workflow) => void }) {
+  const nodes = value.nodes ?? [];
+  const [kind, setKind] = useState("ApplyRandomPrompt");
+  const [draft, setDraft] = useState<string | null>(null);
+  const [rawError, setRawError] = useState("");
+  const emit = (next: WorkflowNode[]) => {
+    setDraft(null);
+    setRawError("");
+    onChange(next.length ? { version: 1, nodes: next } : {});
+  };
+  const patch = (index: number, key: string, fieldValue: unknown) =>
+    emit(nodes.map((n, i) => (i === index ? { ...n, [key]: fieldValue } : n)));
+  const move = (from: number, to: number) => {
+    const next = [...nodes];
+    [next[from], next[to]] = [next[to], next[from]];
+    emit(next);
+  };
+  const add = () => {
+    const base = nodes.length ? [...nodes] : DEFAULT_NODES.map((n) => ({ ...n }));
+    const at = base.findIndex((n) => n.type === (PRE_GENERATION.includes(kind) ? "GenerateTurn" : "ValidateTurn"));
+    base.splice(at, 0, { type: kind });
+    emit(base);
+  };
+  const raw = draft ?? JSON.stringify(value, null, 2);
+
+  return (
+    <fieldset className="workflow">
+      <legend>Turn workflow</legend>
+      {nodes.length === 0 && (
+        <p>Default: difficulty → context → storyteller → refusal repair → optional judge → validate → save.</p>
+      )}
+      {nodes.map((step, index) => (
+        <div className="card" key={index}>
+          <strong>{index + 1}. {String(step.name || step.type)}</strong>
+          <p>{WORKFLOW_HELP[step.type] ?? ""}</p>
+          {fieldsFor(step.type).map((spec) => (
+            <StepField key={spec.key} spec={spec} step={step} onChange={(v) => patch(index, spec.key, v)} />
+          ))}
+          <div className="toolbar">
+            <button type="button" aria-label={`Move step ${index + 1} up`} disabled={index === 0} onClick={() => move(index, index - 1)}>↑</button>
+            <button type="button" aria-label={`Move step ${index + 1} down`} disabled={index === nodes.length - 1} onClick={() => move(index, index + 1)}>↓</button>
+            <button type="button" onClick={() => emit(nodes.filter((_, i) => i !== index))}>Remove step {index + 1}</button>
+          </div>
+        </div>
+      ))}
+      <div className="toolbar">
+        <select aria-label="Step type" value={kind} onChange={(e) => setKind(e.target.value)}>
+          {Object.keys(WORKFLOW_HELP).map((k) => <option key={k} value={k}>{k} — {WORKFLOW_HELP[k]}</option>)}
+        </select>
+        <button type="button" onClick={add}>Add step</button>
+        {nodes.length > 0 && <button type="button" onClick={() => emit([])}>Reset to default</button>}
+      </div>
+      <details>
+        <summary>Advanced (JSON)</summary>
+        <textarea
+          aria-label="Workflow JSON"
+          rows={10}
+          value={raw}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            try {
+              const parsed = e.target.value.trim() ? JSON.parse(e.target.value) : {};
+              setRawError("");
+              onChange(parsed);
+            } catch {
+              setRawError("Invalid JSON");
+            }
+          }}
+        />
+        {rawError && <span role="alert" className="field-error">{rawError}</span>}
+      </details>
+    </fieldset>
+  );
+}

@@ -19,53 +19,6 @@ from .refusal_detector import process_potential_refusal
 from .judge_pipeline import run_judge_pipeline
 
 
-@login_required
-def home_page(request):
-    """
-    Home page showing recent games and available configurations.
-    """
-    # Get recent incomplete games for this user (last 5)
-    recent_games = []
-    conversations = ChatConversation.objects.filter(
-        user=request.user
-    ).order_by('-updated_at')[:10]
-    
-    for conv in conversations:
-        try:
-            game_session = GameSession.objects.get(
-                session_id=conv.conversation_id,
-                user=request.user
-            )
-            if not game_session.game_over:
-                recent_games.append({
-                    'conversation_id': conv.conversation_id,
-                    'title': conv.title,
-                    'turn_number': game_session.turn_number,
-                    'max_turns': game_session.max_turns,
-                    'updated_at': conv.updated_at
-                })
-                if len(recent_games) >= 5:
-                    break
-        except GameSession.DoesNotExist:
-            pass
-    
-    # Get all configurations
-    configurations = Configuration.objects.all()
-    
-    return render(request, 'home.html', {
-        'recent_games': recent_games,
-        'configurations': configurations
-    })
-
-
-@login_required
-def chat_page(request):
-    """
-    Main chat page view.
-    """
-    from .chat_api import react_chat
-    return react_chat(request)
-
 
 @login_required
 @require_http_methods(["POST"])

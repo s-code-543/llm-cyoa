@@ -14,7 +14,7 @@ docker compose -f compose.dev.yml exec web python manage.py load_prompts
 docker compose -f compose.dev.yml exec web python manage.py createsuperuser
 ```
 
-Open http://localhost:8001 and sign in. In `/admin/`, configure your provider/key, import a model, and save an adventure configuration. The original chat remains `/chat/`; the React preview is `/chat/react/`. Existing conversations can be opened by changing `/chat/` to `/chat/react/` and preserving `?conversation_id=...`.
+Open http://localhost:8001 and sign in. The whole app is a React single-page app: `/` is the home page, `/chat` is the game, and administrators get an Administration menu (`/manage`) for configurations, prompts, providers, models, difficulty profiles, voice settings and the audit log. Users and groups are managed in Django's admin at `/django-admin/`. Old `/admin/...` links redirect to the matching `/manage/...` page.
 
 The dev stack binds only to 127.0.0.1:8001. It uses the `llm-cyoa-dev` Compose project with separate database/media volumes and no tunnel or shared Docker network. It preserves data from the initial temporary development stack using the same project/volume names. Source mounts and Vite HMR make most edits immediately visible; rebuild after Python dependency changes. A fresh stack has no user/provider/model/configuration until you create them. `load_prompts` updates prompt records, including existing versions; run it deliberately.
 

@@ -17,7 +17,7 @@ services:
       - dev-db:/app/db
       - dev-media:/app/media
     healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/admin/login/')"]
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/session')"]
       interval: 10s
       timeout: 3s
       retries: 6

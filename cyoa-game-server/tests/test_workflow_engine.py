@@ -239,22 +239,21 @@ def test_invalid_python_syntax_is_a_configuration_error():
 
 
 @pytest.mark.django_db
-def test_admin_can_save_workflow_and_reject_invalid_workflow(admin_client, configuration, game_ending_prompt, mock_ollama_models):
+def test_admin_can_save_workflow_and_reject_invalid_workflow(admin_client, configuration, game_ending_prompt):
     spec = workflow({'type': 'GenerateTurn'})
     payload = {
-        'action': 'save', 'name': configuration.name,
+        'name': configuration.name,
         'adventure_prompt': configuration.adventure_prompt_id,
         'storyteller_model': configuration.storyteller_model_id,
         'game_ending_prompt': game_ending_prompt.pk,
-        'total_turns': 10, 'phase1_turns': 3, 'phase2_turns': 3,
-        'phase3_turns': 3, 'phase4_turns': 1, 'workflow': json.dumps(spec),
+        'workflow': spec,
     }
-    path = f'/admin/configurations/{configuration.pk}/'
-    assert admin_client.post(path, payload).status_code == 302
+    path = f'/api/v1/admin/configurations/{configuration.pk}'
+    save = lambda body: admin_client.put(path, json.dumps(body), content_type='application/json')
+    assert save(payload).status_code == 200
     configuration.refresh_from_db()
     assert configuration.workflow == spec
-    payload['workflow'] = '{broken json}'
-    assert admin_client.post(path, payload).status_code == 200
+    assert save({**payload, 'workflow': {'version': 1, 'nodes': []}}).status_code == 400
     configuration.refresh_from_db()
     assert configuration.workflow == spec
 

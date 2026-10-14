@@ -123,13 +123,6 @@ def test_blocked_refusal_survives_reload(auth_client, adventure):
     assert post(auth_client, f'conversations/{adventure.conversation_id}/turns', {'message': 'Go', 'request_id': str(uuid.uuid4())}).status_code == 409
 
 
-@pytest.mark.django_db
-@override_settings(FRONTEND_DEV=True)
-def test_react_shell_preserves_legacy_route(auth_client):
-    assert auth_client.get('/chat/react/').status_code == 200
-    assert b'/frontend/src/main.tsx' in auth_client.get('/chat/react/').content
-    assert auth_client.get('/chat/').status_code == 200
-
 
 @pytest.mark.django_db
 def test_malformed_request(auth_client, adventure):

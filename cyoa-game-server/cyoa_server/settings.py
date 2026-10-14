@@ -20,6 +20,7 @@ ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'cyoa.mac.stargate.lan,cy
 # Proxy SSL awareness
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', 'https://cyoa.mac.stargate.lan,https://cyoa.chat-sdp.org').split(',') if origin.strip()]
+# Sliding 90-day sessions so players are not bounced to sign in mid-adventure.
 SESSION_COOKIE_SECURE = os.environ.get('DJANGO_SECURE_COOKIES', '0') == '1'
 CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
 FRONTEND_DEV = os.environ.get('FRONTEND_DEV', '0') == '1'
@@ -97,9 +98,9 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', str(BASE_DIR / 'media')))
 
 # Login URL
-LOGIN_URL = '/admin/login/'
+LOGIN_URL = '/login'
 LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/admin/login/'
+LOGOUT_REDIRECT_URL = '/login'
 
 # ---------------------------------------------------------------------------
 # Cloudflare Access (Zero Trust) authentication
