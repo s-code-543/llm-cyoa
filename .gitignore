@@ -36,3 +36,6 @@ frontend/playwright-report/
 
 # Disposable local gameplay observations
 docs/*playtest*.md
+
+ignored/
+.DS_Store

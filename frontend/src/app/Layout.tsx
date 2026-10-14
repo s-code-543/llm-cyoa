@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from "react-router";
 import { Avatar, Button } from "@heroui/react";
 import { useSession } from "../features/session/SessionProvider";
 import { visibleNav } from "./nav";
+import { signpostIcon } from "../assets";
 
 function useTheme() {
   const [dark, setDark] = useState(() =>
@@ -54,13 +55,16 @@ export function Layout() {
       <header className="top-0 z-20 px-2 pt-2 md:sticky md:px-4 md:pt-4">
         <div className="mx-auto max-w-7xl rounded-3xl border border-border bg-surface/80 shadow-lg shadow-brand/10 backdrop-blur-md md:rounded-full">
           <div className="flex items-center justify-between gap-4 py-1.5 pr-2 pl-3 md:py-2 md:pr-3 md:pl-5">
-            <NavLink to="/" className="flex items-center gap-2.5">
-              <span className="grid size-8 place-items-center rounded-full bg-linear-to-br from-brand via-brand-coral to-sun text-base text-white shadow md:size-9 md:text-lg">
-                ✦
-              </span>
-              <span className="font-story text-xl font-bold tracking-wide text-grape md:text-2xl">
-                CYOA
-              </span>
+            <NavLink
+              to="/"
+              aria-label="Choose Your Adventure home"
+              className="flex shrink-0 items-center"
+            >
+              <img
+                src={signpostIcon}
+                alt=""
+                className="size-10 object-contain md:size-12"
+              />
             </NavLink>
             <nav
               aria-label="Main"

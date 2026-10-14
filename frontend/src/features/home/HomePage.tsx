@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Card, ProgressBar } from "@heroui/react";
 import { deleteGame, getHome } from "../../api/home";
+import { adventureLogo } from "../../assets";
 
 export function HomePage() {
   const cache = useQueryClient();
@@ -26,8 +27,13 @@ export function HomePage() {
   const tints = ["bg-grape-soft", "bg-coral-soft", "bg-mint-soft", "bg-sun-soft", "bg-sky-soft"];
   return (
     <main className="mx-auto max-w-7xl px-4 py-10">
-      <h1 className="font-story text-4xl font-bold text-grape sm:text-5xl">
-        Choose your adventure
+      <h1 className="mx-auto text-center font-story text-4xl font-bold text-grape sm:text-5xl">
+        <img
+          src={adventureLogo}
+          alt=""
+          className="mx-auto h-auto w-full max-w-2xl object-contain"
+        />
+        <span className="sr-only">Choose your adventure</span>
       </h1>
       {recent.length > 0 && (
         <section aria-labelledby="continue" className="mt-10">

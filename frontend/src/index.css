@@ -1,99 +1,103 @@
-@layer theme, base, legacy, components, utilities;
+@layer theme, base, admin, components, utilities;
 
 @import "tailwindcss";
 @import "@heroui/styles";
-@import "./legacy-admin.css" layer(legacy);
+@import "./admin.css" layer(admin);
 
-/*
- * "Storybook Carnival" palette: a grape-violet accent with coral, sunshine,
- * mint and sky companions on a warm paper background.
- */
 @theme {
   --font-sans: "Nunito", ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
   --font-story: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-  --color-brand: oklch(0.52 0.2 258);
-  --color-brand-coral: oklch(0.72 0.14 215);
-  --color-grape: oklch(0.5 0.2 258);
-  --color-grape-soft: oklch(0.94 0.045 255);
-  --color-coral: oklch(0.7 0.19 25);
-  --color-coral-soft: oklch(0.94 0.04 25);
-  --color-sun: oklch(0.86 0.16 92);
-  --color-sun-soft: oklch(0.96 0.06 95);
-  --color-mint: oklch(0.76 0.14 170);
-  --color-mint-soft: oklch(0.95 0.05 170);
-  --color-sky: oklch(0.72 0.13 225);
-  --color-sky-soft: oklch(0.95 0.035 235);
+  --color-brand: var(--primary);
+  --color-brand-coral: var(--turquoise);
+  --color-grape: var(--primary);
+  --color-grape-soft: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  --color-coral: var(--coral);
+  --color-coral-soft: color-mix(in srgb, var(--coral) 12%, var(--surface));
+  --color-sun: var(--sunshine);
+  --color-sun-soft: color-mix(in srgb, var(--sunshine) 16%, var(--surface));
+  --color-mint: var(--emerald);
+  --color-mint-soft: color-mix(in srgb, var(--emerald) 12%, var(--surface));
+  --color-sky: var(--turquoise);
+  --color-sky-soft: color-mix(in srgb, var(--turquoise) 12%, var(--surface));
 }
 
 :root,
 [data-theme="light"] {
-  --background: oklch(0.975 0.014 88);
-  --foreground: oklch(0.27 0.045 250);
-  --muted: oklch(0.52 0.03 250);
-  --surface: oklch(1 0 0);
-  --surface-foreground: var(--foreground);
-  --overlay: oklch(1 0 0);
-  --accent: oklch(0.52 0.2 258);
-  --accent-foreground: oklch(0.99 0.005 255);
-  --success: oklch(0.72 0.15 165);
-  --success-foreground: oklch(0.22 0.05 165);
-  --warning: oklch(0.84 0.16 85);
-  --warning-foreground: oklch(0.26 0.05 85);
-  --danger: oklch(0.63 0.22 20);
-  --danger-foreground: oklch(0.99 0.005 20);
-  --default: oklch(0.945 0.02 255);
-  --default-foreground: oklch(0.3 0.05 250);
-  --border: oklch(0.52 0.12 255 / 16%);
-  --separator: oklch(0.52 0.12 255 / 12%);
-  --focus: oklch(0.7 0.19 25);
+  color-scheme: light;
+  --background: #ffffff;
+  --surface: #f1f5f9;
+  --primary: #315d91;
+  --primary-hover: #24466f;
+  --text: #253247;
+  --foreground: var(--text);
+  --muted: #64748b;
+  --border: #dce4ed;
+  --coral: #f36b61;
+  --turquoise: #19a7a0;
+  --orchid: #9865d5;
+  --sunshine: #f4bd45;
+  --emerald: #39a875;
+  --surface-foreground: var(--text);
+  --overlay: var(--surface);
+  --accent: var(--primary);
+  --accent-hover: var(--primary-hover);
+  --accent-foreground: #ffffff;
+  --success: var(--emerald);
+  --success-foreground: #ffffff;
+  --warning: var(--sunshine);
+  --warning-foreground: var(--text);
+  --danger: var(--coral);
+  --danger-foreground: #ffffff;
+  --default: var(--surface);
+  --default-foreground: var(--text);
+  --separator: color-mix(in srgb, var(--border) 70%, transparent);
+  --focus: var(--turquoise);
   --link: var(--accent);
   --radius: 1rem;
   --field-radius: 0.9rem;
-  --wash-1: oklch(0.9 0.09 255 / 0.55);
-  --wash-2: oklch(0.93 0.09 25 / 0.5);
-  --wash-3: oklch(0.93 0.09 170 / 0.45);
-  --wash-4: oklch(0.95 0.09 92 / 0.5);
-  --em: oklch(0.45 0.12 25);
+  --wash-1: color-mix(in srgb, var(--turquoise) 8%, transparent);
+  --wash-2: color-mix(in srgb, var(--orchid) 6%, transparent);
+  --wash-3: color-mix(in srgb, var(--emerald) 5%, transparent);
+  --wash-4: color-mix(in srgb, var(--sunshine) 6%, transparent);
+  --em: var(--orchid);
 }
 
-/* Midnight storybook: deep indigo with the same candy accents. */
 .dark,
 [data-theme="dark"] {
   color-scheme: dark;
-  --background: oklch(0.19 0.035 250);
-  --foreground: oklch(0.95 0.015 255);
-  --muted: oklch(0.72 0.03 255);
-  --surface: oklch(0.25 0.045 250);
-  --surface-foreground: var(--foreground);
-  --overlay: oklch(0.28 0.05 250);
-  --accent: oklch(0.7 0.18 255);
-  --accent-foreground: oklch(0.17 0.04 250);
-  --success: oklch(0.76 0.14 165);
-  --success-foreground: oklch(0.2 0.05 165);
-  --warning: oklch(0.84 0.15 88);
-  --warning-foreground: oklch(0.22 0.05 85);
-  --danger: oklch(0.7 0.19 20);
-  --danger-foreground: oklch(0.18 0.04 20);
-  --default: oklch(0.3 0.05 250);
-  --default-foreground: oklch(0.95 0.015 255);
-  --border: oklch(0.8 0.08 255 / 18%);
-  --separator: oklch(0.8 0.08 255 / 14%);
-  --focus: oklch(0.75 0.16 25);
-  --color-grape: oklch(0.75 0.17 255);
-  --color-grape-soft: oklch(0.31 0.08 255);
-  --color-coral: oklch(0.78 0.15 25);
-  --color-coral-soft: oklch(0.31 0.07 25);
-  --color-sun: oklch(0.86 0.15 92);
-  --color-sun-soft: oklch(0.32 0.06 92);
-  --color-mint: oklch(0.8 0.13 170);
-  --color-mint-soft: oklch(0.31 0.06 170);
-  --color-sky: oklch(0.78 0.11 235);
-  --color-sky-soft: oklch(0.31 0.06 235);
-  --wash-1: oklch(0.32 0.12 255 / 0.55);
-  --wash-2: oklch(0.3 0.09 25 / 0.4);
-  --wash-3: oklch(0.3 0.07 170 / 0.35);
-  --wash-4: oklch(0.3 0.06 92 / 0.3);
-  --em: oklch(0.82 0.11 25);
+  --background: #101b2b;
+  --surface: #1c2b40;
+  --primary: #82aee1;
+  --primary-hover: #a8cbf1;
+  --text: #f4f7fb;
+  --foreground: var(--text);
+  --muted: #afbed0;
+  --border: #34465e;
+  --coral: #ff8c81;
+  --turquoise: #54cfc5;
+  --orchid: #bd97f1;
+  --sunshine: #f4c96c;
+  --emerald: #6cd6a1;
+  --surface-foreground: var(--text);
+  --overlay: var(--surface);
+  --accent: var(--primary);
+  --accent-hover: var(--primary-hover);
+  --accent-foreground: #101b2b;
+  --success: var(--emerald);
+  --success-foreground: #101b2b;
+  --warning: var(--sunshine);
+  --warning-foreground: #101b2b;
+  --danger: var(--coral);
+  --danger-foreground: #101b2b;
+  --default: var(--surface);
+  --default-foreground: var(--text);
+  --separator: color-mix(in srgb, var(--border) 75%, transparent);
+  --focus: var(--primary);
+  --wash-1: color-mix(in srgb, var(--turquoise) 10%, transparent);
+  --wash-2: color-mix(in srgb, var(--orchid) 8%, transparent);
+  --wash-3: color-mix(in srgb, var(--emerald) 6%, transparent);
+  --wash-4: color-mix(in srgb, var(--sunshine) 6%, transparent);
+  --em: var(--orchid);
 }
 
 @layer base {
