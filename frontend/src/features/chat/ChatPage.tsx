@@ -32,6 +32,7 @@ export function ChatPage() {
   );
   const [needsReview, setNeedsReview] = useState(false);
   const [notice, setNotice] = useState("");
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [rollbackTarget, setRollbackTarget] = useState<Message | null>(null);
   // Guard synchronously: a second click can arrive before React paints the pending state.
   const submitting = useRef(false);
@@ -99,6 +100,17 @@ export function ChatPage() {
       submitting.current = false;
     },
   });
+  const autoCreated = useRef(false);
+  useEffect(() => {
+    if (id || autoCreated.current) return;
+    autoCreated.current = true;
+    if (config) {
+      submitting.current = true;
+      create.mutate();
+    } else {
+      window.location.replace("/");
+    }
+  }, []);
   const send = useMutation({
     mutationFn: (message: string) =>
       request<Envelope>(`conversations/${id}/turns`, {
@@ -156,29 +168,32 @@ export function ChatPage() {
   );
   return (
     <div>
-      <main className="mx-auto grid max-w-7xl items-start gap-8 px-4 py-8 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
-          <Card className="text-white bg-linear-to-br from-brand to-brand-coral text-white">
+      <main className="mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-7xl flex-col gap-1.5 px-2 pt-1.5 lg:grid lg:min-h-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-4 lg:py-8">
+        <aside className="flex flex-col gap-1.5 lg:sticky lg:top-24 lg:gap-4">
+          <Card className={`gap-0 bg-linear-to-br from-brand to-brand-coral text-white max-lg:rounded-2xl max-lg:py-2 ${game ? "max-lg:hidden" : ""}`}>
             <Card.Header>
-              <p className="text-xs font-bold tracking-[0.2em] opacity-80">
+              <p className="hidden text-xs font-bold tracking-[0.2em] opacity-80 lg:block">
                 {game ? "NOW PLAYING" : "BEGIN A STORY"}
               </p>
-              <h1 className="mt-1 font-story text-3xl leading-tight [overflow-wrap:anywhere]">
+              <h1 className="font-story text-lg leading-tight [overflow-wrap:anywhere] lg:mt-1 lg:text-3xl">
                 {game?.title ?? "Your next adventure"}
               </h1>
             </Card.Header>
           </Card>
           {game && (
             <>
-              <Card>
-                <Card.Content className="gap-3">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs font-bold tracking-[0.2em] text-muted">
+              <Card className="max-lg:gap-0 max-lg:rounded-2xl max-lg:py-1.5">
+                <Card.Content className="gap-1 max-lg:px-3 lg:gap-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="min-w-0 flex-1 truncate font-story text-sm font-bold lg:hidden">
+                      {game.title}
+                    </p>
+                    <span className="text-xs font-bold tracking-[0.2em] text-muted max-lg:hidden">
                       CHAPTER
                     </span>
-                    <strong className="font-story text-3xl text-grape">
+                    <strong className="font-story text-lg text-grape lg:text-3xl">
                       {game.state.turn.toString().padStart(2, "0")}
-                      <small className="text-base text-muted">
+                      <small className="text-sm text-muted lg:text-base">
                         {" "}
                         / {game.state.max_turns}
                       </small>
@@ -190,6 +205,7 @@ export function ChatPage() {
                     maxValue={game.state.max_turns}
                     value={game.state.turn}
                     color="accent"
+                    size="sm"
                   >
                     <ProgressBar.Track>
                       <ProgressBar.Fill />
@@ -197,11 +213,22 @@ export function ChatPage() {
                   </ProgressBar>
                 </Card.Content>
               </Card>
-              <Card>
-                <Card.Header>
+              <Card className="max-lg:gap-0 max-lg:rounded-2xl max-lg:py-0">
+                <button
+                  type="button"
+                  className="flex items-center justify-between px-3 py-1.5 text-left text-sm font-bold lg:hidden"
+                  aria-expanded={inventoryOpen}
+                  onClick={() => setInventoryOpen((open) => !open)}
+                >
+                  <span>🎒 Inventory ({game.state.inventory.length})</span>
+                  <span aria-hidden>{inventoryOpen ? "▴" : "▾"}</span>
+                </button>
+                <Card.Header className="hidden lg:flex">
                   <Card.Title className="text-base">🎒 Inventory</Card.Title>
                 </Card.Header>
-                <Card.Content>
+                <Card.Content
+                  className={inventoryOpen ? "max-lg:pb-3" : "max-lg:hidden"}
+                >
                   {game.state.inventory.length ? (
                     <ul className="flex flex-wrap gap-2">
                       {game.state.inventory.map((item, i) => (
@@ -220,16 +247,18 @@ export function ChatPage() {
                 </Card.Content>
               </Card>
               <a
-                href="/chat"
-                className="rounded-full border-2 border-dashed border-grape/40 px-4 py-3 text-center text-sm font-bold text-grape transition hover:bg-grape-soft"
+                href="/"
+                className="hidden rounded-full border-2 border-dashed border-grape/40 px-4 py-3 text-center text-sm font-bold text-grape transition hover:bg-grape-soft lg:block"
               >
                 ＋ New adventure
               </a>
             </>
           )}
         </aside>
-        <section className="flex min-w-0 flex-col gap-6" aria-label="Adventure">
-          <div className="flex items-center justify-between">
+        <section className="flex min-w-0 flex-1 flex-col gap-3 lg:gap-6" aria-label="Adventure">
+          <div
+            className={`items-center justify-between ${game ? "hidden lg:flex" : "flex"}`}
+          >
             <span className="text-xs font-bold tracking-[0.2em] text-grape">
               {game ? "THE ADVENTURE" : "BEGIN A STORY"}
             </span>
@@ -237,56 +266,10 @@ export function ChatPage() {
               {busy ? "Working" : "Ready"}
             </Chip>
           </div>
-          {!id && (
-            <Card className="p-2">
-              <Card.Header className="items-center text-center">
-                <span className="text-4xl text-sun">✦</span>
-                <Card.Title className="font-story text-3xl">
-                  A world waiting for your first move.
-                </Card.Title>
-                <Card.Description>
-                  Pick an adventure, then open it and make your first move.
-                </Card.Description>
-              </Card.Header>
-              <Card.Content className="gap-5">
-                <RadioGroup
-                  aria-label="Adventure"
-                  value={config}
-                  onChange={setConfig}
-                  className="grid gap-3 sm:grid-cols-2"
-                >
-                  {bootstrap.data?.configurations.map((c, i) => (
-                    <Radio
-                      key={c.id}
-                      value={String(c.id)}
-                      className={`rounded-2xl border-2 p-4 transition data-[selected=true]:border-grape data-[selected=true]:shadow-lg ${
-                        ["bg-grape-soft", "bg-coral-soft", "bg-mint-soft", "bg-sun-soft"][i % 4]
-                      } border-transparent`}
-                    >
-                      <Radio.Content>
-                        <Radio.Control>
-                          <Radio.Indicator />
-                        </Radio.Control>
-                        <span className="font-bold">{c.name}</span>
-                      </Radio.Content>
-                    </Radio>
-                  ))}
-                </RadioGroup>
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="self-center text-white bg-linear-to-r from-brand to-brand-coral px-8"
-                  isDisabled={!config || busy}
-                  onPress={() => {
-                    if (submitting.current) return;
-                    submitting.current = true;
-                    create.mutate();
-                  }}
-                >
-                  {create.isPending ? "Opening…" : "Open adventure →"}
-                </Button>
-              </Card.Content>
-            </Card>
+          {!id && create.isPending && (
+            <p className="text-muted" role="status">
+              Opening your adventure…
+            </p>
           )}
           {id && conversation.isPending && (
             <p className="text-muted" role="status">

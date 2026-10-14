@@ -44,6 +44,7 @@ beforeEach(() => {
   );
 });
 function show() {
+  window.history.replaceState({}, "", "/chat?config=1");
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -53,14 +54,8 @@ function show() {
     </QueryClientProvider>,
   );
 }
-test("does not create a conversation on mount and requires an explicit start", async () => {
+test("opens the adventure picked on the home page exactly once", async () => {
   show();
-  await screen.findByRole("radio", { name: "Arctic expedition" });
-  expect(api.mock.calls.every(([, payload]) => payload === undefined)).toBe(
-    true,
-  );
-  fireEvent.click(screen.getByRole("radio", { name: "Arctic expedition" }));
-  fireEvent.click(screen.getByRole("button", { name: "Open adventure →" }));
   await screen.findByText("The snow is deep.");
   expect(
     api.mock.calls.filter(
@@ -71,9 +66,6 @@ test("does not create a conversation on mount and requires an explicit start", a
 });
 test("a failed send preserves the action draft and does not automatically retry", async () => {
   show();
-  await screen.findByRole("radio", { name: "Arctic expedition" });
-  fireEvent.click(screen.getByRole("radio", { name: "Arctic expedition" }));
-  fireEvent.click(screen.getByRole("button", { name: "Open adventure →" }));
   const action = await screen.findByLabelText("Your action");
   api.mockImplementation(async (path) => {
     if (path.endsWith("/turns")) throw new Error("Connection lost");
@@ -92,9 +84,6 @@ test("a failed send preserves the action draft and does not automatically retry"
 
 test("renders the authoritative next turn and sends a chosen action only once", async () => {
   show();
-  await screen.findByRole("radio", { name: "Arctic expedition" });
-  fireEvent.click(screen.getByRole("radio", { name: "Arctic expedition" }));
-  fireEvent.click(screen.getByRole("button", { name: "Open adventure →" }));
   await screen.findByText("The snow is deep.");
   api.mockImplementation(async (path) =>
     path.endsWith("/turns")
@@ -152,9 +141,6 @@ test("rollback requires confirmation and accepts the returned transcript", async
           },
   );
   show();
-  await screen.findByRole("radio", { name: "Arctic expedition" });
-  fireEvent.click(screen.getByRole("radio", { name: "Arctic expedition" }));
-  fireEvent.click(screen.getByRole("button", { name: "Open adventure →" }));
   fireEvent.click(
     await screen.findByRole("button", { name: "↶ Continue from here" }),
   );

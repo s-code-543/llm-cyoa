@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router";
 import { Avatar, Button } from "@heroui/react";
 import { useSession } from "../features/session/SessionProvider";
 import { visibleNav } from "./nav";
@@ -29,63 +29,100 @@ const pill = ({ isActive }: { isActive: boolean }) =>
 export function Layout() {
   const { session, logout } = useSession();
   const { dark, toggle } = useTheme();
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+  useEffect(() => setOpen(false), [location.pathname, location.search]);
   const name = session?.user?.display_name ?? "";
+  const items = visibleNav(session?.permissions ?? []);
+  const signOut = () =>
+    logout.mutate(undefined, {
+      onSuccess: () => window.location.assign("/login"),
+    });
+  const themeButton = (
+    <Button
+      size="sm"
+      variant="ghost"
+      isIconOnly
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      onPress={toggle}
+    >
+      {dark ? "☀️" : "🌙"}
+    </Button>
+  );
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-20 px-4 pt-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-full border border-border bg-surface/80 py-2 pr-3 pl-5 shadow-lg shadow-grape/10 backdrop-blur-md">
-          <NavLink to="/" className="flex items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-full bg-linear-to-br from-brand via-brand-coral to-sun text-lg text-white shadow">
-              ✦
-            </span>
-            <span className="font-story text-2xl font-bold tracking-wide text-grape">
-              CYOA
-            </span>
-          </NavLink>
-          <nav aria-label="Main" className="flex items-center gap-1.5">
-            {visibleNav(session?.permissions ?? []).map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={pill}
-              >
-                {item.label}
-              </NavLink>
-            ))}
+      <header className="top-0 z-20 px-2 pt-2 md:sticky md:px-4 md:pt-4">
+        <div className="mx-auto max-w-7xl rounded-3xl border border-border bg-surface/80 shadow-lg shadow-brand/10 backdrop-blur-md md:rounded-full">
+          <div className="flex items-center justify-between gap-4 py-1.5 pr-2 pl-3 md:py-2 md:pr-3 md:pl-5">
+            <NavLink to="/" className="flex items-center gap-2.5">
+              <span className="grid size-8 place-items-center rounded-full bg-linear-to-br from-brand via-brand-coral to-sun text-base text-white shadow md:size-9 md:text-lg">
+                ✦
+              </span>
+              <span className="font-story text-xl font-bold tracking-wide text-grape md:text-2xl">
+                CYOA
+              </span>
+            </NavLink>
+            <nav
+              aria-label="Main"
+              className="hidden items-center gap-1.5 md:flex"
+            >
+              {items.map((item) => (
+                <NavLink key={item.to} to={item.to} end={item.end} className={pill}>
+                  {item.label}
+                </NavLink>
+              ))}
+              {themeButton}
+              {session?.user && (
+                <>
+                  <Avatar size="sm" className="ml-2">
+                    <Avatar.Fallback>
+                      {name.slice(0, 1).toUpperCase()}
+                    </Avatar.Fallback>
+                  </Avatar>
+                  <span className="hidden text-sm text-muted lg:inline">
+                    {name}
+                  </span>
+                  <Button size="sm" variant="ghost" onPress={signOut}>
+                    Sign out
+                  </Button>
+                </>
+              )}
+            </nav>
             <Button
+              className="md:hidden"
               size="sm"
               variant="ghost"
               isIconOnly
-              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-              onPress={toggle}
+              aria-label="Menu"
+              aria-expanded={open}
+              onPress={() => setOpen((value) => !value)}
             >
-              {dark ? "☀️" : "🌙"}
+              {open ? "✕" : "☰"}
             </Button>
-            {session?.user && (
-              <>
-                <Avatar size="sm" className="ml-2 hidden sm:flex">
-                  <Avatar.Fallback>
-                    {name.slice(0, 1).toUpperCase()}
-                  </Avatar.Fallback>
-                </Avatar>
-                <span className="hidden text-sm text-muted lg:inline">
-                  {name}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onPress={() =>
-                    logout.mutate(undefined, {
-                      onSuccess: () => window.location.assign("/login"),
-                    })
-                  }
-                >
-                  Sign out
-                </Button>
-              </>
-            )}
-          </nav>
+          </div>
+          {open && (
+            <nav
+              aria-label="Mobile"
+              className="flex flex-col gap-1 border-t border-border p-2 md:hidden"
+            >
+              {items.map((item) => (
+                <NavLink key={item.to} to={item.to} end={item.end} className={pill}>
+                  {item.label}
+                </NavLink>
+              ))}
+              <div className="flex items-center justify-between px-2 pt-1">
+                <span className="truncate text-sm text-muted">{name}</span>
+                <div className="flex items-center gap-1">
+                  {themeButton}
+                  {session?.user && (
+                    <Button size="sm" variant="ghost" onPress={signOut}>
+                      Sign out
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </nav>
+          )}
         </div>
       </header>
       <Outlet />

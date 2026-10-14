@@ -161,3 +161,14 @@
 .cards .card:hover { border-color: var(--focus); }
 .textblock { background: var(--surface); border-color: var(--border); }
 .empty { color: var(--muted); padding: 24px 0; }
+
+@media (max-width: 700px) {
+  .page { margin: 12px auto; padding: 0 12px; }
+  .page h1 { font-size: 26px; }
+  .subnav { display: flex; flex-wrap: nowrap; overflow-x: auto; width: 100%; }
+  .subnav a { white-space: nowrap; }
+  .table { display: block; overflow-x: auto; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+  .toolbar input, .toolbar select { width: 100%; }
+  .cards { grid-template-columns: 1fr; }
+}

@@ -15,9 +15,9 @@ export function Transcript({ messages, busy, waiting, onRollback }: Props) {
     end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
   return (
-    <div className="flex flex-col gap-5" aria-label="Conversation">
+    <div className="flex flex-col gap-3 max-lg:flex-1 lg:gap-5" aria-label="Conversation">
       {!messages.length && (
-        <div className="rounded-3xl border-2 border-dashed border-grape/25 bg-surface/60 px-6 py-12 text-center">
+        <div className="rounded-3xl border-2 border-dashed border-grape/25 bg-surface/60 px-6 py-8 text-center lg:py-12">
           <span className="text-4xl text-sun">✦</span>
           <h2 className="mt-2 font-story text-2xl">How does your story begin?</h2>
           <p className="mt-1 text-muted">Describe your first action below.</p>
@@ -32,13 +32,13 @@ export function Transcript({ messages, busy, waiting, onRollback }: Props) {
           return (
             <article
               key={message.id}
-              className="ml-auto flex max-w-[85%] flex-col items-end gap-1.5"
+              className="ml-auto flex max-w-[92%] lg:max-w-[85%] flex-col items-end gap-1.5"
             >
               <div className="flex items-center gap-2 text-xs font-bold tracking-widest text-grape">
                 YOUR MOVE
                 <span className="font-normal text-muted">{time}</span>
               </div>
-              <p className="rounded-3xl rounded-tr-md text-white bg-linear-to-br from-brand to-brand-coral px-5 py-3 whitespace-pre-wrap text-white shadow-lg shadow-grape/25">
+              <p className="rounded-3xl rounded-tr-md text-white bg-linear-to-br from-brand to-brand-coral px-4 py-2.5 whitespace-pre-wrap lg:px-5 lg:py-3 text-white shadow-lg shadow-grape/25">
                 {message.content}
               </p>
             </article>
@@ -46,7 +46,7 @@ export function Transcript({ messages, busy, waiting, onRollback }: Props) {
         return (
           <article
             key={message.id}
-            className={`relative max-w-[95%] overflow-hidden rounded-3xl rounded-tl-md border bg-surface p-6 pl-8 shadow-lg shadow-grape/10 ${
+            className={`relative max-w-full overflow-hidden rounded-3xl rounded-tl-md border bg-surface p-4 pl-6 lg:max-w-[95%] lg:p-6 lg:pl-8 shadow-lg shadow-grape/10 ${
               message.is_error ? "border-danger/40 bg-coral-soft" : "border-grape/10"
             }`}
           >

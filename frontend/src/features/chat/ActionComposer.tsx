@@ -84,7 +84,7 @@ export function ActionComposer({
     "bg-sun-soft text-sun hover:border-sun",
   ];
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2 max-lg:mt-auto lg:gap-4">
       {opening && !finished && (
         <Button
           variant="primary"
@@ -106,7 +106,7 @@ export function ActionComposer({
               key={index}
               disabled={busy || voiceBusy}
               onClick={() => onSubmit(choice)}
-              className={`group flex items-center gap-3 rounded-2xl border-2 border-transparent p-4 text-left font-semibold text-foreground shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:pointer-events-none disabled:opacity-50 ${swatches[index % swatches.length]}`}
+              className={`group flex items-center gap-3 rounded-2xl border-2 border-transparent p-3 lg:p-4 text-left font-semibold text-foreground shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:pointer-events-none disabled:opacity-50 ${swatches[index % swatches.length]}`}
             >
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-surface text-xs font-bold shadow-sm">
                 {String(index + 1).padStart(2, "0")}
@@ -118,7 +118,7 @@ export function ActionComposer({
         </div>
       )}
       <form
-        className="flex items-end gap-2 rounded-3xl border border-grape/15 bg-surface p-2 shadow-lg shadow-grape/10 focus-within:border-grape/50"
+        className="sticky bottom-1 z-10 flex items-end gap-2 rounded-3xl border border-grape/15 bg-surface p-2 shadow-lg shadow-grape/10 focus-within:border-grape/50"
         onSubmit={(e) => {
           e.preventDefault();
           if (!voiceBusy) onSubmit(draft);
@@ -128,10 +128,10 @@ export function ActionComposer({
           aria-label="Your action"
           placeholder="What do you do next?"
           value={draft}
-          rows={2}
+          rows={1}
           maxLength={20000}
           disabled={busy || finished}
-          className="min-h-14 flex-1 resize-none border-0 bg-transparent shadow-none outline-none"
+          className="min-h-11 flex-1 resize-none border-0 bg-transparent shadow-none outline-none"
           onChange={(e) => onDraft(e.target.value)}
           onKeyDown={(e) => {
             if (
@@ -161,11 +161,16 @@ export function ActionComposer({
               );
           }}
         >
-          {voice === "recording"
-            ? "Stop dictation"
-            : voice === "processing"
-              ? "Transcribing…"
-              : "Dictate action"}
+          <span className="max-sm:sr-only">
+            {voice === "recording"
+              ? "Stop dictation"
+              : voice === "processing"
+                ? "Transcribing…"
+                : "Dictate action"}
+          </span>
+          <span aria-hidden className="sm:hidden">
+            {voice === "recording" ? "⏹" : "🎤"}
+          </span>
         </Button>
         <Button
           type="submit"
@@ -211,7 +216,7 @@ export function ActionComposer({
         {voice === "processing" && (
           <p role="status">Transcribing your recording…</p>
         )}
-        <p className="ml-auto text-xs text-muted">
+        <p className="ml-auto hidden text-xs text-muted sm:block">
           Enter to send · Shift + Enter for a new line
         </p>
       </div>
