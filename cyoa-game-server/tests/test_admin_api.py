@@ -61,7 +61,8 @@ class TestPrompts:
         assert newer['version'] == 2
         assert [v['version'] for v in newer['versions']] == [2, 1]
         listing = admin_client.get('/api/v1/admin/prompts').json()
-        assert len(listing['prompts']) == 2 and listing['types']
+        assert len([p for p in listing['prompts'] if p['name'] == 'probe']) == 2
+        assert {'character', 'image-meta'} <= {t['value'] for t in listing['types']}
 
     def test_update_normalizes_line_endings(self, admin_client):
         prompt = Prompt.objects.create(prompt_type='judge', name='j', version=1, prompt_text='x')

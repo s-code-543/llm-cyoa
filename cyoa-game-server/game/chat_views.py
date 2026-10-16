@@ -88,6 +88,9 @@ def chat_api_send_message(request, *, payload=None, submission_id=None):
             conversation, user_message, call_llm=call_llm,
             correct_refusal=process_potential_refusal, judge_turn=run_judge_pipeline,
         )
+        from .scene_images import illustrate_message
+        message = conversation.messages.get(pk=result['message']['id'])
+        illustrate_message(message)
         return JsonResponse(result)
     except TurnUnavailable as e:
         return JsonResponse({'error': str(e)}, status=409)

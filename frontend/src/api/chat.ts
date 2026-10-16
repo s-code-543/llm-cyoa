@@ -4,6 +4,8 @@ export type Message = {
   role: "user" | "assistant";
   content: string;
   is_error: boolean;
+  image_url?: string | null;
+  image_failed?: boolean;
   created_at: string;
 };
 export type Configuration = { id: number; name: string };

@@ -14,6 +14,8 @@ PROMPT_TYPES = [
     ('game-ending', 'Game Ending Prompt'),
     ('classifier', 'Classifier Prompt'),
     ('judge', 'Judge Prompt'),
+    ('character', 'Character Prompt'),
+    ('image-meta', 'Image Meta Prompt'),
 ]
 AUDIT_LIST_LIMIT = 100
 
@@ -59,6 +61,8 @@ def save_prompt_to_disk(prompt):
         'game-ending': 'game_ending_prompts',
         'classifier': 'classifier_prompts',
         'judge': 'judge_prompts',
+        'character': 'character_prompts',
+        'image-meta': 'image_meta_prompts',
     }
     
     dir_name = type_to_dir.get(prompt.prompt_type)

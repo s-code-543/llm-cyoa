@@ -28,12 +28,14 @@ class Prompt(models.Model):
         'game-ending': 'Game Ending Prompts',
         'classifier': 'Classifier Prompts',
         'judge': 'Judge Prompts',
+        'character': 'Character Prompts',
+        'image-meta': 'Image Meta Prompts',
     }
     
     prompt_type = models.CharField(
         max_length=50,
         db_index=True,
-        help_text="Category: adventure, turn-correction, game-ending, classifier, judge"
+        help_text="Category: adventure, turn-correction, game-ending, classifier, judge, character, image-meta"
     )
     name = models.CharField(
         max_length=100,
@@ -241,6 +243,19 @@ class Configuration(models.Model):
         default=False,
         help_text="Enable spoken narrator playback when the TTS service is configured"
     )
+
+    enable_image_generation = models.BooleanField(default=False)
+    image_meta_prompt = models.ForeignKey(
+        Prompt, on_delete=models.PROTECT, related_name='configs_as_image_meta',
+        limit_choices_to={'prompt_type': 'image-meta'}, null=True, blank=True)
+    character_prompt = models.ForeignKey(
+        Prompt, on_delete=models.PROTECT, related_name='configs_as_character',
+        limit_choices_to={'prompt_type': 'character'}, null=True, blank=True)
+    image_model = models.ForeignKey(
+        'LLMModel', on_delete=models.PROTECT, related_name='configs_as_image_model',
+        null=True, blank=True)
+    image_aspect_ratio = models.CharField(max_length=10, default='16:9')
+    image_timeout = models.PositiveIntegerField(default=60)
 
     # Refusal detection system
     enable_refusal_detection = models.BooleanField(

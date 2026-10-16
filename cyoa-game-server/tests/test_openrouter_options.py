@@ -23,3 +23,18 @@ def test_router_forwards_reasoning_control_to_openrouter(disabled):
         assert payload['reasoning'] == {'effort': 'none'}
     else:
         assert 'reasoning' not in payload
+
+
+def test_image_catalog_merged_with_text_models():
+    from game.openrouter_utils import get_openrouter_models
+    text = Mock(status_code=200)
+    text.json.return_value = {'data': [{'id': 'text/model', 'name': 'Text'}]}
+    images = Mock(status_code=200)
+    images.json.return_value = {'data': [{'id': 'image/model', 'name': 'Image',
+                                          'supported_parameters': {'aspect_ratio': {'type': 'enum', 'values': ['16:9']}}}]}
+    with patch('game.openrouter_utils.requests.get', side_effect=[text, images]) as get:
+        models = get_openrouter_models('test')
+    assert get.call_args.args[0].endswith('/images/models')
+    assert [m['id'] for m in models] == ['text/model', 'image/model']
+    assert models[1]['image_generation'] is True
+    assert 'aspect_ratio' in models[1]['supported_parameters']

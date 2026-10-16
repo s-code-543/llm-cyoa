@@ -166,6 +166,36 @@ class TestModelsAndConfigs:
         assert admin_client.delete(f'/api/v1/admin/configurations/{cid}').status_code == 200
         assert admin_client.get(f'/api/v1/admin/configurations/{cid}').status_code == 404
 
+    def test_image_config_validation_and_roundtrip(self, admin_client):
+        from tests.conftest import PromptFactory, APIProviderFactory, LLMModelFactory
+        meta = PromptFactory(prompt_type='image-meta')
+        character = PromptFactory(prompt_type='character')
+        provider = APIProviderFactory(provider_type='openrouter', api_key='test')
+        model = LLMModelFactory(provider=provider, capabilities={'image_generation': True})
+        url = '/api/v1/admin/configurations'
+        missing = send('post', admin_client, url, self.payload(enable_image_generation=True))
+        assert {'image_model', 'image_meta_prompt'} <= set(missing.json()['error']['fields'])
+        data = self.payload(enable_image_generation=True, image_model=model.pk,
+                            image_meta_prompt=meta.pk, character_prompt=character.pk,
+                            image_aspect_ratio='4:3', image_timeout=45)
+        created = send('post', admin_client, url, data)
+        assert created.status_code == 201, created.content
+        assert created.json()['image_model'] == model.pk
+        assert created.json()['character_prompt'] == character.pk
+        cid = created.json()['id']
+        loaded = admin_client.get(f'{url}/{cid}').json()
+        assert loaded['image_aspect_ratio'] == '4:3' and loaded['image_timeout'] == 45
+        options = admin_client.get(url + '/options').json()
+        assert model.pk in [m['id'] for m in options['image_models']]
+        assert model.pk not in [m['id'] for m in options['models']]
+        bad = send('put', admin_client, f'{url}/{cid}', {**data, 'image_model': self.model.pk})
+        assert 'image_model' in bad.json()['error']['fields']
+        bad = send('put', admin_client, f'{url}/{cid}', {**data, 'character_prompt': self.adv.pk})
+        assert 'character_prompt' in bad.json()['error']['fields']
+        disabled = send('put', admin_client, f'{url}/{cid}', {**data, 'enable_image_generation': False})
+        assert disabled.status_code == 200 and disabled.json()['image_model'] == model.pk
+        assert admin_client.delete(f'/api/v1/admin/models/{model.pk}').status_code == 409
+
     def test_options(self, admin_client):
         data = admin_client.get('/api/v1/admin/configurations/options').json()
         assert data['adventure_prompts'][0]['id'] == self.adv.id

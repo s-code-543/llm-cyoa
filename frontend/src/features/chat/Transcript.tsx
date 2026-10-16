@@ -64,6 +64,17 @@ export function Transcript({ messages, busy, waiting, onRollback }: Props) {
               </Chip>
               <span className="text-xs text-muted">{time}</span>
             </div>
+            {message.image_url && (
+              <img
+                src={message.image_url}
+                alt="Storybook illustration of this adventure scene"
+                className="mb-4 aspect-video w-full rounded-2xl object-contain bg-grape/5"
+                loading="lazy"
+              />
+            )}
+            {message.image_failed && (
+              <p className="mb-3 text-xs text-muted">The scene illustration couldn’t be generated this turn.</p>
+            )}
             <div className="story-prose">
               <Markdown skipHtml>{message.content}</Markdown>
             </div>

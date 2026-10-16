@@ -10,6 +10,7 @@ from .models import Configuration, DifficultyProfile, JudgeStep, LLMModel, Promp
 
 CONFIG_INT_FIELDS = {
     'storyteller_timeout': (60, 1),
+    'image_timeout': (60, 1),
     'turn_correction_timeout': (60, 1),
     'classifier_timeout': (60, 1),
     'total_turns': (10, 1),
@@ -21,12 +22,14 @@ CONFIG_INT_FIELDS = {
 CONFIG_TEXT_FIELDS = ('description', 'classifier_question')
 CONFIG_PROMPT_FIELDS = {
     'adventure_prompt': 'adventure',
+    'image_meta_prompt': 'image-meta',
+    'character_prompt': 'character',
     'turn_correction_prompt': 'turn-correction',
     'game_ending_turn_correction_prompt': 'turn-correction',
     'game_ending_prompt': 'game-ending',
     'classifier_prompt': 'classifier',
 }
-CONFIG_MODEL_FIELDS = ('storyteller_model', 'turn_correction_model', 'classifier_model')
+CONFIG_MODEL_FIELDS = ('storyteller_model', 'turn_correction_model', 'classifier_model', 'image_model')
 STEP_PROMPTS = {'classifier_prompt': 'classifier', 'rewrite_prompt': 'judge', 'compare_prompt': 'judge'}
 STEP_MODELS = ('classifier_model', 'rewrite_model', 'compare_model')
 STEP_INTS = {
@@ -64,6 +67,8 @@ def config_summary(config):
         'total_turns': config.total_turns,
         'enable_refusal_detection': config.enable_refusal_detection,
         'enable_tts': config.enable_tts,
+        'enable_image_generation': config.enable_image_generation,
+        'image_aspect_ratio': config.image_aspect_ratio,
     }
 
 
@@ -72,6 +77,8 @@ def config_json(config):
         'id': config.id,
         'name': config.name,
         'enable_tts': config.enable_tts,
+        'enable_image_generation': config.enable_image_generation,
+        'image_aspect_ratio': config.image_aspect_ratio,
         'enable_refusal_detection': config.enable_refusal_detection,
         'difficulty': config.difficulty_id,
         'workflow': config.workflow or {},
@@ -157,11 +164,30 @@ def parse_config(data):
     if not values['classifier_question']:
         values['classifier_question'] = 'Is this a content policy refusal?'
     values['enable_tts'] = bool(data.get('enable_tts'))
+    values['enable_image_generation'] = bool(data.get('enable_image_generation'))
+    values['image_aspect_ratio'] = str(data.get('image_aspect_ratio', '16:9'))
+    if values['image_aspect_ratio'] not in ('1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'):
+        fields['image_aspect_ratio'] = 'Choose a listed aspect ratio.'
     values['enable_refusal_detection'] = bool(data.get('enable_refusal_detection'))
     for key, prompt_type in CONFIG_PROMPT_FIELDS.items():
         values[key] = lookup(Prompt, data.get(key), 'prompt', fields, key, prompt_type=prompt_type)
     for key in CONFIG_MODEL_FIELDS:
         values[key] = lookup(LLMModel, data.get(key), 'model', fields, key)
+    for key in CONFIG_MODEL_FIELDS:
+        if key != 'image_model' and values[key] and values[key].capabilities.get('image_generation'):
+            fields[key] = 'Choose a text model for this role.'
+    image_model = values['image_model']
+    if image_model and (image_model.provider.provider_type != 'openrouter'
+                        or not image_model.capabilities.get('image_generation')
+                        or 'vector' in image_model.model_identifier.lower()
+                        or not image_model.is_available or not image_model.provider.is_active):
+        fields['image_model'] = 'Choose an available OpenRouter image model.'
+    if values['enable_image_generation']:
+        for key in ('image_meta_prompt', 'image_model'):
+            if values[key] is None and key not in fields:
+                fields[key] = 'Required when image generation is enabled.'
+        if image_model and not image_model.provider.api_key:
+            fields['image_model'] = 'Configure an API key for this image model’s provider.'
     values['difficulty'] = lookup(DifficultyProfile, data.get('difficulty'), 'difficulty', fields, 'difficulty')
 
     for key, label in (('adventure_prompt', 'Adventure prompt'), ('game_ending_prompt', 'Game ending prompt'),
@@ -229,9 +255,19 @@ def config_options(request):
         'game_ending_prompts': prompts('game-ending'),
         'classifier_prompts': prompts('classifier'),
         'judge_prompts': prompts('judge'),
+        'character_prompts': prompts('character'),
+        'image_meta_prompts': prompts('image-meta'),
+        'image_models': [
+            {'id': m.id, 'name': m.name, 'available': m.is_available}
+            for m in LLMModel.objects.select_related('provider').filter(
+                provider__provider_type='openrouter', provider__is_active=True,
+                is_available=True, capabilities__image_generation=True).exclude(
+                    model_identifier__icontains='vector').order_by('name')
+        ],
         'models': [
             {'id': m.id, 'name': m.name, 'available': m.is_available}
             for m in LLMModel.objects.select_related('provider').order_by('provider__name', 'name')
+            if not (m.capabilities or {}).get('image_generation')
         ],
         'difficulties': [
             {'id': d.id, 'name': d.name} for d in DifficultyProfile.objects.all()

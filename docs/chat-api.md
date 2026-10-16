@@ -28,3 +28,29 @@ Legacy endpoints remain in place for the original page:
 - `/api/tts/generate` (requires conversation_id owned by the user and TTS enabled), `/api/tts/audio/:id`, `/api/tts/status/:id`.
 
 STT/TTS retain their existing contracts in this text milestone. Audio asset ownership/retention and cancellation behavior must be reviewed before React speech parity/cutover; no raw media endpoint changes are implied by v1.
+
+Scene illustrations: configurations opt in with `enable_image_generation`. Each
+successful narrator turn uses the selected `image_model` and that model's active
+OpenRouter provider credentials. There is no global-key or arbitrary-provider fallback.
+The prompt is assembled in order: `image_meta_prompt` (style/composition), optional
+`character_prompt` (appearance descriptions), then player-visible narrative text.
+Both prompt categories use normal prompt CRUD, versions, and disk loading/export.
+Starter prompts are seeded as `image-meta/cartoon-storybook` and
+`character/narrative-characters`; edit the latter to describe the adventure's cast.
+
+`image_aspect_ratio` and `image_timeout` control request dimensions and timeout.
+The Providers model browser merges OpenRouter's text and dedicated image catalogs;
+import an image model there to make it selectable in a configuration. Vector models
+are excluded from the raster illustration selector. Model availability and prompt
+categories are validated on configuration save. New and existing configurations start
+with generation off; saved illustrations remain viewable when generation is disabled.
+
+Returned PNG, WebP, and JPEG formats are detected from their bytes and served with
+the matching content type through an owner-authenticated endpoint. Images persist
+under `MEDIA_ROOT/scene_images`. Snapshots include `image_url` and `image_failed`.
+Generation runs synchronously after the story is saved; failures leave it playable.
+Usage and selected prompt IDs are retained in message metadata. Existing turns are
+not backfilled. Rolled-back images become inaccessible, though files remain on disk.
+Character descriptions provide text guidance, not guaranteed visual identity or
+reference-image conditioning. OpenRouter documents supported model parameters at
+https://openrouter.ai/docs/guides/overview/multimodal/image-generation.

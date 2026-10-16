@@ -6,7 +6,7 @@ from django.http import HttpResponsePermanentRedirect
 from django.urls import path, re_path
 
 from game import admin_api, admin_config_api as config_api, admin_providers_api as providers_api, app_api
-from game import chat_views, chat_api
+from game import chat_views, chat_api, scene_images
 from game import stt_views
 from game import pwa_views, tts_views
 
@@ -75,6 +75,7 @@ urlpatterns = [
     path('offline.html', pwa_views.offline_page, name='offline_page'),
 
     
+    path('api/v1/chat/images/<int:message_id>', scene_images.scene_image, name='scene_image'),
     path('chat/api/new', chat_views.chat_api_new_conversation, name='chat_api_new'),
     path('chat/api/send', chat_views.chat_api_send_message, name='chat_api_send'),
     path('chat/api/conversation/<str:conversation_id>', chat_views.chat_api_get_conversation, name='chat_api_get'),

@@ -164,6 +164,7 @@ def provider_models(request, provider_id):
             'description': m.get('description', ''),
             'size': m.get('size', 0),
             'imported': m['id'] in imported,
+            'image_generation': bool(m.get('image_generation')),
         }
         for m in fetch_provider_models(provider)
     ]
@@ -198,6 +199,8 @@ def provider_models_import(request, provider_id):
                     'capabilities': {
                         'description': item.get('description', ''),
                         'size': item.get('size', 0),
+                        'image_generation': bool(item.get('image_generation')),
+                        'supported_parameters': item.get('supported_parameters', {}),
                     },
                 },
             )
@@ -245,10 +248,16 @@ def provider_models_sync(request, provider_id):
                 removed += 1
             except ProtectedError:
                 skipped += 1
-        elif not model.is_available:
-            model.is_available = True
-            model.save()
-            updated += 1
+        else:
+            item = next(m for m in available if m['id'] == model.model_identifier)
+            capabilities = dict(model.capabilities or {})
+            capabilities.update(image_generation=bool(item.get('image_generation')),
+                                supported_parameters=item.get('supported_parameters', {}))
+            if not model.is_available or model.capabilities != capabilities:
+                model.is_available = True
+                model.capabilities = capabilities
+                model.save(update_fields=['is_available', 'capabilities'])
+                updated += 1
     parts = []
     if removed:
         parts.append(f'removed {removed} invalid models')
@@ -270,6 +279,7 @@ def model_json(model):
         'provider_type': model.provider.provider_type,
         'is_available': model.is_available,
         'description': (model.capabilities or {}).get('description', ''),
+        'image_generation': bool((model.capabilities or {}).get('image_generation')),
     }
 
 
@@ -286,7 +296,7 @@ def model_collection(request):
 def model_usage(model):
     names = list(
         Configuration.objects.filter(
-            Q(storyteller_model=model) | Q(turn_correction_model=model) | Q(classifier_model=model)
+            Q(storyteller_model=model) | Q(turn_correction_model=model) | Q(classifier_model=model) | Q(image_model=model)
         ).distinct().values_list('name', flat=True)
     )
     for step in JudgeStep.objects.filter(

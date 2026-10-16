@@ -88,6 +88,7 @@ export type ProviderInput = {
   clear_api_key?: boolean;
 };
 export type ModelRow = {
+  image_generation?: boolean;
   id: number;
   name: string;
   model_identifier: string;
@@ -98,6 +99,7 @@ export type ModelRow = {
   description: string;
 };
 export type RemoteModel = {
+  image_generation?: boolean;
   id: string;
   name: string;
   description: string;
@@ -208,6 +210,12 @@ export type ConfigData = {
   phase3_turns: number;
   phase4_turns: number;
   enable_tts: boolean;
+  enable_image_generation: boolean;
+  image_meta_prompt: number | null;
+  character_prompt: number | null;
+  image_model: number | null;
+  image_aspect_ratio: string;
+  image_timeout: number;
   enable_refusal_detection: boolean;
   turn_correction_prompt: number | null;
   turn_correction_model: number | null;
@@ -227,6 +235,7 @@ export type ConfigSummary = {
   total_turns: number;
   enable_refusal_detection: boolean;
   enable_tts: boolean;
+  enable_image_generation: boolean;
   judge_step_count: number;
 };
 export type ConfigOptions = {
@@ -235,6 +244,9 @@ export type ConfigOptions = {
   game_ending_prompts: PromptSummary[];
   classifier_prompts: PromptSummary[];
   judge_prompts: PromptSummary[];
+  character_prompts: PromptSummary[];
+  image_meta_prompts: PromptSummary[];
+  image_models: { id: number; name: string; available: boolean }[];
   models: { id: number; name: string; available: boolean }[];
   difficulties: { id: number; name: string }[];
 };

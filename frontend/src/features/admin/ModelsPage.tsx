@@ -48,7 +48,7 @@ export function ModelListPage() {
           <tbody>
             {rows.map((m) => (
               <tr key={m.id}>
-                <td>{m.name}{m.is_available ? "" : " (unavailable)"}</td>
+                <td>{m.name}{m.image_generation ? " · Image generation" : ""}{m.is_available ? "" : " (unavailable)"}</td>
                 <td>{m.model_identifier}</td>
                 <td>{m.provider_name}</td>
                 <td>
@@ -110,7 +110,7 @@ export function ModelBrowserPage() {
             <li key={m.id}>
               <label>
                 <input type="checkbox" checked={selected.includes(m.id)} onChange={() => toggle(m.id)} />{" "}
-                <strong>{m.name}</strong> <code>{m.id}</code>{m.imported ? " ✓ imported" : ""}
+                <strong>{m.name}</strong>{m.image_generation ? " · Image generation" : ""} <code>{m.id}</code>{m.imported ? " ✓ imported" : ""}
               </label>
             </li>
           ))}

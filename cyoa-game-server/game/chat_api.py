@@ -85,6 +85,8 @@ def snapshot(conversation):
         'messages': [{
             'id': msg.pk, 'role': msg.role, 'content': public_content(msg.content, msg.metadata) if msg.role == 'assistant' else msg.content,
             'created_at': msg.created_at.isoformat(), 'is_error': bool(msg.metadata.get('is_error')),
+            'image_url': f'/api/v1/chat/images/{msg.pk}' if msg.metadata.get('scene_image') else None,
+            'image_failed': bool(msg.metadata.get('scene_image_failed')),
         } for msg in messages if msg.role != 'system'],
         'state': {
             'turn': state['turn_current'], 'max_turns': state['turn_max'],

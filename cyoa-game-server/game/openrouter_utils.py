@@ -157,9 +157,24 @@ def get_openrouter_models(api_key, timeout=10):
                 'description': full_description,
                 'size': 0,  # API models don't have a size
                 'context_length': model.get('context_length', 0),
-                'pricing': pricing
+                'pricing': pricing,
+                'architecture': model.get('architecture', {}),
             })
         
+        # Dedicated catalog includes image-only models absent from the chat catalog.
+        image_response = requests.get(
+            'https://openrouter.ai/api/v1/images/models', headers=headers, timeout=timeout)
+        if image_response.status_code == 200:
+            for model in image_response.json().get('data', []):
+                entry = {
+                    'id': model['id'], 'name': model.get('name', model['id']),
+                    'description': model.get('description', ''), 'size': 0,
+                    'image_generation': True,
+                    'architecture': model.get('architecture', {}),
+                    'supported_parameters': model.get('supported_parameters', {}),
+                }
+                models_list = [m for m in models_list if m['id'] != entry['id']]
+                models_list.append(entry)
         return models_list
     
     except Exception as e:

@@ -45,6 +45,8 @@ class Command(BaseCommand):
             'game_ending_prompts': 'game-ending',
             'classifier_prompts': 'classifier',
             'judge_prompts': 'judge',
+            'character_prompts': 'character',
+            'image_meta_prompts': 'image-meta',
         }
         
         for dir_name, prompt_type in dir_config.items():

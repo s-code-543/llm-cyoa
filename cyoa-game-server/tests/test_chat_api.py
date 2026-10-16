@@ -62,7 +62,7 @@ def test_send_reload_and_replay_do_not_call_provider_twice(auth_client, adventur
     assert loaded['state']['inventory'] == ['torch', 'key']
     assert loaded['state']['choices'] == ['Enter', 'Wait']
     assert len(loaded['messages']) == 2
-    assert set(loaded['messages'][1]) == {'id', 'role', 'content', 'created_at', 'is_error'}
+    assert set(loaded['messages'][1]) == {'id', 'role', 'content', 'created_at', 'is_error', 'image_url', 'image_failed'}
     assert loaded['pending_request_id'] is None
     assert ChatSubmission.objects.get().status == 'completed'
 

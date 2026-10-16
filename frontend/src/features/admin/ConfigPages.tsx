@@ -53,6 +53,12 @@ const blankConfig = (): ConfigData => ({
   phase3_turns: 3,
   phase4_turns: 1,
   enable_tts: false,
+  enable_image_generation: false,
+  image_meta_prompt: null,
+  character_prompt: null,
+  image_model: null,
+  image_aspect_ratio: '16:9',
+  image_timeout: 60,
   enable_refusal_detection: false,
   turn_correction_prompt: null,
   turn_correction_model: null,
@@ -234,6 +240,21 @@ function ConfigForm({ initial, options }: { initial: ConfigData; options: Config
         <input type="checkbox" checked={form.enable_tts} onChange={(e) => set("enable_tts", e.target.checked)} /> Enable text-to-speech
       </label>
 
+      <h2>Scene illustrations</h2>
+      <label>
+        <input type="checkbox" checked={form.enable_image_generation} onChange={(e) => set("enable_image_generation", e.target.checked)} /> Enable image generation
+      </label>
+      <p>Manage styles under Image Meta Prompts and appearance descriptions under Character Prompts. Import image models from an OpenRouter provider on the Providers page.</p>
+      <Pick label="Image meta prompt" value={form.image_meta_prompt} onChange={(v) => set("image_meta_prompt", v)} choices={promptChoices(options.image_meta_prompts ?? [])} error={errors.image_meta_prompt} optional={!form.enable_image_generation} />
+      <Pick label="Character prompt" value={form.character_prompt} onChange={(v) => set("character_prompt", v)} choices={promptChoices(options.character_prompts ?? [])} error={errors.character_prompt} optional />
+      <Pick label="OpenRouter image model" value={form.image_model} onChange={(v) => set("image_model", v)} choices={options.image_models ?? []} error={errors.image_model} optional={!form.enable_image_generation} />
+      <Field label="Image aspect ratio" error={errors.image_aspect_ratio}>
+        <select value={form.image_aspect_ratio} onChange={(e) => set("image_aspect_ratio", e.target.value)}>
+          {['16:9', '1:1', '9:16', '4:3', '3:4', '3:2', '2:3'].map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
+        </select>
+      </Field>
+      <Num label="Image timeout (s)" value={form.image_timeout} onChange={(v) => set("image_timeout", v)} error={errors.image_timeout} />
+
       <h2>Refusal detection</h2>
       <label>
         <input type="checkbox" checked={form.enable_refusal_detection} onChange={(e) => set("enable_refusal_detection", e.target.checked)} /> Detect and correct refusals
@@ -300,7 +321,7 @@ export function ConfigListPage() {
         <p className="empty">No configurations yet.</p>
       ) : (
         <table className="table">
-          <thead><tr><th>Name</th><th>Storyteller</th><th>Turns</th><th>Refusal detection</th><th>Judges</th></tr></thead>
+          <thead><tr><th>Name</th><th>Storyteller</th><th>Turns</th><th>Refusal detection</th><th>Images</th><th>Judges</th></tr></thead>
           <tbody>
             {configs.data.configurations.map((c) => (
               <tr key={c.id}>
@@ -308,6 +329,7 @@ export function ConfigListPage() {
                 <td>{c.storyteller_model}</td>
                 <td>{c.total_turns}</td>
                 <td>{c.enable_refusal_detection ? "On" : "Off"}</td>
+                <td>{c.enable_image_generation ? "On" : "Off"}</td>
                 <td>{c.judge_step_count}</td>
               </tr>
             ))}
