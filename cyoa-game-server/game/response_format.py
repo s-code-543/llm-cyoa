@@ -3,6 +3,34 @@ import re
 import json
 
 
+def clean_narrative_metadata(text):
+    """Drop standalone acquisition bookkeeping accidentally emitted outside JSON."""
+    text = re.sub(r'^\s*_requested_items\s*:[^\n]*(?:\n|$)', '', text,
+                  flags=re.MULTILINE).strip()
+    trailing = trailing_state_response(text)
+    return trailing[0] if trailing else text
+
+
+def trailing_state_response(text):
+    """Recognize a complete trailing ledger without accepting arbitrary story JSON."""
+    for match in re.finditer(r'\{', text):
+        try:
+            value, consumed = json.JSONDecoder(parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value))).raw_decode(text[match.start():])
+        except ValueError:
+            continue
+        if (isinstance(value, dict)
+                and {'inventory', 'inventory_policy', '_requested_items', 'turns_played'} & value.keys()
+                and not text[match.start() + consumed:].strip()):
+            return text[:match.start()].rstrip(), value
+    return None
+
+
+def normalize_turn_header(text, current, maximum):
+    """The engine owns turn numbering, including malformed model placeholders."""
+    return re.sub(r'(?im)^(\s*(?:\*{1,2}|#{1,6}\s*)?)Turn\s+(?:\d+|N|X)\s*(?:of|/)\s*(?:\d+|N|Y)',
+                  lambda match: f'{match.group(1)}Turn {current} of {maximum}', text, count=1)
+
+
 def is_story_ending(text):
     """Recognize explicit terminal markers, never incidental mentions in prose."""
     return bool(re.search(
@@ -66,9 +94,11 @@ def extract_game_state(text):
             if choice_num in [1, 2]:
                 current_choice = choice_num
                 choice_texts[choice_num] = choice_text
-        elif current_choice and line.strip() and not re.match(r'^\s*\*{0,2}\s*\d+\s*\*{0,2}\s*[.)\]:-]', line):
+        elif current_choice and line.strip() and line[:1].isspace() and not re.match(r'^\s*\*{0,2}\s*\d+\s*\*{0,2}\s*[.)\]:-]', line):
             # Continuation of current choice (multi-line)
             choice_texts[current_choice] += ' ' + line.strip()
+        else:
+            current_choice = None
 
     # Assign to state
     if 1 in choice_texts:
@@ -102,6 +132,10 @@ def parse_state_response(candidate):
     fences = list(re.finditer(r'```(?:game-state|json)?[ \t]*\r?\n(.*?)\r?\n```',
                               candidate, re.DOTALL | re.IGNORECASE))
     labels = list(re.finditer(r'^[ \t]*game-state[ \t]*:[ \t]*', candidate, re.MULTILINE | re.IGNORECASE))
+    if not fences and not labels:
+        trailing = trailing_state_response(candidate)
+        if trailing:
+            return trailing
     if len(fences) + len(labels) != 1:
         raise ValueError('Expected exactly one game-state JSON block')
     reject_constant = lambda value: (_ for _ in ()).throw(ValueError(value))
@@ -125,6 +159,7 @@ def public_content(content, metadata):
     workflow = metadata.get('engine_snapshot', {}).get('workflow', {})
     if not any(node.get('type') == 'ExtractJSON' for node in workflow.get('nodes', [])):
         return content
+    content = clean_narrative_metadata(content)
     try:
         return parse_state_response(content)[0]
     except ValueError:

@@ -301,3 +301,46 @@ def test_plain_labeled_state_is_extracted_without_extra_call(adventure):
     assert llm.call_count == 1
     assert result['message']['content'] == STORY
     assert GameSession.objects.get(session_id=adventure.conversation_id).hidden_state['inventory'] == ['key']
+
+
+@pytest.mark.django_db
+def test_repairs_placeholder_header_and_hides_stray_acquisition_metadata(adventure):
+    configure(adventure, workflow({'type': 'GenerateTurn'}, {'type': 'ExtractJSON'},
+                                {'type': 'ApplyStateChanges', 'allowed_keys': ['inventory']}))
+    malformed = STORY.replace('Turn 1 of 10', 'Turn N of 10') + '\n\n_requested_items: []'
+    result = execute(adventure, Mock(side_effect=[malformed, '```game-state\n{}\n```']))
+    assert result['message']['content'] == STORY
+    assert result['state']['choice2'] == 'Wait'
+
+
+@pytest.mark.django_db
+def test_unchanged_protected_state_echo_is_ignored(adventure):
+    configure(adventure, workflow(
+        {'type': 'RunPython', 'code': 'state["objective"] = "Deliver the letter"'},
+        {'type': 'GenerateTurn'}, {'type': 'ExtractJSON'},
+        {'type': 'ApplyStateChanges', 'allowed_keys': ['inventory']}))
+    llm = Mock(return_value=STORY + '\n```game-state\n{"objective": "Deliver the letter", "inventory": []}\n```')
+    assert execute(adventure, llm)['message']['content'] == STORY
+    assert GameSession.objects.get(session_id=adventure.conversation_id).hidden_state['objective'] == 'Deliver the letter'
+
+
+@pytest.mark.django_db
+def test_unlabeled_ledger_is_extracted_without_lossy_metadata_repair(adventure):
+    configure(adventure, workflow({'type': 'GenerateTurn'}, {'type': 'ExtractJSON'},
+                                {'type': 'ApplyStateChanges', 'allowed_keys': ['inventory']}))
+    llm = Mock(return_value=STORY + '\n{"inventory": ["brass key"]}')
+    result = execute(adventure, llm)
+    assert llm.call_count == 1
+    assert result['message']['content'] == STORY
+    assert GameSession.objects.get(session_id=adventure.conversation_id).hidden_state['inventory'] == ['brass key']
+
+
+@pytest.mark.django_db
+def test_scheduled_final_turn_uses_ending_prompt_and_audits_it(adventure, game_ending_prompt):
+    from game.models import Configuration, AuditLog
+    Configuration.objects.filter(pk=adventure.metadata['config_id']).update(total_turns=1, game_ending_prompt=game_ending_prompt)
+    llm = Mock(return_value='The dawn-letter reaches the lantern chamber.\nTHE END')
+    result = execute(adventure, llm)
+    assert result['state']['game_over'] is True
+    assert game_ending_prompt.prompt_text in llm.call_args.kwargs['system_prompt']
+    assert AuditLog.objects.latest('id').prompt_used_id == game_ending_prompt.pk

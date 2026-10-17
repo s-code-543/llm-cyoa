@@ -62,6 +62,7 @@ urlpatterns = [
     path('chat/', app_api.spa),
     path('manage/', app_api.spa),
     path('manage/<path:rest>', app_api.spa),
+    path('api/v1/chat/conversations/<str:conversation_id>/debug', chat_api.debug),
     path('api/v1/chat/bootstrap', chat_api.bootstrap),
     path('api/v1/chat/conversations', chat_api.conversations),
     path('api/v1/chat/conversations/<str:conversation_id>', chat_api.detail),

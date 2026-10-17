@@ -102,3 +102,14 @@ class TestExtractGameState:
         state = extract_game_state(text)
         assert 'Attack' in state['choice1']
         assert 'Defend' in state['choice2']
+
+
+def test_choices_exclude_trailing_narrator_commentary():
+    state = extract_game_state('Turn 2 of 10\n1) Cross the bridge.\n2) Check the stall.\n\nCustom action: Use a lantern.\nThe vendor waves.')
+    assert state['choice2'] == 'Check the stall.'
+
+
+def test_unlabeled_trailing_state_is_hidden_without_removing_regular_prose():
+    from game.response_format import clean_narrative_metadata
+    assert clean_narrative_metadata('The bridge sways. {"inventory": ["rope"], "objective": "secret"}') == 'The bridge sways.'
+    assert clean_narrative_metadata('The sign says {"answer": 42}') == 'The sign says {"answer": 42}'

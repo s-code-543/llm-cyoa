@@ -76,8 +76,17 @@ test("configuration form shows server validation inline", async () => {
     });
   });
   wrap("/manage/configurations/new", "/manage/configurations/new", <ConfigNewPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Create configuration" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add judge step" }));
+  fireEvent.click(screen.getByLabelText("Give classifier full conversation context"));
+  fireEvent.click(screen.getByLabelText("Give rewriter full conversation context"));
+  fireEvent.click(screen.getByLabelText("Give comparator full conversation context"));
+  fireEvent.click(screen.getByRole("button", { name: "Create configuration" }));
   expect(await screen.findByText("Configuration name is required.")).toBeTruthy();
+  expect(api).toHaveBeenCalledWith("/api/v1/admin/configurations", expect.objectContaining({
+    payload: expect.objectContaining({judge_steps: [expect.objectContaining({
+      classifier_use_full_context: true, rewrite_use_full_context: true, compare_use_full_context: true,
+    })]}),
+  }));
 });
 
 test("workflow editor adds, reorders and removes steps", () => {

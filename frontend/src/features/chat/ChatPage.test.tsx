@@ -156,3 +156,40 @@ test("rollback requires confirmation and accepts the returned transcript", async
     api.mock.calls.find(([path]) => path.endsWith("/rollback"))?.[1],
   ).toMatchObject({ message_id: 1 });
 });
+
+test("admin debug toggle opens a trace and closes when disabled", async () => {
+  api.mockImplementation(async (path) => {
+    if (path === "bootstrap")
+      return { configurations: [], debug_allowed: true };
+    if (path.includes("/debug"))
+      return {
+        status: "completed",
+        steps: [
+          {
+            index: 0,
+            type: "GenerateTurn",
+            status: "completed",
+            elapsed_ms: 42,
+            input: { action: "Go" },
+            output: { narrative: "Snow" },
+            model_requests: [],
+            configuration: {},
+          },
+        ],
+      };
+    return { conversation: game };
+  });
+  show();
+  await screen.findByText("The snow is deep.");
+  expect(
+    screen.queryByRole("button", { name: "Debug narrator response 1" }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Debug mode" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Debug narrator response 1" }),
+  );
+  await screen.findByText("1. GenerateTurn · completed · 42 ms");
+  expect(screen.getByLabelText("Pipeline debug")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Debug mode" }));
+  expect(screen.queryByLabelText("Pipeline debug")).toBeNull();
+});

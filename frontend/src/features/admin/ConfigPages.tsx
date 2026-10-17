@@ -155,6 +155,9 @@ function StepEditor({
       <Field label="Classifier question">
         <input value={step.classifier_question} onChange={(e) => set("classifier_question", e.target.value)} />
       </Field>
+      <label>
+        <input type="checkbox" checked={step.classifier_use_full_context} onChange={(e) => set("classifier_use_full_context", e.target.checked)} /> Give classifier full conversation context
+      </label>
       <h4>Rewrite</h4>
       <Pick label="Rewrite prompt" value={step.rewrite_prompt} onChange={(v) => set("rewrite_prompt", v)} choices={prompts} error={err("rewrite_prompt")} />
       <Pick label="Rewrite model" value={step.rewrite_model} onChange={(v) => set("rewrite_model", v)} choices={models} error={err("rewrite_model")} />
@@ -163,6 +166,9 @@ function StepEditor({
       <Field label="Rewrite instruction">
         <input value={step.rewrite_instruction} onChange={(e) => set("rewrite_instruction", e.target.value)} />
       </Field>
+      <label>
+        <input type="checkbox" checked={step.rewrite_use_full_context} onChange={(e) => set("rewrite_use_full_context", e.target.checked)} /> Give rewriter full conversation context
+      </label>
       <h4>Compare</h4>
       <Pick label="Compare prompt" value={step.compare_prompt} onChange={(v) => set("compare_prompt", v)} choices={prompts} error={err("compare_prompt")} />
       <Pick label="Compare model" value={step.compare_model} onChange={(v) => set("compare_model", v)} choices={models} error={err("compare_model")} />
@@ -170,6 +176,9 @@ function StepEditor({
       <Field label="Compare question">
         <input value={step.compare_question} onChange={(e) => set("compare_question", e.target.value)} />
       </Field>
+      <label>
+        <input type="checkbox" checked={step.compare_use_full_context} onChange={(e) => set("compare_use_full_context", e.target.checked)} /> Give comparator full conversation context
+      </label>
       <div className="toolbar">
         <button type="button" onClick={onRemove}>Remove judge step {index + 1}</button>
       </div>

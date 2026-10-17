@@ -154,3 +154,25 @@ def test_requested_items_do_not_exempt_unrelated_gifts():
     policy = inventory.plan_award({}, {'probability': 0}, 2, 0.5)
     with pytest.raises(ValueError, match='spontaneously'):
         inventory.additions([], ['gold bar', 'bonus key'], policy, ['gold bar'])
+
+
+@pytest.mark.django_db
+def test_inventory_repair_recovers_missing_json_and_requested_acquisition(user, configuration):
+    configuration.enable_refusal_detection = False
+    configuration.workflow = spec(probability=0)
+    configuration.save()
+    conv = ChatConversationFactory(user=user, metadata={'config_id': configuration.pk})
+    repaired = 'Turn 1 of 10\nYou take the rope from the vendor.\n1) Cross\n2) Wait'
+    llm = Mock(side_effect=[
+        repaired + '\n```game-state\n{"inventory":["rope"]}\n```',
+        repaired,
+        '```game-state\n{"inventory":["rope"],"_requested_items":["rope"]}\n```',
+    ])
+    result = execute_turn(conv, 'Trade for the rope', call_llm=llm,
+                          correct_refusal=process_potential_refusal, judge_turn=run_judge_pipeline)
+    assert result['message']['content'] == repaired
+    state = GameSession.objects.get(session_id=conv.conversation_id).hidden_state
+    assert state['inventory'] == ['rope']
+    assert state['inventory_policy']['last_grant_turn'] is None
+    assert llm.call_count == 3
+    assert '_requested_items' in llm.call_args.kwargs['system_prompt']

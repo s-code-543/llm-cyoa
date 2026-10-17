@@ -10,6 +10,7 @@ import {
   RadioGroup,
 } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DebugPanel } from "./DebugPanel";
 import { Transcript } from "./Transcript";
 import { ActionComposer } from "./ActionComposer";
 import {
@@ -32,13 +33,22 @@ export function ChatPage() {
   );
   const [needsReview, setNeedsReview] = useState(false);
   const [notice, setNotice] = useState("");
+  const [debugEnabled, setDebugEnabled] = useState(
+    () => localStorage.getItem("cyoa:debug") === "true",
+  );
+  const [debugTarget, setDebugTarget] = useState<number | "failure" | null>(
+    null,
+  );
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [rollbackTarget, setRollbackTarget] = useState<Message | null>(null);
   // Guard synchronously: a second click can arrive before React paints the pending state.
   const submitting = useRef(false);
   const bootstrap = useQuery({
     queryKey: ["bootstrap"],
-    queryFn: () => request<{ configurations: Configuration[] }>("bootstrap"),
+    queryFn: () =>
+      request<{ configurations: Configuration[]; debug_allowed?: boolean }>(
+        "bootstrap",
+      ),
   });
   const conversation = useQuery({
     queryKey: ["conversation", id],
@@ -47,6 +57,10 @@ export function ChatPage() {
     refetchInterval: (query) =>
       query.state.data?.conversation.pending_request_id ? 2000 : false,
   });
+  const debugAllowed = Boolean(bootstrap.data?.debug_allowed);
+  useEffect(() => {
+    setDebugTarget(null);
+  }, [id]);
   const game = conversation.data?.conversation;
   useEffect(() => {
     localStorage.setItem(draftKey, draft);
@@ -168,9 +182,13 @@ export function ChatPage() {
   );
   return (
     <div>
-      <main className="mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-7xl flex-col gap-1.5 px-2 pt-1.5 lg:grid lg:min-h-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-4 lg:py-8">
+      <main
+        className={`mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-7xl flex-col gap-1.5 px-2 pt-1.5 lg:grid lg:min-h-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-4 lg:py-8 ${debugAllowed && debugEnabled && debugTarget !== null ? "!max-w-[1800px] lg:!grid-cols-[220px_minmax(0,1fr)_minmax(340px,0.85fr)]" : ""}`}
+      >
         <aside className="flex flex-col gap-1.5 lg:sticky lg:top-24 lg:gap-4">
-          <Card className={`gap-0 bg-linear-to-br from-brand to-brand-coral text-white max-lg:rounded-2xl max-lg:py-2 ${game ? "max-lg:hidden" : ""}`}>
+          <Card
+            className={`gap-0 bg-linear-to-br from-brand to-brand-coral text-white max-lg:rounded-2xl max-lg:py-2 ${game ? "max-lg:hidden" : ""}`}
+          >
             <Card.Header>
               <p className="hidden text-xs font-bold tracking-[0.2em] opacity-80 lg:block">
                 {game ? "NOW PLAYING" : "BEGIN A STORY"}
@@ -234,7 +252,16 @@ export function ChatPage() {
                       {game.state.inventory.map((item, i) => (
                         <li key={i}>
                           <Chip
-                            color={(["accent", "success", "warning", "danger"] as const)[i % 4]}
+                            color={
+                              (
+                                [
+                                  "accent",
+                                  "success",
+                                  "warning",
+                                  "danger",
+                                ] as const
+                              )[i % 4]
+                            }
                           >
                             {item}
                           </Chip>
@@ -254,8 +281,37 @@ export function ChatPage() {
               </a>
             </>
           )}
+          {debugAllowed && (
+            <label className="flex items-center gap-2 p-2 text-sm font-bold">
+              <input
+                type="checkbox"
+                checked={debugEnabled}
+                onChange={(event) => {
+                  setDebugEnabled(event.target.checked);
+                  localStorage.setItem(
+                    "cyoa:debug",
+                    String(event.target.checked),
+                  );
+                  if (!event.target.checked) setDebugTarget(null);
+                }}
+              />{" "}
+              Debug mode
+            </label>
+          )}
+          {debugAllowed && debugEnabled && game && (
+            <button
+              type="button"
+              className="p-2 text-sm underline"
+              onClick={() => setDebugTarget("failure")}
+            >
+              Inspect latest failed attempt
+            </button>
+          )}
         </aside>
-        <section className="flex min-w-0 flex-1 flex-col gap-3 lg:gap-6" aria-label="Adventure">
+        <section
+          className="flex min-w-0 flex-1 flex-col gap-3 lg:gap-6"
+          aria-label="Adventure"
+        >
           <div
             className={`items-center justify-between ${game ? "hidden lg:flex" : "flex"}`}
           >
@@ -283,6 +339,8 @@ export function ChatPage() {
                 busy={busy}
                 waiting={send.isPending}
                 onRollback={setRollbackTarget}
+                debugEnabled={debugAllowed && debugEnabled}
+                onDebug={(message) => setDebugTarget(message.id)}
               />
               {game.pending_request_id && (
                 <Alert status="warning" role="status">
@@ -357,6 +415,14 @@ export function ChatPage() {
             </Alert>
           )}
         </section>
+        {debugAllowed && debugEnabled && debugTarget !== null && id && (
+          <DebugPanel
+            key={`${id}:${debugTarget}`}
+            conversationId={id}
+            messageId={debugTarget}
+            onClose={() => setDebugTarget(null)}
+          />
+        )}
       </main>
       <Modal
         isOpen={Boolean(rollbackTarget)}

@@ -135,3 +135,34 @@ def test_cannot_reuse_someone_elses_creation_id(auth_client, admin_user, configu
     other = ChatConversationFactory(user=admin_user)
     response = post(auth_client, 'conversations', {'request_id': other.conversation_id, 'config_id': configuration.pk})
     assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_debug_requires_admin_and_ownership(auth_client, admin_client, adventure):
+    path = BASE + f'conversations/{adventure.conversation_id}/debug'
+    assert auth_client.get(path).status_code == 403
+    assert admin_client.get(path).status_code == 404
+
+
+@pytest.mark.django_db
+def test_debug_records_model_calls_and_failure(admin_client, admin_user, configuration):
+    adventure = ChatConversationFactory(user=admin_user, metadata={'config_id': configuration.pk})
+    configuration.enable_refusal_detection = False
+    configuration.save()
+    path = f'conversations/{adventure.conversation_id}'
+    with patch('game.chat_views.call_llm', return_value='Turn 1 of 10\nSnow.\n1) Enter\n2) Wait'):
+        sent = post(admin_client, path + '/turns', {'message': 'Go', 'request_id': str(uuid.uuid4())})
+    assert sent.status_code == 200
+    message_id = sent.json()['conversation']['messages'][-1]['id']
+    data = admin_client.get(BASE + path + f'/debug?message_id={message_id}').json()
+    generation = next(step for step in data['steps'] if step['type'] == 'GenerateTurn')
+    assert generation['input']['action'] == 'Go'
+    assert generation['model_requests'][0]['output'].startswith('Turn 1')
+    assert generation['model_requests'][0]['input']['system_prompt']
+    assert data['steps'][-1]['status'] == 'completed'
+    with patch('game.chat_views.call_llm', side_effect=RuntimeError('Provider unavailable')):
+        failed = post(admin_client, path + '/turns', {'message': 'Wait', 'request_id': str(uuid.uuid4())})
+    assert failed.status_code >= 400
+    debug = admin_client.get(BASE + path + '/debug').json()
+    assert debug['steps'][-1]['status'] == 'failed'
+    assert debug['steps'][-1]['model_requests'][0]['error'] == 'Provider unavailable'

@@ -105,7 +105,7 @@ def snapshot(conversation):
 @player_api
 @require_http_methods(['GET'])
 def bootstrap(request):
-    return JsonResponse({'configurations': list(Configuration.objects.filter(storyteller_model__isnull=False).values('id', 'name'))})
+    return JsonResponse({'debug_allowed': request.user.is_staff, 'configurations': list(Configuration.objects.filter(storyteller_model__isnull=False).values('id', 'name'))})
 
 
 @player_api
@@ -214,3 +214,22 @@ def send(request, conversation_id):
 @require_http_methods(['POST'])
 def rollback(request, conversation_id):
     return mutate(request, conversation_id, 'rollback')
+
+
+@player_api
+@require_http_methods(['GET'])
+def debug(request, conversation_id):
+    """Full prompts and hidden state are available only to the owning admin."""
+    if not request.user.is_staff:
+        return error('forbidden', 'Administrator access required.', 403)
+    conversation = owned(request, conversation_id)
+    message_id = request.GET.get('message_id')
+    if message_id:
+        message = get_object_or_404(conversation.messages, pk=int(message_id), role='assistant')
+        steps = message.metadata.get('pipeline_debug')
+        return JsonResponse({'steps': steps, 'status': 'blocked' if message.metadata.get('is_error') else 'completed'})
+    from .models import AuditLog
+    failure = AuditLog.objects.filter(details__conversation_id=conversation_id,
+                                     details__type='workflow_error').order_by('-id').first()
+    return JsonResponse({'steps': failure.details.get('pipeline_debug') if failure else None,
+                         'status': 'failed', 'error': failure.details.get('error') if failure else None})

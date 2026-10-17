@@ -7,19 +7,33 @@ type Props = {
   messages: Message[];
   busy: boolean;
   waiting: boolean;
+  debugEnabled?: boolean;
+  onDebug?: (message: Message) => void;
   onRollback: (message: Message) => void;
 };
-export function Transcript({ messages, busy, waiting, onRollback }: Props) {
+export function Transcript({
+  messages,
+  busy,
+  waiting,
+  onRollback,
+  debugEnabled,
+  onDebug,
+}: Props) {
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
   return (
-    <div className="flex flex-col gap-3 max-lg:flex-1 lg:gap-5" aria-label="Conversation">
+    <div
+      className="flex flex-col gap-3 max-lg:flex-1 lg:gap-5"
+      aria-label="Conversation"
+    >
       {!messages.length && (
         <div className="rounded-3xl border-2 border-dashed border-grape/25 bg-surface/60 px-6 py-8 text-center lg:py-12">
           <span className="text-4xl text-sun">✦</span>
-          <h2 className="mt-2 font-story text-2xl">How does your story begin?</h2>
+          <h2 className="mt-2 font-story text-2xl">
+            How does your story begin?
+          </h2>
           <p className="mt-1 text-muted">Describe your first action below.</p>
         </div>
       )}
@@ -47,7 +61,9 @@ export function Transcript({ messages, busy, waiting, onRollback }: Props) {
           <article
             key={message.id}
             className={`relative max-w-full overflow-hidden rounded-3xl rounded-tl-md border bg-surface p-4 pl-6 lg:max-w-[95%] lg:p-6 lg:pl-8 shadow-lg shadow-grape/10 ${
-              message.is_error ? "border-danger/40 bg-coral-soft" : "border-grape/10"
+              message.is_error
+                ? "border-danger/40 bg-coral-soft"
+                : "border-grape/10"
             }`}
           >
             <span
@@ -63,6 +79,16 @@ export function Transcript({ messages, busy, waiting, onRollback }: Props) {
                 {message.is_error ? "HICCUP" : "NARRATOR"}
               </Chip>
               <span className="text-xs text-muted">{time}</span>
+              {debugEnabled && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onPress={() => onDebug?.(message)}
+                  aria-label={`Debug narrator response ${message.id}`}
+                >
+                  Debug
+                </Button>
+              )}
             </div>
             {message.image_url && (
               <img
@@ -73,7 +99,9 @@ export function Transcript({ messages, busy, waiting, onRollback }: Props) {
               />
             )}
             {message.image_failed && (
-              <p className="mb-3 text-xs text-muted">The scene illustration couldn’t be generated this turn.</p>
+              <p className="mb-3 text-xs text-muted">
+                The scene illustration couldn’t be generated this turn.
+              </p>
             )}
             <div className="story-prose">
               <Markdown skipHtml>{message.content}</Markdown>

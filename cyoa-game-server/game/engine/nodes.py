@@ -13,7 +13,7 @@ from django.db import transaction
 from ..config_utils import get_conversation_configuration, apply_pacing_template
 from ..difficulty_utils import should_trigger_death
 from ..models import AuditLog, ChatConversation, ChatMessage, GameSession
-from ..response_format import ENDING_INSTRUCTION, extract_game_state, is_story_ending, public_metadata, parse_state_response
+from ..response_format import ENDING_INSTRUCTION, extract_game_state, is_story_ending, public_metadata, parse_state_response, clean_narrative_metadata, normalize_turn_header
 from .python_steps import run_python
 from . import inventory
 
@@ -45,6 +45,7 @@ class Turn:
     proposed_state: dict = field(default_factory=dict)
     random_results: dict = field(default_factory=dict)
     trace: list = field(default_factory=list)
+    debug_steps: list = field(default_factory=list)
     refusal: dict = field(default_factory=dict)
     judge: object = None
     forced_ending: bool = False
@@ -70,13 +71,17 @@ class Turn:
         if context:
             kwargs['system_prompt'] = (kwargs.get('system_prompt') or '') + '\n\n' + context
         model = kwargs.get('llm_model')
-        record = {'model': getattr(model, 'name', None), 'status': 'failed'}
+        record = {'model': getattr(model, 'name', None), 'status': 'failed',
+                  'input': json.loads(json.dumps({key: value for key, value in kwargs.items() if key != 'llm_model'}))}
         started = time.monotonic()
         self.model_requests.append(record)
         try:
             result = self.call_llm(**kwargs)
-            record.update(status='completed', **getattr(result, 'billing', {}))
+            record.update(status='completed', output=str(result), **getattr(result, 'billing', {}))
             return result
+        except Exception as error:
+            record['error'] = str(error)
+            raise
         finally:
             record['elapsed_ms'] = round((time.monotonic() - started) * 1000)
 
@@ -180,9 +185,14 @@ def concatenate_prompt(turn, step):
         turn.context += '\n' + fragment
 
 
+def story_prompt_for_turn(turn):
+    ending = turn.forced_ending or turn.session.turn_number >= turn.session.max_turns
+    return turn.config.game_ending_prompt if ending and turn.config.game_ending_prompt else turn.config.adventure_prompt
+
+
 def generate_turn(turn, step):
     config = turn.config
-    prompt = config.game_ending_prompt if turn.forced_ending and config.game_ending_prompt else config.adventure_prompt
+    prompt = story_prompt_for_turn(turn)
     turn.prompt = apply_pacing_template(prompt.prompt_text, config) + ENDING_INSTRUCTION
     workflow_nodes = turn.session.workflow_snapshot['nodes']
     if any(node['type'] == 'ExtractJSON' for node in workflow_nodes):
@@ -247,7 +257,10 @@ def extract_json(turn, step):
                 'Return only one fenced game-state block containing a JSON object. '
                 'Do not repeat or rewrite the narrative. Only update these top-level fields: '
                 + json.dumps(allowed) + '. Use {} when no updates are supported. '
-                'Current authoritative state: ' + json.dumps(turn.state)
+                + ('Also include _requested_items for successfully acquired items deliberately requested '
+                   'by the latest action; do not tag unsolicited gifts. Latest player action: '
+                   + turn.action + '. ' if turn.inventory_policy else '')
+                + 'Current authoritative state: ' + json.dumps(turn.state)
             ),
             llm_model=turn.config.turn_correction_model or turn.config.storyteller_model,
             timeout=turn.config.turn_correction_timeout,
@@ -265,7 +278,7 @@ def extract_json(turn, step):
         turn.trace.append({'type': 'RepairStateJSON', 'status': 'completed'})
     turn.proposed_state = proposal
     turn.json_mode = step.get('mode', 'merge')
-    turn.candidate = narrative
+    turn.candidate = clean_narrative_metadata(narrative)
 
 
 def check_inventory_narration(turn, proposed):
@@ -284,7 +297,10 @@ def check_inventory_narration(turn, proposed):
             'Check inventory consistency in this fictional game turn. Answer PASS or FAIL '
             'on the first line, then one short reason. FAIL if completed acquisition, '
             'consumption, loss, or destruction in the narration contradicts before/after inventory, '
-            'or items disappear without explanation. Taking or pocketing an object means acquiring it. '
+            'or items disappear without explanation. Every item removed from before_inventory must have '
+            'an explicit completed loss, consumption, transfer or destruction in the narration; otherwise FAIL. '
+            'A narration saying an item remains, is retained, or is securely fastened requires that item '
+            'to appear in after_inventory. Taking or pocketing an object means acquiring it. '
             'Do not count suggested choices or unsuccessful attempted actions as completed. '
             'An inventory may be cleared by death or destruction. Use common-sense name equivalence. '
             'If before and after inventory are unchanged but the narration says you pocket '
@@ -307,8 +323,12 @@ def apply_state_changes(turn, step):
     allowed = step.get('allowed_keys', [])
     proposal = deepcopy(turn.proposed_state)
     requested = proposal.pop('_requested_items', []) if turn.inventory_policy else []
-    if any(key not in allowed for key in proposal):
-        raise ValueError('Narrator proposed changes to a protected state field')
+    for key in list(proposal):
+        if key not in allowed:
+            if key not in turn.state or proposal[key] != turn.state[key]:
+                raise ValueError('Narrator proposed changes to a protected state field')
+            # Models sometimes echo the whole ledger; unchanged protected values are not updates.
+            del proposal[key]
     if turn.inventory_policy:
         try:
             inventory.additions(turn.state.get('inventory', []), proposal.get('inventory', turn.state.get('inventory', [])), turn.inventory_policy, requested)
@@ -317,6 +337,7 @@ def apply_state_changes(turn, step):
             # A prompt alone is not enforcement. Give one bounded narrative repair
             # so the prose and inventory cannot disagree about an awarded object.
             repaired = turn.model_call(
+                _metadata_only=True,
                 messages=turn.messages + [{'role': 'user', 'content': (
                     'The draft below is INVALID and has NOT happened. ' + str(error)
                     + '. The attempted action is intent, not guaranteed success. '
@@ -331,22 +352,28 @@ def apply_state_changes(turn, step):
                     + '. Current award permission is: ' + json.dumps(turn.inventory_policy)
                     + '. Do not lecture or mention game mechanics. '
                     'Return the full corrected narrative, choices if ongoing, and one game-state JSON block. '
-                    'Propose changes only to these fields: ' + json.dumps(allowed)
+                    'Propose changes only to these fields: ' + json.dumps(allowed + ['_requested_items'])
+                    + '. If the player deliberately acquired an item, _requested_items MUST list its exact name. '
+                    + f'This is turn {turn.session.turn_number} of {turn.session.max_turns}. '
                     + '\nTURN TO FIX:\n' + turn.candidate
                     + '\nPROPOSED CHANGES:\n' + json.dumps(proposal)
                 )}],
-                system_prompt=turn.prompt,
+                system_prompt=('Repair the fictional narrative as directed by the final user message. '
+                               'Return the revised narrative, exactly two choices if ongoing, and exactly one '
+                               'fenced game-state JSON object. Include _requested_items for deliberate acquisitions. '
+                               'Never provide dangerous real-world instructions.'),
                 llm_model=turn.config.turn_correction_model or turn.config.storyteller_model,
                 timeout=turn.config.turn_correction_timeout,
             )
-            narrative, proposal = _parse_state_block(repaired)
-            turn.proposed_state = deepcopy(proposal)
+            turn.candidate = repaired
+            extract_json(turn, {})
+            narrative, proposal = turn.candidate, deepcopy(turn.proposed_state)
             requested = proposal.pop('_requested_items', [])
             if any(key not in allowed for key in proposal):
                 raise ValueError('Inventory repair changed a protected state field')
             inventory.additions(turn.state.get('inventory', []), proposal.get('inventory', turn.state.get('inventory', [])),
                                 turn.inventory_policy, requested)
-            turn.candidate = narrative
+            turn.candidate = clean_narrative_metadata(narrative)
             check_inventory_narration(turn, proposal)
             turn.proposed_state = proposal
             turn.trace.append({'type': 'RepairInventoryAward', 'status': 'completed'})
@@ -369,6 +396,7 @@ def validate_turn(turn, step):
         raise TimeoutError('Turn model-call budget exhausted')
     if len(json.dumps(turn.state, allow_nan=False).encode()) > 1024 * 1024:
         raise ValueError('Hidden state exceeds 1 MB')
+    turn.candidate = normalize_turn_header(turn.candidate, turn.session.turn_number, turn.session.max_turns)
     parsed = extract_game_state(turn.candidate)
     terminal = is_story_ending(turn.candidate)
     if step.get('strict', True):
@@ -413,6 +441,7 @@ def _save(turn, *, blocked=False):
                     'judge_info': turn.judge, 'is_error': blocked,
                     'game_over': session.game_over if not blocked else False,
                     'turn_number': visible['turn_current'],
+                    'pipeline_debug': turn.debug_steps,
                     'workflow_trace': turn.trace + [{'type': 'SaveGame', 'status': 'completed'}]}
         if not blocked:
             session.hidden_state = turn.state
@@ -431,8 +460,10 @@ def _save(turn, *, blocked=False):
             classifier_response=(turn.refusal.get('attempts') or [{}])[0].get(
                 'classifier_response', turn.refusal.get('classifier_response', '')
             ),
-            prompt_used=turn.config.adventure_prompt,
+            prompt_used=story_prompt_for_turn(turn),
             details={'type': 'refusal' if blocked or turn.refusal.get('was_refusal') else 'judge' if turn.judge else 'happy_path',
+                     'conversation_id': turn.conversation.conversation_id, 'message_id': message.pk,
+                     'pipeline_debug': turn.debug_steps,
                      'turn_number': visible['turn_current'], 'trace': metadata['workflow_trace'],
                      'refusal_info': turn.refusal, 'judge_info': turn.judge, 'random_results': turn.random_results,
                      'model_requests': turn.model_requests},
@@ -462,8 +493,10 @@ def record_failure(turn, step, error):
     AuditLog.objects.create(
         original_text=turn.original, refined_text=turn.candidate,
         was_modified=turn.original != turn.candidate,
-        prompt_used=turn.config.adventure_prompt,
-        details={'type': 'workflow_error', 'node': step['type'], 'error': str(error),
+        prompt_used=story_prompt_for_turn(turn),
+        details={'conversation_id': turn.conversation.conversation_id,
+                 'pipeline_debug': turn.debug_steps, 'action': turn.action,
+                 'type': 'workflow_error', 'node': step['type'], 'error': str(error),
                  'trace': turn.trace, 'random_results': turn.random_results,
                  'turn_number': turn.session.turn_number, 'model_requests': turn.model_requests},
     )

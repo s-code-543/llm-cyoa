@@ -39,3 +39,6 @@ docs/*playtest*.md
 
 ignored/
 .DS_Store
+
+# Local interactive test reports and media
+docs/playtests/
