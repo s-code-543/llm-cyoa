@@ -12,6 +12,59 @@ type Step = {
   configuration: unknown;
   model_requests: unknown[];
 };
+function TraceValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  if (typeof value === "string") {
+    return (
+      <pre className="trace-text">
+        <code>{value || "(empty string)"}</code>
+      </pre>
+    );
+  }
+  if (value === null || typeof value !== "object") {
+    return (
+      <code className="trace-scalar">
+        {value === undefined ? "Not recorded" : JSON.stringify(value)}
+      </code>
+    );
+  }
+  const entries = Object.entries(value);
+  if (!entries.length)
+    return (
+      <p className="trace-empty">
+        {Array.isArray(value) ? "No entries" : "No fields"}
+      </p>
+    );
+  return (
+    <div className="trace-fields">
+      {entries.map(([key, child]) => {
+        const nested = child !== null && typeof child === "object";
+        const label = Array.isArray(value) ? `Item ${Number(key) + 1}` : key;
+        return (
+          <div key={key} className="trace-field">
+            {nested ? (
+              <details open={depth < 1}>
+                <summary>
+                  {label}
+                  <span className="trace-count">
+                    {Object.keys(child).length}{" "}
+                    {Array.isArray(child) ? "items" : "fields"}
+                  </span>
+                </summary>
+                <TraceValue value={child} depth={depth + 1} />
+              </details>
+            ) : (
+              <>
+                <div className="trace-key">{label}</div>
+                <TraceValue value={child} depth={depth + 1} />
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DebugPanel({
   conversationId,
   messageId,
@@ -30,11 +83,8 @@ export function DebugPanel({
   });
   const data = query.data;
   return (
-    <aside
-      aria-label="Pipeline debug"
-      className="min-w-0 rounded-2xl border border-grape/20 bg-surface p-4 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto"
-    >
-      <div className="flex items-center justify-between gap-3">
+    <aside aria-label="Pipeline debug" className="pipeline-debug">
+      <div className="trace-heading">
         <h2 className="font-bold">Pipeline debug</h2>
         <button type="button" onClick={onClose} className="underline">
           Close debug panel
@@ -71,7 +121,7 @@ export function DebugPanel({
           {data.steps?.map((step) => (
             <details
               key={step.index}
-              className="mb-3 rounded-xl border border-grape/20 p-3"
+              className="trace-step"
               open={step.status === "failed"}
             >
               <summary className="cursor-pointer text-sm font-bold">
@@ -90,9 +140,15 @@ export function DebugPanel({
               ).map(([label, value]) => (
                 <details key={label} className="mt-3">
                   <summary className="cursor-pointer text-sm">{label}</summary>
-                  <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-grape/5 p-3 text-xs">
-                    {JSON.stringify(value, null, 2)}
-                  </pre>
+                  <div className="trace-section">
+                    <TraceValue value={value} />
+                  </div>
+                  <details className="trace-raw">
+                    <summary>Raw JSON</summary>
+                    <pre className="trace-text">
+                      <code>{JSON.stringify(value, null, 2)}</code>
+                    </pre>
+                  </details>
                 </details>
               ))}
             </details>

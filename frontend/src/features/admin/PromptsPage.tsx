@@ -1,3 +1,4 @@
+import { Accordion, Button, Card } from "@heroui/react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,35 +14,112 @@ import {
 } from "../../api/admin";
 
 export function PromptListPage() {
-  const prompts = useQuery({ queryKey: ["admin", "prompts"], queryFn: getPrompts });
-  if (prompts.isPending) return <p className="empty" role="status">Loading…</p>;
-  if (prompts.error) return <p className="empty" role="alert">{prompts.error.message}</p>;
+  const navigate = useNavigate();
+  const prompts = useQuery({
+    queryKey: ["admin", "prompts"],
+    queryFn: getPrompts,
+  });
+  if (prompts.isPending)
+    return (
+      <p className="empty" role="status">
+        Loading…
+      </p>
+    );
+  if (prompts.error)
+    return (
+      <p className="empty" role="alert">
+        {prompts.error.message}
+      </p>
+    );
   const { types, prompts: all } = prompts.data;
   return (
     <>
-      <h1>Prompts</h1>
-      <p><Link to="/manage/prompts/new">New prompt</Link></p>
+      <div className="page-heading">
+        <div>
+          <h1>Prompts</h1>
+          <p className="text-muted">
+            Edit current prompts and browse revision history.
+          </p>
+        </div>
+        <Button onPress={() => navigate("/manage/prompts/new")}>
+          New prompt
+        </Button>
+      </div>
       {types.map((type) => {
         const byName = new Map<string, PromptSummary[]>();
-        all.filter((p) => p.type === type.value).forEach((p) =>
-          byName.set(p.name, [...(byName.get(p.name) ?? []), p]),
-        );
+        all
+          .filter((p) => p.type === type.value)
+          .forEach((p) =>
+            byName.set(p.name, [...(byName.get(p.name) ?? []), p]),
+          );
         if (!byName.size) return null;
         return (
           <section key={type.value} aria-label={type.label}>
             <h2>{type.label}</h2>
-            <ul className="plain">
-              {[...byName].map(([name, versions]) => (
-                <li key={name}>
-                  <strong>{name}</strong>{" "}
-                  {versions.map((p) => (
-                    <Link key={p.id} to={`/manage/prompts/${p.id}`} title={p.description}>
-                      v{p.version}{" "}
-                    </Link>
-                  ))}
-                </li>
-              ))}
-            </ul>
+            <div className="prompt-grid">
+              {[...byName].map(([name, versions]) => {
+                const sorted = [...versions].sort(
+                  (a, b) => b.version - a.version,
+                );
+                const current = sorted[0];
+                return (
+                  <Card key={name} className="admin-panel">
+                    <Card.Content>
+                      <div className="page-heading">
+                        <div>
+                          <h3 className="text-lg font-semibold break-words">
+                            {name}
+                          </h3>
+                          <span className="badge">
+                            Current · v{current.version}
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          onPress={() =>
+                            navigate(`/manage/prompts/${current.id}`)
+                          }
+                        >
+                          Edit current
+                        </Button>
+                      </div>
+                      <p className="text-muted mt-3">
+                        {current.description || "No description provided."}
+                      </p>
+                      {sorted.length > 1 && (
+                        <Accordion className="mt-4">
+                          <Accordion.Item id={`history-${current.id}`}>
+                            <Accordion.Heading>
+                              <Accordion.Trigger>
+                                Previous revisions ({sorted.length - 1})
+                                <Accordion.Indicator />
+                              </Accordion.Trigger>
+                            </Accordion.Heading>
+                            <Accordion.Panel>
+                              <Accordion.Body>
+                                <ul className="revision-list">
+                                  {sorted.slice(1).map((p) => (
+                                    <li key={p.id}>
+                                      <Link to={`/manage/prompts/${p.id}`}>
+                                        <strong>v{p.version}</strong>
+                                        <span>
+                                          {p.description || "No description"}
+                                        </span>
+                                        <span aria-hidden>→</span>
+                                      </Link>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </Accordion.Body>
+                            </Accordion.Panel>
+                          </Accordion.Item>
+                        </Accordion>
+                      )}
+                    </Card.Content>
+                  </Card>
+                );
+              })}
+            </div>
           </section>
         );
       })}
@@ -52,7 +130,10 @@ export function PromptListPage() {
 function PromptForm({ prompt }: { prompt?: PromptDetail }) {
   const navigate = useNavigate();
   const cache = useQueryClient();
-  const types = useQuery({ queryKey: ["admin", "prompts"], queryFn: getPrompts });
+  const types = useQuery({
+    queryKey: ["admin", "prompts"],
+    queryFn: getPrompts,
+  });
   const [type, setType] = useState("adventure");
   const [name, setName] = useState("");
   const [description, setDescription] = useState(prompt?.description ?? "");
@@ -83,7 +164,8 @@ function PromptForm({ prompt }: { prompt?: PromptDetail }) {
     onSuccess: (result) => done(result.prompt, result.message),
   });
   const failure = [save, version, create, disk].find((m) => m.error)?.error;
-  const busy = save.isPending || version.isPending || create.isPending || disk.isPending;
+  const busy =
+    save.isPending || version.isPending || create.isPending || disk.isPending;
 
   return (
     <form
@@ -99,31 +181,51 @@ function PromptForm({ prompt }: { prompt?: PromptDetail }) {
             Type
             <select value={type} onChange={(e) => setType(e.target.value)}>
               {(types.data?.types ?? []).map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
               ))}
             </select>
           </label>
           <label>
             Name
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
           </label>
         </>
       )}
       <label>
         Description
-        <input value={description} onChange={(e) => setDescription(e.target.value)} />
+        <input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
       </label>
       <label>
         Prompt text
-        <textarea rows={20} value={text} onChange={(e) => setText(e.target.value)} required />
+        <textarea
+          rows={20}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          required
+        />
       </label>
       {notice && <p role="status">{notice}</p>}
       {failure && <p role="alert">{failure.message}</p>}
       <div className="toolbar">
-        <button type="submit" disabled={busy}>{prompt ? "Save changes" : "Create prompt"}</button>
+        <button type="submit" disabled={busy}>
+          {prompt ? "Save changes" : "Create prompt"}
+        </button>
         {prompt && (
           <>
-            <button type="button" disabled={busy} onClick={() => version.mutate()}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => version.mutate()}
+            >
               Save as new version
             </button>
             <button type="button" disabled={busy} onClick={() => disk.mutate()}>
@@ -138,22 +240,44 @@ function PromptForm({ prompt }: { prompt?: PromptDetail }) {
 
 export function PromptEditPage() {
   const id = Number(useParams().id);
-  const prompt = useQuery({ queryKey: ["admin", "prompt", id], queryFn: () => getPrompt(id) });
+  const prompt = useQuery({
+    queryKey: ["admin", "prompt", id],
+    queryFn: () => getPrompt(id),
+  });
   const navigate = useNavigate();
-  if (prompt.isPending) return <p className="empty" role="status">Loading…</p>;
-  if (prompt.error) return <p className="empty" role="alert">{prompt.error.message}</p>;
+  if (prompt.isPending)
+    return (
+      <p className="empty" role="status">
+        Loading…
+      </p>
+    );
+  if (prompt.error)
+    return (
+      <p className="empty" role="alert">
+        {prompt.error.message}
+      </p>
+    );
   const p = prompt.data;
   return (
     <>
-      <p><Link to="/manage/prompts">← Back to prompts</Link></p>
+      <p>
+        <Link to="/manage/prompts">← Back to prompts</Link>
+      </p>
       <h1>{p.name}</h1>
-      <p>Type: {p.type}{p.file_path && ` · File: ${p.file_path}`}</p>
+      <p>
+        Type: {p.type}
+        {p.file_path && ` · File: ${p.file_path}`}
+      </p>
       <label>
         Version{" "}
-        <select value={p.id} onChange={(e) => navigate(`/manage/prompts/${e.target.value}`)}>
+        <select
+          value={p.id}
+          onChange={(e) => navigate(`/manage/prompts/${e.target.value}`)}
+        >
           {p.versions.map((v) => (
             <option key={v.id} value={v.id}>
-              v{v.version}{v.description && ` – ${v.description}`}
+              v{v.version}
+              {v.description && ` – ${v.description}`}
             </option>
           ))}
         </select>
@@ -166,7 +290,9 @@ export function PromptEditPage() {
 export function PromptNewPage() {
   return (
     <>
-      <p><Link to="/manage/prompts">← Back to prompts</Link></p>
+      <p>
+        <Link to="/manage/prompts">← Back to prompts</Link>
+      </p>
       <h1>New prompt</h1>
       <PromptForm />
     </>

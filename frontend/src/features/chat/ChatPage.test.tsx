@@ -173,7 +173,9 @@ test("admin debug toggle opens a trace and closes when disabled", async () => {
             input: { action: "Go" },
             output: { narrative: "Snow" },
             model_requests: [],
-            configuration: {},
+            configuration: {
+              code: 'state["turn"] = 1\nif True:\n    state["ready"] = True',
+            },
           },
         ],
       };
@@ -184,12 +186,15 @@ test("admin debug toggle opens a trace and closes when disabled", async () => {
   expect(
     screen.queryByRole("button", { name: "Debug narrator response 1" }),
   ).toBeNull();
-  fireEvent.click(screen.getByRole("checkbox", { name: "Debug mode" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Debug mode" }));
   fireEvent.click(
     screen.getByRole("button", { name: "Debug narrator response 1" }),
   );
   await screen.findByText("1. GenerateTurn · completed · 42 ms");
   expect(screen.getByLabelText("Pipeline debug")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("checkbox", { name: "Debug mode" }));
+  expect(screen.getByText(/state\["turn"\] = 1/).textContent).toBe(
+    'state["turn"] = 1\nif True:\n    state["ready"] = True',
+  );
+  fireEvent.click(screen.getByRole("switch", { name: "Debug mode" }));
   expect(screen.queryByLabelText("Pipeline debug")).toBeNull();
 });

@@ -1,7 +1,13 @@
+import { Toggle } from "../../components/Toggle";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { clearAudit, getAudit, getAuditEntry, type AuditSummary } from "../../api/admin";
+import {
+  clearAudit,
+  getAudit,
+  getAuditEntry,
+  type AuditSummary,
+} from "../../api/admin";
 
 const when = (iso: string) => new Date(iso).toLocaleString();
 
@@ -10,15 +16,27 @@ export function AuditTable({ logs }: { logs: AuditSummary[] }) {
   return (
     <table className="table">
       <thead>
-        <tr><th>When</th><th>Result</th><th>Original text</th></tr>
+        <tr>
+          <th>When</th>
+          <th>Result</th>
+          <th>Original text</th>
+        </tr>
       </thead>
       <tbody>
         {logs.map((log) => (
           <tr key={log.id}>
-            <td><Link to={`/manage/audit/${log.id}`}>{when(log.timestamp)}</Link></td>
             <td>
-              <span className={`badge ${log.was_refusal ? "refusal" : log.was_modified ? "modified" : ""}`}>
-                {log.was_refusal ? "Refusal" : log.was_modified ? "Modified" : "Unchanged"}
+              <Link to={`/manage/audit/${log.id}`}>{when(log.timestamp)}</Link>
+            </td>
+            <td>
+              <span
+                className={`badge ${log.was_refusal ? "refusal" : log.was_modified ? "modified" : ""}`}
+              >
+                {log.was_refusal
+                  ? "Refusal"
+                  : log.was_modified
+                    ? "Modified"
+                    : "Unchanged"}
               </span>
             </td>
             <td>{log.preview}</td>
@@ -44,20 +62,22 @@ export function AuditPage() {
     <>
       <h1>Audit log</h1>
       <div className="toolbar">
-        <label>
-          <input
-            type="checkbox"
-            checked={modifiedOnly}
-            onChange={(event) => setModifiedOnly(event.target.checked)}
-          />{" "}
+        <Toggle
+          checked={modifiedOnly}
+          onChange={(checked) => setModifiedOnly(checked)}
+        >
           Modified only
-        </label>
+        </Toggle>
         <button
           type="button"
           className="danger"
           disabled={clear.isPending}
           onClick={() => {
-            if (window.confirm("Delete every audit log entry? This cannot be undone."))
+            if (
+              window.confirm(
+                "Delete every audit log entry? This cannot be undone.",
+              )
+            )
               clear.mutate();
           }}
         >
@@ -65,8 +85,16 @@ export function AuditPage() {
         </button>
       </div>
       {clear.error && <p role="alert">{clear.error.message}</p>}
-      {audit.isPending && <p className="empty" role="status">Loading…</p>}
-      {audit.error && <p className="empty" role="alert">{audit.error.message}</p>}
+      {audit.isPending && (
+        <p className="empty" role="status">
+          Loading…
+        </p>
+      )}
+      {audit.error && (
+        <p className="empty" role="alert">
+          {audit.error.message}
+        </p>
+      )}
       {audit.data && <AuditTable logs={audit.data.logs} />}
     </>
   );
@@ -74,15 +102,37 @@ export function AuditPage() {
 
 export function AuditDetailPage() {
   const id = Number(useParams().id);
-  const entry = useQuery({ queryKey: ["admin", "audit", "entry", id], queryFn: () => getAuditEntry(id) });
-  if (entry.isPending) return <p className="empty" role="status">Loading…</p>;
-  if (entry.error) return <p className="empty" role="alert">{entry.error.message}</p>;
+  const entry = useQuery({
+    queryKey: ["admin", "audit", "entry", id],
+    queryFn: () => getAuditEntry(id),
+  });
+  if (entry.isPending)
+    return (
+      <p className="empty" role="status">
+        Loading…
+      </p>
+    );
+  if (entry.error)
+    return (
+      <p className="empty" role="alert">
+        {entry.error.message}
+      </p>
+    );
   const log = entry.data;
   return (
     <>
-      <p><Link to="/manage/audit">← Back to audit log</Link></p>
+      <p>
+        <Link to="/manage/audit">← Back to audit log</Link>
+      </p>
       <h1>Audit entry #{log.id}</h1>
-      <p>{when(log.timestamp)} · {log.was_refusal ? "Refusal" : log.was_modified ? "Modified" : "Unchanged"}</p>
+      <p>
+        {when(log.timestamp)} ·{" "}
+        {log.was_refusal
+          ? "Refusal"
+          : log.was_modified
+            ? "Modified"
+            : "Unchanged"}
+      </p>
       <h2>Original</h2>
       <pre className="textblock">{log.original_text}</pre>
       <h2>Final</h2>

@@ -1,3 +1,4 @@
+import { Toggle } from "../../components/Toggle";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,10 +21,19 @@ export function ProviderListPage() {
   return (
     <>
       <h1>Providers</h1>
-      <p><Link to="/manage/providers/new">Add provider</Link></p>
+      <p>
+        <Link to="/manage/providers/new">Add provider</Link>
+      </p>
       <table className="table">
         <thead>
-          <tr><th>Name</th><th>Type</th><th>Key</th><th>Models</th><th>Last test</th><th /></tr>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Key</th>
+            <th>Models</th>
+            <th>Last test</th>
+            <th />
+          </tr>
         </thead>
         <tbody>
           {providers.data.providers.map((p) => (
@@ -34,8 +44,11 @@ export function ProviderListPage() {
               <td>{p.model_count}</td>
               <td>{p.test_status || "never"}</td>
               <td>
-                <Link to={`/manage/providers/${p.id}`}>Edit</Link>{" · "}
-                <Link to={`/manage/providers/${p.id}/models`}>Browse models</Link>
+                <Link to={`/manage/providers/${p.id}`}>Edit</Link>
+                {" · "}
+                <Link to={`/manage/providers/${p.id}/models`}>
+                  Browse models
+                </Link>
               </td>
             </tr>
           ))}
@@ -45,7 +58,13 @@ export function ProviderListPage() {
   );
 }
 
-function ProviderForm({ provider, types }: { provider?: Provider; types: { value: string; label: string }[] }) {
+function ProviderForm({
+  provider,
+  types,
+}: {
+  provider?: Provider;
+  types: { value: string; label: string }[];
+}) {
   const navigate = useNavigate();
   const cache = useQueryClient();
   const [name, setName] = useState(provider?.name ?? "");
@@ -54,11 +73,21 @@ function ProviderForm({ provider, types }: { provider?: Provider; types: { value
   const [apiKey, setApiKey] = useState("");
   const [clear, setClear] = useState(false);
   const [notice, setNotice] = useState("");
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
 
-  const input = { name, provider_type: type, base_url: baseUrl, api_key: apiKey, clear_api_key: clear };
+  const input = {
+    name,
+    provider_type: type,
+    base_url: baseUrl,
+    api_key: apiKey,
+    clear_api_key: clear,
+  };
   const save = useMutation({
-    mutationFn: () => (provider ? updateProvider(provider.id, input) : createProvider(input)),
+    mutationFn: () =>
+      provider ? updateProvider(provider.id, input) : createProvider(input),
     onSuccess: (saved) => {
       cache.invalidateQueries({ queryKey: key });
       setApiKey("");
@@ -69,7 +98,12 @@ function ProviderForm({ provider, types }: { provider?: Provider; types: { value
   });
   const test = useMutation({
     mutationFn: () =>
-      testProvider({ provider_id: provider?.id, provider_type: type, base_url: baseUrl, api_key: apiKey }),
+      testProvider({
+        provider_id: provider?.id,
+        provider_type: type,
+        base_url: baseUrl,
+        api_key: apiKey,
+      }),
     onSuccess: (result) => {
       setTestResult(result);
       cache.invalidateQueries({ queryKey: key });
@@ -84,7 +118,10 @@ function ProviderForm({ provider, types }: { provider?: Provider; types: { value
     },
   });
   const errors = fieldErrors(save.error);
-  const failure = test.error ?? remove.error ?? (Object.keys(errors).length ? null : save.error);
+  const failure =
+    test.error ??
+    remove.error ??
+    (Object.keys(errors).length ? null : save.error);
 
   return (
     <form
@@ -96,15 +133,27 @@ function ProviderForm({ provider, types }: { provider?: Provider; types: { value
       }}
     >
       <Field label="Name" error={errors.name}>
-        <input value={name} onChange={(e) => setName(e.target.value)} required />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
       </Field>
       <Field label="Type" error={errors.provider_type}>
         <select value={type} onChange={(e) => setType(e.target.value)}>
-          {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {types.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
         </select>
       </Field>
       <Field label="Base URL">
-        <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Only needed for Ollama" />
+        <input
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="Only needed for Ollama"
+        />
       </Field>
       <Field label="API key">
         <input
@@ -112,29 +161,44 @@ function ProviderForm({ provider, types }: { provider?: Provider; types: { value
           autoComplete="off"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder={provider?.has_api_key ? `Stored (ends ${provider.api_key_hint}); leave blank to keep` : ""}
+          placeholder={
+            provider?.has_api_key
+              ? `Stored (ends ${provider.api_key_hint}); leave blank to keep`
+              : ""
+          }
         />
       </Field>
       {provider?.has_api_key && (
-        <label>
-          <input type="checkbox" checked={clear} onChange={(e) => setClear(e.target.checked)} /> Remove stored key
-        </label>
+        <Toggle checked={clear} onChange={(checked) => setClear(checked)}>
+          Remove stored key
+        </Toggle>
       )}
       {notice && <p role="status">{notice}</p>}
       {testResult && (
         <p role={testResult.success ? "status" : "alert"}>
-          {testResult.success ? "Connection OK: " : "Connection failed: "}{testResult.message}
+          {testResult.success ? "Connection OK: " : "Connection failed: "}
+          {testResult.message}
         </p>
       )}
       <Failure error={failure} />
       <div className="toolbar">
-        <button type="submit" disabled={save.isPending}>{provider ? "Save changes" : "Create provider"}</button>
-        <button type="button" disabled={test.isPending} onClick={() => test.mutate()}>Test connection</button>
+        <button type="submit" disabled={save.isPending}>
+          {provider ? "Save changes" : "Create provider"}
+        </button>
+        <button
+          type="button"
+          disabled={test.isPending}
+          onClick={() => test.mutate()}
+        >
+          Test connection
+        </button>
         {provider && (
           <button
             type="button"
             className="danger"
-            onClick={() => window.confirm(`Delete ${provider.name}?`) && remove.mutate()}
+            onClick={() =>
+              window.confirm(`Delete ${provider.name}?`) && remove.mutate()
+            }
           >
             Delete
           </button>
@@ -160,11 +224,20 @@ export function ProviderEditPage() {
   const providers = useQuery({ queryKey: key, queryFn: getProviders });
   if (providers.isPending) return <Loading />;
   const provider = providers.data?.providers.find((p) => p.id === id);
-  if (!provider) return <p className="empty" role="alert">Provider not found.</p>;
+  if (!provider)
+    return (
+      <p className="empty" role="alert">
+        Provider not found.
+      </p>
+    );
   return (
     <>
       <h1>{provider.name}</h1>
-      <ProviderForm key={`${provider.id}-${provider.last_tested}`} provider={provider} types={providers.data!.types} />
+      <ProviderForm
+        key={`${provider.id}-${provider.last_tested}`}
+        provider={provider}
+        types={providers.data!.types}
+      />
     </>
   );
 }

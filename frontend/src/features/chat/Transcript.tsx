@@ -52,7 +52,7 @@ export function Transcript({
                 YOUR MOVE
                 <span className="font-normal text-muted">{time}</span>
               </div>
-              <p className="rounded-3xl rounded-tr-md text-white bg-linear-to-br from-brand to-brand-coral px-4 py-2.5 whitespace-pre-wrap lg:px-5 lg:py-3 text-white shadow-lg shadow-grape/25">
+              <p className="rounded-[16px] rounded-tr-[6px] text-white bg-linear-to-br from-brand to-brand-coral px-5 py-3 whitespace-pre-wrap lg:px-5 lg:py-3 text-white shadow-lg shadow-grape/25">
                 {message.content}
               </p>
             </article>
@@ -60,7 +60,7 @@ export function Transcript({
         return (
           <article
             key={message.id}
-            className={`relative max-w-full overflow-hidden rounded-3xl rounded-tl-md border bg-surface p-4 pl-6 lg:max-w-[95%] lg:p-6 lg:pl-8 shadow-lg shadow-grape/10 ${
+            className={`relative max-w-full overflow-hidden rounded-[16px] rounded-tl-[6px] border bg-surface p-4 pl-6 lg:max-w-[95%] lg:p-6 lg:pl-8 shadow-lg shadow-grape/10 ${
               message.is_error
                 ? "border-danger/40 bg-coral-soft"
                 : "border-grape/10"
@@ -68,7 +68,7 @@ export function Transcript({
           >
             <span
               aria-hidden
-              className={`absolute inset-y-0 left-0 w-2.5 ${
+              className={`absolute inset-y-0 left-0 w-1 ${
                 message.is_error
                   ? "bg-danger"
                   : "bg-linear-to-b from-sun via-coral to-grape"
@@ -94,7 +94,7 @@ export function Transcript({
               <img
                 src={message.image_url}
                 alt="Storybook illustration of this adventure scene"
-                className="mb-4 aspect-video w-full rounded-2xl object-contain bg-grape/5"
+                className="mb-4 block h-auto w-auto max-w-full rounded-[16px]"
                 loading="lazy"
               />
             )}

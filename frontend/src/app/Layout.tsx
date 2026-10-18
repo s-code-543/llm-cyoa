@@ -21,7 +21,7 @@ function useTheme() {
 }
 
 const pill = ({ isActive }: { isActive: boolean }) =>
-  `rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+  `rounded-[8px] px-4 py-2 text-sm font-semibold transition-colors ${
     isActive
       ? "bg-brand text-white shadow-md shadow-brand/30"
       : "text-foreground/70 hover:bg-grape-soft hover:text-grape"
@@ -52,9 +52,9 @@ export function Layout() {
   );
   return (
     <div className="min-h-screen">
-      <header className="top-0 z-20 px-2 pt-2 md:sticky md:px-4 md:pt-4">
-        <div className="mx-auto max-w-7xl rounded-3xl border border-border bg-surface/80 shadow-lg shadow-brand/10 backdrop-blur-md md:rounded-full">
-          <div className="flex items-center justify-between gap-4 py-1.5 pr-2 pl-3 md:py-2 md:pr-3 md:pl-5">
+      <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur-md">
+        <div className="mx-auto max-w-7xl px-4 md:px-6">
+          <div className="flex items-center justify-between gap-4 py-3">
             <NavLink
               to="/"
               aria-label="Choose Your Adventure home"
@@ -71,7 +71,12 @@ export function Layout() {
               className="hidden items-center gap-1.5 md:flex"
             >
               {items.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.end} className={pill}>
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={pill}
+                >
                   {item.label}
                 </NavLink>
               ))}
@@ -110,7 +115,12 @@ export function Layout() {
               className="flex flex-col gap-1 border-t border-border p-2 md:hidden"
             >
               {items.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.end} className={pill}>
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={pill}
+                >
                   {item.label}
                 </NavLink>
               ))}

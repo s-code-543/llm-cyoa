@@ -5,7 +5,8 @@
 @import "./admin.css" layer(admin);
 
 @theme {
-  --font-sans: "Nunito", ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
+  --font-sans:
+    "Nunito", ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
   --font-story: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --color-brand: var(--primary);
   --color-brand-coral: var(--turquoise);
@@ -151,8 +152,16 @@
 }
 
 @keyframes bob {
-  0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
-  40% { transform: translateY(-6px); opacity: 1; }
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
 }
 .dot-bob {
   display: inline-block;
@@ -161,8 +170,180 @@
   border-radius: 999px;
   animation: bob 1.2s infinite ease-in-out;
 }
-.dot-bob:nth-child(2) { animation-delay: 0.15s; }
-.dot-bob:nth-child(3) { animation-delay: 0.3s; }
+.dot-bob:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.dot-bob:nth-child(3) {
+  animation-delay: 0.3s;
+}
 @media (prefers-reduced-motion: reduce) {
-  .dot-bob { animation: none; }
+  .dot-bob {
+    animation: none;
+  }
+}
+
+.setting-toggle {
+  width: fit-content;
+  max-width: 100%;
+}
+.setting-toggle [data-slot="switch-content"] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+.setting-toggle [data-slot="switch-control"] {
+  flex-shrink: 0;
+}
+.setting-toggle [data-slot="label"] {
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.admin-panel {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .admin-panel {
+    padding: 16px;
+  }
+}
+
+/* Trace inspection uses its own readable, wide surface below the app header. */
+.pipeline-debug {
+  position: fixed;
+  z-index: 30;
+  top: 76px;
+  right: 16px;
+  bottom: 16px;
+  width: min(880px, calc(100vw - 32px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 16px 64px #0005;
+}
+.trace-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.trace-heading h2 {
+  font-size: 20px;
+}
+.trace-heading button {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.trace-step {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+}
+.pipeline-debug summary {
+  cursor: pointer;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.trace-section {
+  margin-top: 12px;
+}
+.trace-fields {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.trace-field {
+  min-width: 0;
+  padding: 12px;
+  border-left: 2px solid var(--border);
+}
+.trace-field > details > .trace-fields {
+  margin-top: 12px;
+}
+.trace-key,
+.trace-field summary {
+  font: 600 13px/1.6 var(--font-sans);
+  color: var(--accent);
+}
+.trace-count {
+  margin-left: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.trace-text {
+  margin: 8px 0 0;
+  padding: 16px;
+  max-height: 480px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font:
+    14px/1.75 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+.trace-text code {
+  font: inherit;
+}
+.trace-scalar {
+  display: inline-block;
+  font:
+    14px/1.75 ui-monospace,
+    monospace;
+}
+.trace-empty,
+.trace-raw {
+  font-size: 13px;
+  color: var(--muted);
+}
+.trace-raw {
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .pipeline-debug {
+    top: 68px;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    padding: 16px;
+    border-radius: 12px 12px 0 0;
+  }
+  .trace-step {
+    padding: 12px;
+  }
+  .trace-field {
+    padding: 8px;
+  }
+  .trace-text {
+    padding: 12px;
+    font-size: 13px;
+  }
+}
+
+.action-composer textarea {
+  border: 0;
+  box-shadow: none;
+  outline: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1.5;
 }

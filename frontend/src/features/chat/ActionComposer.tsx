@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, TextArea } from "@heroui/react";
 
 declare const CYOARecorder: {
@@ -31,6 +31,28 @@ export function ActionComposer({
   onDraft,
   onSubmit,
 }: Props) {
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const field = textarea.current;
+    if (!field) return;
+    const resize = () => {
+      field.style.height = "0px";
+      field.style.height = `${Math.min(Math.max(field.scrollHeight, 44), 240)}px`;
+      field.style.overflowY = field.scrollHeight > 240 ? "auto" : "hidden";
+    };
+    resize();
+    if (typeof ResizeObserver === "undefined") return;
+    let width = field.getBoundingClientRect().width;
+    const observer = new ResizeObserver(() => {
+      const nextWidth = field.getBoundingClientRect().width;
+      if (nextWidth !== width) {
+        width = nextWidth;
+        resize();
+      }
+    });
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, [draft]);
   const [voice, setVoice] = useState("idle");
   const [voiceError, setVoiceError] = useState("");
   const latest = useRef({ draft, onDraft });
@@ -118,20 +140,21 @@ export function ActionComposer({
         </div>
       )}
       <form
-        className="sticky bottom-1 z-10 flex items-end gap-2 rounded-3xl border border-grape/15 bg-surface p-2 shadow-lg shadow-grape/10 focus-within:border-grape/50"
+        className="action-composer sticky bottom-1 z-10 flex items-center gap-2 rounded-[24px] border border-grape/15 bg-surface p-2 shadow-lg shadow-grape/10 focus-within:border-grape/50"
         onSubmit={(e) => {
           e.preventDefault();
           if (!voiceBusy) onSubmit(draft);
         }}
       >
         <TextArea
+          ref={textarea}
           aria-label="Your action"
           placeholder="What do you do next?"
           value={draft}
           rows={1}
           maxLength={20000}
           disabled={busy || finished}
-          className="min-h-11 flex-1 resize-none border-0 bg-transparent shadow-none outline-none"
+          className="min-h-11 min-w-0 flex-1 resize-none border-0 bg-transparent shadow-none outline-none"
           onChange={(e) => onDraft(e.target.value)}
           onKeyDown={(e) => {
             if (
@@ -147,7 +170,15 @@ export function ActionComposer({
         <Button
           type="button"
           variant="secondary"
-          className={voice === "recording" ? "animate-pulse bg-brand-coral text-white" : ""}
+          isIconOnly
+          aria-label={
+            voice === "recording"
+              ? "Stop dictation"
+              : voice === "processing"
+                ? "Transcribing…"
+                : "Dictate action"
+          }
+          className={`shrink-0 rounded-full ${voice === "recording" ? "animate-pulse bg-brand-coral text-white" : ""}`}
           isDisabled={busy || finished || voice === "processing"}
           onPress={() => {
             if (typeof CYOARecorder === "undefined") {
@@ -161,31 +192,65 @@ export function ActionComposer({
               );
           }}
         >
-          <span className="max-sm:sr-only">
-            {voice === "recording"
-              ? "Stop dictation"
-              : voice === "processing"
-                ? "Transcribing…"
-                : "Dictate action"}
-          </span>
-          <span aria-hidden className="sm:hidden">
-            {voice === "recording" ? "⏹" : "🎤"}
-          </span>
+          <svg
+            aria-hidden="true"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            {voice === "recording" ? (
+              <rect
+                x="6"
+                y="6"
+                width="12"
+                height="12"
+                rx="2"
+                fill="currentColor"
+                stroke="none"
+              />
+            ) : (
+              <>
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" />
+              </>
+            )}
+          </svg>
         </Button>
         <Button
           type="submit"
           variant="primary"
           isIconOnly
-          className="rounded-full text-white bg-linear-to-br from-brand to-brand-coral"
+          className="shrink-0 rounded-full text-white bg-linear-to-br from-brand to-brand-coral"
           isDisabled={busy || voiceBusy || finished || !draft.trim()}
           aria-label="Send action"
         >
-          ↑
+          <svg
+            aria-hidden="true"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 19V5m-6 6 6-6 6 6" />
+          </svg>
         </Button>
       </form>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {voice === "recording" && (
-          <Button size="sm" variant="ghost" onPress={() => CYOARecorder.cancelRecording()}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onPress={() => CYOARecorder.cancelRecording()}
+          >
             Cancel recording
           </Button>
         )}

@@ -49,3 +49,20 @@ test("dictation adds an editable transcript and blocks sending while recording",
   expect(draft).toHaveBeenCalledWith("I enter. Take the key.");
   expect(screen.getByRole("button", { name: "Send action" })).toBeEnabled();
 });
+
+test("the composer grows, caps its height, and shrinks when the draft is cleared", () => {
+  const { rerender } = render(<ActionComposer {...props} />);
+  const field = screen.getByRole("textbox", { name: "Your action" });
+  let contentHeight = 120;
+  Object.defineProperty(field, "scrollHeight", { get: () => contentHeight });
+  rerender(<ActionComposer {...props} draft={"First line\nSecond line"} />);
+  expect(field.style.height).toBe("120px");
+  contentHeight = 400;
+  rerender(<ActionComposer {...props} draft={"Long paragraph\n".repeat(20)} />);
+  expect(field.style.height).toBe("240px");
+  expect(field.style.overflowY).toBe("auto");
+  contentHeight = 24;
+  rerender(<ActionComposer {...props} draft="" />);
+  expect(field.style.height).toBe("44px");
+  expect(field.style.overflowY).toBe("hidden");
+});

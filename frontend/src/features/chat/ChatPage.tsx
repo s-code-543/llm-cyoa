@@ -1,3 +1,4 @@
+import { Toggle } from "../../components/Toggle";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -183,7 +184,7 @@ export function ChatPage() {
   return (
     <div>
       <main
-        className={`mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-7xl flex-col gap-1.5 px-2 pt-1.5 lg:grid lg:min-h-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-4 lg:py-8 ${debugAllowed && debugEnabled && debugTarget !== null ? "!max-w-[1800px] lg:!grid-cols-[220px_minmax(0,1fr)_minmax(340px,0.85fr)]" : ""}`}
+        className={`mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-7xl flex-col gap-1.5 px-2 pt-1.5 lg:grid lg:min-h-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-4 lg:py-8 `}
       >
         <aside className="flex flex-col gap-1.5 lg:sticky lg:top-24 lg:gap-4">
           <Card
@@ -282,21 +283,16 @@ export function ChatPage() {
             </>
           )}
           {debugAllowed && (
-            <label className="flex items-center gap-2 p-2 text-sm font-bold">
-              <input
-                type="checkbox"
-                checked={debugEnabled}
-                onChange={(event) => {
-                  setDebugEnabled(event.target.checked);
-                  localStorage.setItem(
-                    "cyoa:debug",
-                    String(event.target.checked),
-                  );
-                  if (!event.target.checked) setDebugTarget(null);
-                }}
-              />{" "}
+            <Toggle
+              checked={debugEnabled}
+              onChange={(checked) => {
+                setDebugEnabled(checked);
+                localStorage.setItem("cyoa:debug", String(checked));
+                if (!checked) setDebugTarget(null);
+              }}
+            >
               Debug mode
-            </label>
+            </Toggle>
           )}
           {debugAllowed && debugEnabled && game && (
             <button
