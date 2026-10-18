@@ -240,7 +240,7 @@ docker exec -it cyoa-game-server python manage.py load_prompts
 
 ### Access the Admin Interface
 
-- **URL:** https://cyoa.mac.stargate.lan/admin/
+- **URL:** https://cyoa.mac.stargate.lan/manage (Django user/group admin: /django-admin/)
 
 No account creation is required; you will be directed to the dashboard.
 

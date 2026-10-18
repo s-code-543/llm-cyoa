@@ -157,9 +157,27 @@ def get_openrouter_models(api_key, timeout=10):
                 'description': full_description,
                 'size': 0,  # API models don't have a size
                 'context_length': model.get('context_length', 0),
-                'pricing': pricing
+                'pricing': pricing,
+                'architecture': model.get('architecture', {}),
             })
         
+        # Dedicated catalog includes image-only models absent from the chat catalog.
+        try:
+            image_response = requests.get(
+                'https://openrouter.ai/api/v1/images/models', headers=headers, timeout=timeout)
+            if image_response.status_code == 200:
+                for model in image_response.json().get('data', []):
+                    entry = {
+                        'id': model['id'], 'name': model.get('name', model['id']),
+                        'description': model.get('description', ''), 'size': 0,
+                        'image_generation': True,
+                        'architecture': model.get('architecture', {}),
+                        'supported_parameters': model.get('supported_parameters', {}),
+                    }
+                    models_list = [m for m in models_list if m['id'] != entry['id']]
+                    models_list.append(entry)
+        except Exception as exc:
+            print(f"Error fetching optional OpenRouter image models: {exc}")
         return models_list
     
     except Exception as e:
@@ -167,7 +185,15 @@ def get_openrouter_models(api_key, timeout=10):
         return []
 
 
-def call_openrouter(messages, system_prompt, model, api_key, timeout=30):
+class MeteredText(str):
+    """String-compatible response retaining provider billing metadata for audits."""
+    def __new__(cls, content, result):
+        value = super().__new__(cls, content)
+        value.billing = {'generation_id': result.get('id'), 'usage': result.get('usage', {})}
+        return value
+
+
+def call_openrouter(messages, system_prompt, model, api_key, timeout=30, disable_thinking=False):
     """
     Call OpenRouter API with messages using OpenAI-compatible format.
     
@@ -213,6 +239,9 @@ def call_openrouter(messages, system_prompt, model, api_key, timeout=30):
         "messages": api_messages
     }
     
+    if disable_thinking:
+        payload["reasoning"] = {"effort": "none"}
+
     print(f"[OPENROUTER] Calling {model} with {len(api_messages)} messages")
     
     try:
@@ -238,7 +267,7 @@ def call_openrouter(messages, system_prompt, model, api_key, timeout=30):
         if 'choices' in result and len(result['choices']) > 0:
             content = result['choices'][0]['message']['content']
             print(f"[OPENROUTER] Received {len(content)} chars")
-            return content
+            return MeteredText(content, result)
         else:
             raise Exception("No response content in OpenRouter API result")
     

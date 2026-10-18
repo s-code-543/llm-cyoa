@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "type": "RunPython",
+      "code": "state['turns_played'] = input['turn']\nif input['turn'] == 1:\n    state['inventory'] = ['flashlight', 'matches']"
+    },
+    {
+      "type": "GateInventory",
+      "probability": 0.2,
+      "cooldown_turns": 3,
+      "max_new_items": 1,
+      "verify_narrative": true
+    },
+    {
+      "type": "ApplyDifficulty"
+    },
+    {
+      "type": "ConcatenatePrompt",
+      "include_state": true,
+      "prompt": "Keep the inventory item names exact. Follow inventory_policy for unsolicited gifts only. Deliberately taking available portable objects is exempt; record successful requested acquisitions in _requested_items. Give unsolicited items a plausible purpose. Preserve dark humor, including ending inventory consequences. Keep narration concise: at most 120 words, then two choices unless this is an ending."
+    },
+    {
+      "type": "GenerateTurn"
+    },
+    {
+      "type": "ReWriteRefusal",
+      "max_attempts": 3
+    },
+    {
+      "type": "ExtractJSON"
+    },
+    {
+      "type": "ApplyStateChanges",
+      "allowed_keys": [
+        "inventory"
+      ]
+    },
+    {
+      "type": "ValidateTurn"
+    },
+    {
+      "type": "SaveGame"
+    }
+  ]
+}

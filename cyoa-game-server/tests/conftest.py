@@ -483,20 +483,9 @@ def mock_call_llm_refusal():
 
 
 @pytest.fixture
-def mock_ollama_models():
-    """Mock Ollama model listing."""
-    with patch('game.admin_views.get_ollama_models') as mock:
-        mock.return_value = [
-            {'id': 'llama3:8b', 'name': 'Llama 3 8B', 'size': 4000000000},
-            {'id': 'qwen:4b', 'name': 'Qwen 4B', 'size': 2000000000},
-        ]
-        yield mock
-
-
-@pytest.fixture
 def mock_ollama_connection():
     """Mock Ollama connection test."""
-    with patch('game.ollama_utils.test_ollama_connection') as mock:
+    with patch('game.admin_providers_api.test_ollama_connection') as mock:
         mock.return_value = {'success': True, 'message': 'Connected'}
         yield mock
 
@@ -504,7 +493,7 @@ def mock_ollama_connection():
 @pytest.fixture
 def mock_anthropic_connection():
     """Mock Anthropic connection test."""
-    with patch('game.admin_views.test_anthropic_connection') as mock:
+    with patch('game.admin_providers_api.test_anthropic_connection') as mock:
         mock.return_value = {'success': True, 'message': 'Connected'}
         yield mock
 
@@ -512,7 +501,7 @@ def mock_anthropic_connection():
 @pytest.fixture
 def mock_anthropic_models():
     """Mock Anthropic model listing."""
-    with patch('game.admin_views.get_anthropic_models') as mock:
+    with patch('game.admin_providers_api.get_anthropic_models') as mock:
         mock.return_value = [
             {'id': 'claude-opus-4-20250514', 'name': 'Claude Opus 4'},
             {'id': 'claude-sonnet-4-20250514', 'name': 'Claude Sonnet 4'},
@@ -523,7 +512,7 @@ def mock_anthropic_models():
 @pytest.fixture
 def mock_openai_connection():
     """Mock OpenAI connection test."""
-    with patch('game.admin_views.test_openai_connection') as mock:
+    with patch('game.admin_providers_api.test_openai_connection') as mock:
         mock.return_value = {'success': True, 'message': 'Connected'}
         yield mock
 
@@ -531,7 +520,7 @@ def mock_openai_connection():
 @pytest.fixture
 def mock_openai_models():
     """Mock OpenAI model listing."""
-    with patch('game.admin_views.get_openai_models') as mock:
+    with patch('game.admin_providers_api.get_openai_models') as mock:
         mock.return_value = [
             {'id': 'gpt-4-turbo', 'name': 'GPT-4 Turbo'},
             {'id': 'gpt-4o', 'name': 'GPT-4o'},
@@ -542,7 +531,7 @@ def mock_openai_models():
 @pytest.fixture
 def mock_openrouter_connection():
     """Mock OpenRouter connection test."""
-    with patch('game.admin_views.test_openrouter_connection') as mock:
+    with patch('game.admin_providers_api.test_openrouter_connection') as mock:
         mock.return_value = {'success': True, 'message': 'Connected'}
         yield mock
 
@@ -550,7 +539,7 @@ def mock_openrouter_connection():
 @pytest.fixture
 def mock_openrouter_models():
     """Mock OpenRouter model listing."""
-    with patch('game.admin_views.get_openrouter_models') as mock:
+    with patch('game.admin_providers_api.get_openrouter_models') as mock:
         mock.return_value = [
             {'id': 'anthropic/claude-3-opus', 'name': 'Claude 3 Opus'},
             {'id': 'openai/gpt-4', 'name': 'GPT-4'},

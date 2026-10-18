@@ -18,6 +18,27 @@ venv/
 htmlcov/
 .coverage
 
+# Super Intelligence
+.copilot-instructions.md
+
 # IDE
 .vscode/
 .idea/
+node_modules/
+frontend/dist/
+cyoa-game-server/static/frontend/
+cyoa-game-server/staticfiles/
+cyoa-game-server/db/
+.env.*
+!.env.example
+frontend/test-results/
+frontend/playwright-report/
+
+# Disposable local gameplay observations
+docs/*playtest*.md
+
+ignored/
+.DS_Store
+
+# Local interactive test reports and media
+docs/playtests/

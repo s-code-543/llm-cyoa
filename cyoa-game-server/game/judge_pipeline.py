@@ -44,7 +44,7 @@ def _build_context_messages(messages: List[Dict], turn_text: str, use_full_conte
         return [{'role': 'user', 'content': turn_text}]
 
 
-def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
+def run_judge_pipeline(messages, story_turn: str, config, llm_call=None) -> Dict[str, Any]:
     """
     Run configured judge steps in order on a story turn.
     
@@ -65,6 +65,7 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
             'steps': list - Details of each step execution
         }
     """
+    invoke = llm_call or call_llm
     result = {
         'final_turn': story_turn,
         'was_modified': False,
@@ -102,9 +103,11 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                     messages, current_turn, step.classifier_use_full_context
                 )
                 classifier_content = f"{step.classifier_question}\n\n{current_turn}"
-                classifier_messages = [{'role': 'user', 'content': classifier_content}]
+                classifier_messages = (list(messages) if step.classifier_use_full_context else []) + [
+                    {'role': 'user', 'content': classifier_content}
+                ]
                 
-                classifier_response = call_llm(
+                classifier_response = invoke(
                     messages=classifier_messages,
                     system_prompt=step.classifier_prompt.prompt_text,
                     llm_model=step.classifier_model,
@@ -112,7 +115,10 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                     disable_thinking=True
                 )
                 step_result['classifier_response'] = classifier_response
-                needs_correction = _parse_boolean_response(classifier_response, default=True)
+                # PASS/FAIL describes validity; YES/NO answers needs-correction.
+                verdict = classifier_response.strip().splitlines()[0].strip().upper() if classifier_response.strip() else ''
+                needs_correction = (False if verdict == 'PASS' else True if verdict == 'FAIL'
+                                    else _parse_boolean_response(classifier_response, default=True))
                 step_result['needs_correction'] = needs_correction
                 
                 if not needs_correction:
@@ -153,7 +159,7 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                             'content': f"{step.rewrite_instruction}\n\nTURN TO FIX:\n{current_turn}"
                         }]
                     
-                    rewrite_text = call_llm(
+                    rewrite_text = invoke(
                         messages=rewrite_messages,
                         system_prompt=step.rewrite_prompt.prompt_text,
                         llm_model=step.rewrite_model,
@@ -167,8 +173,10 @@ def run_judge_pipeline(messages, story_turn: str, config) -> Dict[str, Any]:
                         f"ORIGINAL:\n{current_turn}\n\n"
                         f"CORRECTED:\n{rewrite_text}"
                     )
-                    compare_response = call_llm(
-                        messages=[{'role': 'user', 'content': compare_content}],
+                    compare_response = invoke(
+                        messages=(list(messages) if step.compare_use_full_context else []) + [
+                            {'role': 'user', 'content': compare_content}
+                        ],
                         system_prompt=step.compare_prompt.prompt_text,
                         llm_model=step.compare_model,
                         timeout=step.compare_timeout,

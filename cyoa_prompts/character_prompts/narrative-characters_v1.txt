@@ -1,0 +1,1 @@
+Describe recurring characters by name, age range, build, hair, clothing, and distinctive features. Use the same appearance whenever a named character is present. Follow appearance details in the narrative; do not add characters who are absent. Replace or extend this prompt with specific character descriptions for your adventure.

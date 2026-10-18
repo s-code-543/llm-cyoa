@@ -28,12 +28,14 @@ class Prompt(models.Model):
         'game-ending': 'Game Ending Prompts',
         'classifier': 'Classifier Prompts',
         'judge': 'Judge Prompts',
+        'character': 'Character Prompts',
+        'image-meta': 'Image Meta Prompts',
     }
     
     prompt_type = models.CharField(
         max_length=50,
         db_index=True,
-        help_text="Category: adventure, turn-correction, game-ending, classifier, judge"
+        help_text="Category: adventure, turn-correction, game-ending, classifier, judge, character, image-meta"
     )
     name = models.CharField(
         max_length=100,
@@ -164,6 +166,8 @@ class Configuration(models.Model):
         null=True,
         help_text="Model to use for story generation"
     )
+    workflow = models.JSONField(default=dict, blank=True, help_text="Versioned turn workflow; empty uses the default")
+
     storyteller_timeout = models.IntegerField(
         default=60,
         help_text="Timeout in seconds for storyteller generation (default: 60)"
@@ -235,6 +239,24 @@ class Configuration(models.Model):
         default=1,
         help_text="Turns for Phase 4: Finale/Conclusion Setup"
     )
+    enable_tts = models.BooleanField(
+        default=False,
+        help_text="Enable spoken narrator playback when the TTS service is configured"
+    )
+
+    enable_image_generation = models.BooleanField(default=False)
+    image_meta_prompt = models.ForeignKey(
+        Prompt, on_delete=models.PROTECT, related_name='configs_as_image_meta',
+        limit_choices_to={'prompt_type': 'image-meta'}, null=True, blank=True)
+    character_prompt = models.ForeignKey(
+        Prompt, on_delete=models.PROTECT, related_name='configs_as_character',
+        limit_choices_to={'prompt_type': 'character'}, null=True, blank=True)
+    image_model = models.ForeignKey(
+        'LLMModel', on_delete=models.PROTECT, related_name='configs_as_image_model',
+        null=True, blank=True)
+    image_aspect_ratio = models.CharField(max_length=10, default='16:9')
+    image_timeout = models.PositiveIntegerField(default=60)
+
     # Refusal detection system
     enable_refusal_detection = models.BooleanField(
         default=True,
@@ -709,6 +731,10 @@ class GameSession(models.Model):
         help_text="Configuration snapshot when session started"
     )
     
+    hidden_state = models.JSONField(default=dict, blank=True)
+    workflow_snapshot = models.JSONField(default=dict, blank=True)
+    random_seed = models.CharField(max_length=64, blank=True, default="")
+
     # Game state
     turn_number = models.IntegerField(
         default=0,
@@ -1080,3 +1106,22 @@ class TTSSettings(models.Model):
     def delete(self, *args, **kwargs):
         """Prevent deletion of the singleton instance."""
         pass
+
+
+class ChatSubmission(models.Model):
+    """Durable deduplication and one mutation at a time per conversation."""
+    conversation = models.ForeignKey(ChatConversation, on_delete=models.CASCADE, related_name='submissions')
+    request_id = models.UUIDField()
+    operation = models.CharField(max_length=16)
+    payload_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, default='pending')
+    response = models.JSONField(default=dict)
+    http_status = models.PositiveSmallIntegerField(default=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['conversation', 'request_id'], name='unique_chat_request'),
+            models.UniqueConstraint(fields=['conversation'], condition=models.Q(status='pending'), name='one_pending_chat_submission'),
+        ]

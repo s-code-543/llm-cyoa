@@ -11,9 +11,11 @@ from django.utils import timezone
 from django.conf import settings
 from django.http import JsonResponse, FileResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
 from openai import OpenAI
 
-from .models import TTSAudio, TTSSettings
+from .models import TTSAudio, TTSSettings, ChatConversation
+from .config_utils import get_conversation_configuration
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +101,7 @@ def cleanup_old_tts_files(retention_days: int = 7):
         return 0, 0
 
 
+@login_required
 @require_http_methods(["POST"])
 def tts_generate(request):
     """
@@ -107,6 +110,7 @@ def tts_generate(request):
     
     Request JSON:
     {
+        "conversation_id": "UUID of an owned adventure with TTS enabled",
         "text": "Text to convert to speech",
         "voice": "alloy",  // optional, uses settings default
         "model": "tts-1"   // optional, uses settings default
@@ -119,6 +123,22 @@ def tts_generate(request):
         "url": "/api/tts/audio/<uuid>"  // if completed
     }
     """
+    import json
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    if not isinstance(data, dict):
+        return JsonResponse({'error': 'Expected a JSON object'}, status=400)
+    conversation = ChatConversation.objects.filter(
+        conversation_id=data.get('conversation_id'), user=request.user
+    ).first()
+    if not conversation:
+        return JsonResponse({'error': 'Conversation not found'}, status=404)
+    config = get_conversation_configuration(conversation)
+    if not config or not config.enable_tts:
+        return JsonResponse({'error': 'TTS is disabled for this adventure'}, status=403)
+
     # Get TTS settings
     tts_settings = TTSSettings.get_settings()
     
@@ -139,13 +159,6 @@ def tts_generate(request):
             cleanup_old_tts_files(tts_settings.audio_retention_days)
         except Exception as e:
             logger.error(f"Auto-cleanup failed (non-fatal): {e}")
-    
-    # Parse request
-    import json
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
     
     text = data.get('text', '').strip()
     if not text:

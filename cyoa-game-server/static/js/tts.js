@@ -12,6 +12,7 @@
 
 const CYOATTS = (function() {
   // === State ===
+  let conversationId = null;
   let currentAudio = null;  // Currently playing Audio object
   let currentMessageIndex = null;  // Index of message currently playing
   let audioCache = new Map();  // Cache of audio URLs by message index
@@ -42,6 +43,7 @@ const CYOATTS = (function() {
           'X-CSRFToken': getCSRFToken(),
         },
         body: JSON.stringify({
+          conversation_id: conversationId,
           text: text,
           voice: voice,
           model: model,
@@ -176,6 +178,10 @@ const CYOATTS = (function() {
   
   // Public API
   return {
+    setConversation(id) {
+      if (conversationId !== id) clearCache();
+      conversationId = id;
+    },
     playMessage,
     stopAudio,
     pauseAudio,

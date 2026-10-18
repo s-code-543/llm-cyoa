@@ -73,7 +73,6 @@ Factory Boy factories for creating test data:
 Pre-configured mocks for external services:
 
 - `mock_call_llm` - Mocks LLM API calls
-- `mock_ollama_models` - Mocks Ollama model listing
 - `mock_ollama_connection` - Mocks Ollama connection test
 - `mock_anthropic_connection` - Mocks Anthropic connection
 - `mock_anthropic_models` - Mocks Anthropic model listing

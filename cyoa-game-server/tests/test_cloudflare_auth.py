@@ -277,16 +277,15 @@ class TestMiddlewareDisabled:
     def test_requests_pass_through(self, db):
         """Normal unauthenticated request is not blocked."""
         client = Client()
-        resp = client.get("/admin/login/")
+        resp = client.get("/api/v1/session")
         assert resp.status_code == 200
 
     @override_settings(CLOUDFLARE_AUTH_ENABLED=False)
     def test_login_required_still_works(self, db):
-        """@login_required still redirects unauthenticated users."""
+        """player APIs reject unauthenticated users."""
         client = Client()
-        resp = client.get("/")
-        assert resp.status_code == 302
-        assert "/admin/login/" in resp.url
+        resp = client.get("/api/v1/home")
+        assert resp.status_code == 401
 
 
 class TestMiddlewareEnabled:
@@ -303,7 +302,7 @@ class TestMiddlewareEnabled:
         client = Client()
         with _patch_jwks(jwk), \
              patch("game.cloudflare_auth._refresh_jwks"):
-            resp = client.get("/", HTTP_CF_ACCESS_JWT_ASSERTION=valid_token)
+            resp = client.get("/api/v1/home", HTTP_CF_ACCESS_JWT_ASSERTION=valid_token)
         assert resp.status_code == 200
         assert User.objects.filter(email="player@example.com").exists()
 
@@ -318,7 +317,7 @@ class TestMiddlewareEnabled:
         client = Client()
         with _patch_jwks(jwk), \
              patch("game.cloudflare_auth._refresh_jwks"):
-            resp = client.get("/", HTTP_CF_ACCESS_JWT_ASSERTION=admin_token)
+            resp = client.get("/api/v1/home", HTTP_CF_ACCESS_JWT_ASSERTION=admin_token)
         assert resp.status_code == 200
         user = User.objects.get(email="admin@example.com")
         assert user.is_staff
@@ -331,12 +330,11 @@ class TestMiddlewareEnabled:
         CLOUDFLARE_ADMIN_EMAILS=[],
     )
     def test_no_token_falls_through_to_login_required(self, db):
-        """Without a CF header, @login_required redirects to login."""
+        """Without a CF header, player APIs return 401."""
         client = Client()
         with patch("game.cloudflare_auth._refresh_jwks"):
-            resp = client.get("/")
-        assert resp.status_code == 302
-        assert "/admin/login/" in resp.url
+            resp = client.get("/api/v1/home")
+        assert resp.status_code == 401
 
     @override_settings(
         CLOUDFLARE_AUTH_ENABLED=True,
@@ -348,9 +346,8 @@ class TestMiddlewareEnabled:
         """A garbage token doesn't crash; falls through to login."""
         client = Client()
         with patch("game.cloudflare_auth._refresh_jwks"):
-            resp = client.get("/", HTTP_CF_ACCESS_JWT_ASSERTION="garbage.token.here")
-        assert resp.status_code == 302
-        assert "/admin/login/" in resp.url
+            resp = client.get("/api/v1/home", HTTP_CF_ACCESS_JWT_ASSERTION="garbage.token.here")
+        assert resp.status_code == 401
 
     @override_settings(
         CLOUDFLARE_AUTH_ENABLED=True,
@@ -359,13 +356,12 @@ class TestMiddlewareEnabled:
         CLOUDFLARE_ADMIN_EMAILS=[],
     )
     def test_expired_token_falls_through(self, db, rsa_keypair, jwk, expired_token):
-        """An expired JWT doesn't authenticate; triggers login redirect."""
+        """An expired JWT doesn't authenticate; is rejected."""
         client = Client()
         with _patch_jwks(jwk), \
              patch("game.cloudflare_auth._refresh_jwks"):
-            resp = client.get("/", HTTP_CF_ACCESS_JWT_ASSERTION=expired_token)
-        assert resp.status_code == 302
-        assert "/admin/login/" in resp.url
+            resp = client.get("/api/v1/home", HTTP_CF_ACCESS_JWT_ASSERTION=expired_token)
+        assert resp.status_code == 401
 
     @override_settings(
         CLOUDFLARE_AUTH_ENABLED=True,
@@ -376,7 +372,7 @@ class TestMiddlewareEnabled:
     def test_already_authenticated_skips_jwt(self, db, user, auth_client):
         """If user is already in session, middleware skips JWT check."""
         with patch("game.cloudflare_auth._refresh_jwks"):
-            resp = auth_client.get("/")
+            resp = auth_client.get("/api/v1/home")
         assert resp.status_code == 200
 
 

@@ -9,7 +9,7 @@ This module handles:
 from .llm_router import call_llm
 
 
-def detect_refusal(story_turn, classifier_model, classifier_prompt_text, classifier_question, timeout=10):
+def detect_refusal(story_turn, classifier_model, classifier_prompt_text, classifier_question, timeout=10, llm_call=None):
     """
     Use a classifier model to determine if a story turn is a refusal.
     
@@ -36,7 +36,7 @@ def detect_refusal(story_turn, classifier_model, classifier_prompt_text, classif
     try:
         print(f"[REFUSAL] Checking with {classifier_model}")
         
-        classifier_response = call_llm(
+        classifier_response = (llm_call or call_llm)(
             messages=messages,
             system_prompt=classifier_prompt_text,
             llm_model=classifier_model,
@@ -91,7 +91,7 @@ def strip_refusal_from_messages(messages):
     return messages
 
 
-def generate_corrected_turn(messages, turn_correction_prompt_text, turn_correction_model, timeout=30):
+def generate_corrected_turn(messages, turn_correction_prompt_text, turn_correction_model, timeout=30, llm_call=None):
     """
     Use the turn correction prompt to generate a valid turn.
     
@@ -107,7 +107,7 @@ def generate_corrected_turn(messages, turn_correction_prompt_text, turn_correcti
     try:
         print(f"[REFUSAL] Generating correction with {turn_correction_model.name}")
         
-        corrected_turn = call_llm(
+        corrected_turn = (llm_call or call_llm)(
             messages=messages,
             system_prompt=turn_correction_prompt_text,
             llm_model=turn_correction_model,
@@ -129,7 +129,8 @@ def process_potential_refusal(
     user_message,
     is_game_ending=False,
     turn_number=1,
-    max_retries=3
+    max_retries=3,
+    llm_call=None
 ):
     """
     Complete refusal detection and correction pipeline with retry logic.
@@ -184,7 +185,7 @@ def process_potential_refusal(
         classifier_model=config.classifier_model,
         classifier_prompt_text=config.classifier_prompt.prompt_text,
         classifier_question=config.classifier_question,
-        timeout=config.classifier_timeout
+        timeout=config.classifier_timeout, llm_call=llm_call
     )
     
     result['was_refusal'] = is_refusal
@@ -238,7 +239,7 @@ def process_potential_refusal(
                 messages=cleaned_messages,
                 turn_correction_prompt_text=correction_prompt,
                 turn_correction_model=config.turn_correction_model,
-                timeout=config.turn_correction_timeout
+                timeout=config.turn_correction_timeout, llm_call=llm_call
             )
             
             # Check if the correction is also a refusal
@@ -247,7 +248,7 @@ def process_potential_refusal(
                 classifier_model=config.classifier_model,
                 classifier_prompt_text=config.classifier_prompt.prompt_text,
                 classifier_question=config.classifier_question,
-                timeout=config.classifier_timeout
+                timeout=config.classifier_timeout, llm_call=llm_call
             )
             
             result['attempts'].append({

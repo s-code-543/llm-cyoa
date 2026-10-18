@@ -4,6 +4,7 @@
 set -e
 
 echo "🎲 Starting CYOA Game Server..."
+mkdir -p /app/db /app/media
 
 # Run migrations (idempotent - safe to run on every startup)
 echo "📦 Running migrations..."
@@ -19,5 +20,9 @@ python manage.py cleanup_tts_audio
 
 echo "✅ Initialization complete!"
 
-# Start server with debugpy
-exec python -Xfrozen_modules=off -m debugpy --listen 0.0.0.0:5678 manage.py runserver 0.0.0.0:8000
+# Compose may select an explicit development or production server command.
+if [ "$#" -gt 0 ]; then
+    exec "$@"
+fi
+# Compatibility for existing development deployments.
+exec python manage.py runserver 0.0.0.0:8000
