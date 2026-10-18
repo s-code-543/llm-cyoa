@@ -92,3 +92,56 @@ class TestLegacyUrls:
     def test_django_admin_kept_for_users_and_groups(self, admin_client, client):
         assert admin_client.get('/django-admin/').status_code == 200
         assert client.get('/django-admin/').status_code == 302
+
+
+@pytest.mark.parametrize('name', ['../escape', '/tmp/escape', '..\\escape', '.', '..', 'bad\x00name'])
+def test_prompt_names_cannot_escape_directory(admin_client, name):
+    from game.admin_api import save_prompt_to_disk
+    from unittest.mock import patch
+
+    assert post(admin_client, '/api/v1/admin/prompts', {
+        'type': 'judge', 'name': name, 'prompt_text': 'unsafe',
+    }).status_code == 400
+    # Existing database rows must also be rejected before any write occurs.
+    prompt = Prompt(name=name, version=1, prompt_type='judge', prompt_text='unsafe')
+    with patch('builtins.open') as opened:
+        with pytest.raises(ValueError):
+            save_prompt_to_disk(prompt)
+        opened.assert_not_called()
+
+
+def test_provider_connection_fixture_targets(mock_ollama_connection, mock_anthropic_connection,
+                                            mock_anthropic_models, mock_openai_connection,
+                                            mock_openai_models, mock_openrouter_connection,
+                                            mock_openrouter_models):
+    from game import admin_providers_api
+
+    assert admin_providers_api.test_ollama_connection is mock_ollama_connection
+    assert admin_providers_api.test_anthropic_connection is mock_anthropic_connection
+    assert admin_providers_api.get_anthropic_models is mock_anthropic_models
+    assert admin_providers_api.test_openai_connection is mock_openai_connection
+    assert admin_providers_api.get_openai_models is mock_openai_models
+    assert admin_providers_api.test_openrouter_connection is mock_openrouter_connection
+    assert admin_providers_api.get_openrouter_models is mock_openrouter_models
+
+
+def test_prompt_save_stays_under_root_and_rejects_symlinks(tmp_path):
+    from unittest.mock import patch
+    from game.admin_api import save_prompt_to_disk
+
+    prompt = Prompt.objects.create(name='safe prompt', version=1, prompt_type='judge', prompt_text='saved')
+    root = tmp_path / 'cyoa_prompts'
+    with patch('game.admin_api.__file__', str(tmp_path / 'server/game/admin_api.py')), \
+            patch('os.path.exists', return_value=False):
+        save_prompt_to_disk(prompt)
+        target = root / 'judge_prompts/safe prompt_v1.txt'
+        assert target.read_text() == 'saved'
+        prompt.refresh_from_db()
+        assert prompt.file_path == 'judge_prompts/safe prompt_v1.txt'
+        outside = tmp_path / 'outside.txt'
+        outside.write_text('unchanged')
+        target.unlink()
+        target.symlink_to(outside)
+        with pytest.raises(ValueError):
+            save_prompt_to_disk(prompt)
+        assert outside.read_text() == 'unchanged'

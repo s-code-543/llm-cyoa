@@ -22,7 +22,7 @@ services:
     volumes:
       - prod-db:/app/db
       - prod-media:/app/media
-      - ./cyoa_prompts:/story_prompts:ro
+      - ./cyoa_prompts:/story_prompts:rw
 volumes:
   prod-db:
   prod-media:

@@ -4,8 +4,17 @@ import { Alert, Button, Card, Input, Label, TextField } from "@heroui/react";
 import { useSession } from "./SessionProvider";
 
 // Only follow same-origin paths so ?next cannot redirect off-site.
-export const safeNext = (value: string | null) =>
-  value && value.startsWith("/") && !value.startsWith("//") ? value : "/";
+export const safeNext = (value: string | null) => {
+  if (!value?.startsWith("/")) return "/";
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.origin === window.location.origin
+      ? `${url.pathname}${url.search}${url.hash}`
+      : "/";
+  } catch {
+    return "/";
+  }
+};
 
 export function LoginPage() {
   const { session, login } = useSession();
@@ -28,7 +37,9 @@ export function LoginPage() {
         <Card.Header className="items-center text-center">
           <span className="text-4xl text-sun">✦</span>
           <Card.Title className="font-story text-3xl">Welcome back</Card.Title>
-          <Card.Description>Sign in to continue your adventures.</Card.Description>
+          <Card.Description>
+            Sign in to continue your adventures.
+          </Card.Description>
         </Card.Header>
         <Card.Content>
           <form className="flex flex-col gap-4" onSubmit={submit}>

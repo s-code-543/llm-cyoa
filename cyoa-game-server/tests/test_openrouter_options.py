@@ -38,3 +38,27 @@ def test_image_catalog_merged_with_text_models():
     assert [m['id'] for m in models] == ['text/model', 'image/model']
     assert models[1]['image_generation'] is True
     assert 'aspect_ratio' in models[1]['supported_parameters']
+
+
+@pytest.mark.parametrize('failure', ['timeout', 'json', 'shape', 'entry', 'http'])
+def test_optional_image_catalog_failure_preserves_text_models(failure):
+    import requests
+    from game.openrouter_utils import get_openrouter_models
+
+    text = Mock(status_code=200)
+    text.json.return_value = {'data': [{'id': 'text/model', 'name': 'Text'}]}
+    images = Mock(status_code=200)
+    images.json.return_value = {'data': []}
+    if failure == 'timeout':
+        images = requests.Timeout('image catalog timed out')
+    elif failure == 'json':
+        images.json.side_effect = ValueError('invalid JSON')
+    elif failure == 'shape':
+        images.json.return_value = []
+    elif failure == 'entry':
+        images.json.return_value = {'data': [{'name': 'missing id'}]}
+    else:
+        images.status_code = 503
+    with patch('game.openrouter_utils.requests.get', side_effect=[text, images]):
+        models = get_openrouter_models('test')
+    assert [model['id'] for model in models] == ['text/model']

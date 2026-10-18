@@ -25,7 +25,7 @@ docker compose -f compose.dev.yml down
 
 `down` preserves data. Avoid `down -v` unless deliberately deleting the development database/media. Leave the existing `docker-compose.mac.yml` and `docker-compose.nvidia.yml` home deployments alone; do not run those to develop locally. Port 8000 may belong to another app; this project uses 8001.
 
-Optional environment values are listed in `.env.example`; copy it to the ignored `.env` if needed. OpenRouter keys are entered in the local admin, not the frontend environment. TTS needs a separate `OPENAI_API_KEY`, global TTS enabled, and the adventure's `Enable text-to-speech` switch. The React preview's first milestone is text and rollback; speech controls remain available in the original chat. Native Whisper endpoint defaults to `http://host.docker.internal:10300/v1/audio/transcriptions`. See README-MAC.md for the older native Whisper setup; its shared-network/tunnel startup steps are not needed here.
+Optional environment values are listed in `.env.example`; copy it to the ignored `.env` if needed. OpenRouter keys are entered in the local admin, not the frontend environment. TTS needs a separate `OPENAI_API_KEY`, global TTS enabled, and the adventure's `Enable text-to-speech` switch. The React chat supports text and rollback; TTS playback controls are pending and are not currently available in the UI. Native Whisper endpoint defaults to `http://host.docker.internal:10300/v1/audio/transcriptions`. See README-MAC.md for the older native Whisper setup; its shared-network/tunnel startup steps are not needed here.
 
 ## Tests and builds
 
@@ -56,7 +56,7 @@ Backend API tests mock the provider; frontend component tests use a mock API. Ro
 
 ## Production configuration
 
-`compose.prod.yml` is a separate configuration, not a migration of the home deployment. It builds frontend assets into a Django image, runs Gunicorn with DEBUG off, serves built static assets through WhiteNoise, uses separate production volumes and publishes HTTP on loopback port 8002. It includes no Vite, source mounts, debug port or tunnel. Required environment values fail validation if omitted.
+`compose.prod.yml` is a separate configuration, not a migration of the home deployment. It builds frontend assets into a Django image, runs Gunicorn with DEBUG off, serves built static assets through WhiteNoise, uses separate production volumes and publishes HTTP on loopback port 8002. It includes no Vite, application source mounts, debug port or tunnel. The host `cyoa_prompts/` directory is mounted writable so the administrator's Save to disk action persists versioned prompt files there. Required environment values fail validation if omitted.
 
 ```sh
 docker compose --env-file /path/to/production.env -f compose.prod.yml build

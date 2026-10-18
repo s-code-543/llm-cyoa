@@ -1,5 +1,6 @@
 """JSON API for the React administration pages. Every view requires the admin role."""
 from functools import wraps
+from pathlib import Path
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -39,6 +40,12 @@ def invalid(fields):
     }}, status=400)
 
 
+def valid_prompt_name(name):
+    return bool(name) and name not in {'.', '..'} and not any(
+        char in name for char in ('/', '\\', '\x00')
+    )
+
+
 def save_prompt_to_disk(prompt):
     """
     Write a prompt to its corresponding .txt file on disk.
@@ -47,12 +54,14 @@ def save_prompt_to_disk(prompt):
     """
     import os
     
+    if not valid_prompt_name(prompt.name):
+        raise ValueError("Prompt name must be a simple filename without path separators.")
+
     # Determine base directory
     if os.path.exists('/story_prompts'):
         base_dir = '/story_prompts'
     else:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        base_dir = os.path.join(project_root, 'cyoa_prompts')
+        base_dir = Path(__file__).resolve().parents[2] / 'cyoa_prompts'
     
     # Map prompt type to directory
     type_to_dir = {
@@ -71,7 +80,10 @@ def save_prompt_to_disk(prompt):
     
     # Build filename with version
     filename = f"{prompt.name}_v{prompt.version}.txt"
-    filepath = os.path.join(base_dir, dir_name, filename)
+    prompt_root = Path(base_dir).resolve()
+    filepath = (prompt_root / dir_name / filename).resolve()
+    if not filepath.is_relative_to(prompt_root):
+        raise ValueError("Prompt file must remain inside the prompt directory.")
     
     # Ensure directory exists
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -192,8 +204,8 @@ def prompt_collection(request):
     name = str(data.get('name', '')).strip()
     if prompt_type not in dict(PROMPT_TYPES):
         return error('invalid_request', 'Choose a prompt type.', 400)
-    if not name:
-        return error('invalid_request', 'Prompt name is required.', 400)
+    if not valid_prompt_name(name):
+        return error('invalid_request', 'Prompt name must be a simple filename without path separators.', 400)
     latest = Prompt.objects.filter(
         prompt_type=prompt_type, name=name
     ).order_by('-version').first()
@@ -250,6 +262,8 @@ def prompt_save_to_disk(request, prompt_id):
         return error('not_found', 'Prompt not found.', 404)
     try:
         message = save_prompt_to_disk(prompt)
+    except ValueError as exc:
+        return error('invalid_request', str(exc), 400)
     except Exception as exc:
         return error('save_failed', f'Failed to save to disk: {exc}', 500)
     return JsonResponse({'message': message, 'prompt': prompt_full(prompt)})
