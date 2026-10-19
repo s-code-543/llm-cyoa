@@ -27,6 +27,61 @@ docker compose -f compose.dev.yml down
 
 Optional environment values are listed in `.env.example`; copy it to the ignored `.env` if needed. OpenRouter keys are entered in the local admin, not the frontend environment. TTS needs a separate `OPENAI_API_KEY`, global TTS enabled, and the adventure's `Enable text-to-speech` switch. The React chat supports text and rollback; TTS playback controls are pending and are not currently available in the UI. Native Whisper endpoint defaults to `http://host.docker.internal:10300/v1/audio/transcriptions`. See README-MAC.md for the older native Whisper setup; its shared-network/tunnel startup steps are not needed here.
 
+## Updating an existing Mac home deployment
+
+The tracked `compose.home-prod.yml` overlay upgrades the existing
+`docker-compose.mac.yml` deployment to the React production image while retaining
+its `cyoa-game-server` container name, shared network, database and Cloudflare tunnel.
+This updater targets that existing home deployment; the separate `compose.prod.yml`
+stack uses different service names and volumes and is not managed by this script.
+The overlay requires Docker Compose 2.24.4 or newer for `!override`.
+
+From a clean `main` checkout with the home deployment already running, its existing
+`.env` credentials and `stargate-shared` network configured:
+
+```sh
+./scripts/update-production.py --check
+./scripts/update-production.py
+```
+
+The updater builds an isolated `origin/main` image before stopping the app. It then
+backs up the stopped container's `/app/db` and `/app/media`, including Docker volume
+contents, under `backups/<timestamp>/`. Media is compressed as `media.tar.gz`.
+Backups also contain release metadata, the prior overlay, and a private
+`rollback.json` with the effective previous Compose configuration and credentials.
+Keep these backups private. The updater does not delete old backups or images.
+
+The app is recreated separately from starting it. If creation or launch fails and
+Docker confirms the replacement container never started, the updater recreates the
+previous image with its saved configuration. Build failures leave the app running;
+backup failures restart the original container. If the replacement has started, or
+Docker cannot establish its state, migrations may have modified the database and
+recovery is deliberately manual: stop the failed app, restore the matching database
+backup, then run the saved configuration and image together:
+
+```sh
+docker compose -p llm-cyoa -f backups/<timestamp>/rollback.json up -d --no-build --no-deps cyoa-game-server
+```
+
+Use the actual deployment project name if it differs from `llm-cyoa`. Restore the
+complete backed-up database directory while the app is stopped, including SQLite
+sidecar files; do not copy a database over a running service. Restore `media.tar.gz`
+to the effective media mount if needed. Review `release.json` for the previous
+commit/image. Restoring data discards writes made since that backup.
+
+On success, the updater sets the local `home-production` image tag without editing
+the tracked overlay, and checks the local page, frontend assets, Django configuration
+and migration state. Verify a signed-in session at the public URL afterward. The
+tunnel is left running. Use `--force` to rebuild an unchanged commit. The script
+requires Python 3, Git and running Docker Desktop. For manual Compose operations,
+include both `-f docker-compose.mac.yml -f compose.home-prod.yml`.
+
+Updater regression tests run without contacting Docker or the deployed app:
+
+```sh
+python3 -m unittest discover -s scripts/tests -v
+```
+
 ## Tests and builds
 
 Backend tests use a disposable container with no network or development volumes. Do not run the suite against the app's media volume: the existing test cleanup fixture deletes recordings.

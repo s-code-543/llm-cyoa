@@ -1,0 +1,20 @@
+# Production overlay for the existing Mac home deployment and tunnel.
+# Requires Docker Compose >= 2.24.4; use with docker-compose.mac.yml.
+services:
+  cyoa-game-server:
+    image: ${CYOA_IMAGE:-llm-cyoa-cyoa-game-server:home-production}
+    build: !override
+      context: .
+      dockerfile: deploy/Dockerfile.prod
+    environment:
+      DJANGO_DEBUG: '0'
+      DJANGO_SECURE_COOKIES: '1'
+      FRONTEND_DEV: '0'
+      DJANGO_ALLOWED_HOSTS: 'cyoa.mac.stargate.lan,cyoa.chat-sdp.com,cyoa.chat-sdp.org,localhost,127.0.0.1,cyoa-game-server,host.docker.internal'
+      DJANGO_CSRF_TRUSTED_ORIGINS: 'https://cyoa.mac.stargate.lan,https://cyoa.chat-sdp.com,https://cyoa.chat-sdp.org'
+    ports: !override
+      - '127.0.0.1:8001:8000'
+    volumes: !override
+      - ./cyoa_prompts:/story_prompts
+      - cyoa-db:/app/db
+      - ./cyoa-game-server/media:/app/media

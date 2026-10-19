@@ -52,6 +52,29 @@ def main():
         update(args, state)
 
 
+def migration_may_have_started(previous_id):
+    """Unknown Docker state is unsafe to roll back without restoring the database."""
+    try:
+        current = json.loads(output('docker', 'inspect', 'cyoa-game-server'))[0]
+    except subprocess.CalledProcessError:
+        # A missing container cannot have run; distinguish it from a daemon error.
+        try:
+            ids = output('docker', 'ps', '-aq', '--filter', 'name=^/cyoa-game-server$')
+        except subprocess.CalledProcessError:
+            return True
+        return bool(ids)
+    if current['Id'] == previous_id:
+        return False
+    started = current['State'].get('StartedAt', '')
+    return not started.startswith('0001-01-01')
+
+
+def restore_previous(backup, project):
+    # Effective config contains absolute mounts and the original environment.
+    run('docker', 'compose', '-p', project, '-f', str(backup / 'rollback.json'),
+        'up', '-d', '--no-build', '--no-deps', 'cyoa-game-server')
+
+
 def update(args, state):
     run('git', 'fetch', 'origin', 'main')
     old = output('git', 'rev-parse', 'HEAD')
@@ -77,11 +100,20 @@ def update(args, state):
     backup = ROOT / 'backups' / stamp
     backup.mkdir(parents=True, mode=0o700)
     previous = state['Config']['Image']
+    project = state['Config']['Labels']['com.docker.compose.project']
+    rollback_tag = 'llm-cyoa-cyoa-game-server:rollback-' + stamp
+    effective = json.loads(output(*COMPOSE, 'config', '--format', 'json'))
+    effective['services']['cyoa-game-server']['image'] = rollback_tag
+    # Config includes credentials: restrict access before writing any content.
+    fd = os.open(str(backup / 'rollback.json'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        json.dump(effective, f)
+
     (backup / 'release.json').write_text(json.dumps({'previous_commit': old, 'target_commit': new,
         'previous_image': previous, 'previous_image_id': state['Image'], 'new_image': image}, indent=2))
     overlay = ROOT / 'compose.home-prod.yml'
     (backup / 'compose.home-prod.yml').write_bytes(overlay.read_bytes())
-    run('docker', 'image', 'tag', state['Image'], 'llm-cyoa-cyoa-game-server:rollback-' + stamp)
+    run('docker', 'image', 'tag', state['Image'], rollback_tag)
     stopped = False
     deployment_attempted = False
     try:
@@ -96,17 +128,20 @@ def update(args, state):
                 raise RuntimeError('Database backup failed its integrity check.')
         finally:
             connection.close()
-        with tarfile.open(backup / 'media.tar.gz', 'w:gz') as tar:
-            tar.add(ROOT / 'cyoa-game-server' / 'media', arcname='media')
+        # Copy the effective container mount, including named Docker volumes.
+        with tempfile.TemporaryDirectory(prefix='cyoa-media-') as temporary:
+            media = Path(temporary) / 'media'
+            run('docker', 'cp', 'cyoa-game-server:/app/media', str(media))
+            with tarfile.open(backup / 'media.tar.gz', 'w:gz') as tar:
+                tar.add(media, arcname='media')
         run('git', 'merge', '--ff-only', 'origin/main')
-        text = overlay.read_text()
-        text, count = re.subn(r'(?m)^    image: .+$', '    image: ' + image, text)
-        if count != 1:
-            raise RuntimeError('Expected exactly one image setting in the local overlay.')
-        overlay.write_text(text)
+        # Select this release without leaving tracked configuration dirty.
+        os.environ['CYOA_IMAGE'] = image
         run(*COMPOSE, 'config', '--quiet')
         deployment_attempted = True
-        run(*COMPOSE, 'up', '-d', '--no-build', '--no-deps', 'cyoa-game-server')
+        # Creation cannot execute the entrypoint or touch the database.
+        run(*COMPOSE, 'create', '--no-build', '--no-deps', 'cyoa-game-server')
+        run('docker', 'start', 'cyoa-game-server')
         for attempt in range(60):
             try:
                 with urllib.request.urlopen('http://127.0.0.1:8001/', timeout=3) as response:
@@ -124,6 +159,7 @@ def update(args, state):
                 time.sleep(2)
         run('docker', 'exec', 'cyoa-game-server', 'python', 'manage.py', 'check')
         run('docker', 'exec', 'cyoa-game-server', 'python', 'manage.py', 'migrate', '--check')
+        run('docker', 'image', 'tag', image, 'llm-cyoa-cyoa-game-server:home-production')
         print(f'Updated to {new[:12]}. App and frontend assets respond successfully.\nBackup: {backup}\nOpen https://cyoa.chat-sdp.org/ to verify your signed-in session.')
     except BaseException:
         if stopped and not deployment_attempted:
@@ -132,8 +168,14 @@ def update(args, state):
             print('The previous container was restarted; deployment had not begun.')
         elif deployment_attempted:
             print('Deployment failed. Backup: ' + str(backup))
-            print('No automatic rollback: migrations may have changed the database. Restore matching database and image together.')
-            subprocess.run(COMPOSE + ['logs', '--tail=80', 'cyoa-game-server'], cwd=ROOT)
+            if not migration_may_have_started(state['Id']):
+                overlay.write_bytes((backup / 'compose.home-prod.yml').read_bytes())
+                restore_previous(backup, project)
+                print('Previous image restored: the new container never started, so migrations could not run.')
+            else:
+                print('The new container started or its state is unknown; migrations may have run.')
+                print('Restore matching database and image together; no automatic database rollback.')
+                subprocess.run(COMPOSE + ['logs', '--tail=80', 'cyoa-game-server'], cwd=ROOT)
         raise
 
 
