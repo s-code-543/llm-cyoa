@@ -31,3 +31,7 @@ frontend/dist
 **/db
 **/media
 **/staticfiles
+
+# Include bundled frontend artwork in production builds.
+!frontend/src/media/
+!frontend/src/media/**
