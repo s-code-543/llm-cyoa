@@ -100,6 +100,31 @@ class UpdateTests(unittest.TestCase):
         self.assertIn(('docker', 'image', 'tag', 'llm-cyoa-cyoa-game-server:' + 'b' * 12,
                        'llm-cyoa-cyoa-game-server:home-production'), self.calls)
         self.assertFalse(self.rollback_calls())
+        creation = next(c for c in self.calls if 'create' in c)
+        self.assertNotIn('--no-deps', creation)
+
+    def test_manual_pull_does_not_skip_older_deployed_image(self):
+        original = self.output
+        def pulled(*args):
+            if args[:2] == ('git', 'rev-parse'): return 'b' * 40
+            return original(*args)
+        self.failure = 'build'
+        with patch.object(u, 'output', side_effect=pulled):
+            with self.assertRaises(subprocess.CalledProcessError): u.update(self.args, self.state)
+        build = next(c for c in self.calls if c[:2] == ('docker', 'build'))
+        self.assertIn('org.opencontainers.image.revision=' + 'b' * 40, build)
+
+    def test_current_deployment_skips_build_and_restart(self):
+        self.state['Config']['Labels']['org.opencontainers.image.revision'] = 'b' * 40
+        u.update(self.args, self.state)
+        self.assertFalse(any(c[:2] == ('docker', 'build') for c in self.calls))
+        self.assertNotIn(('docker', 'stop', 'cyoa-game-server'), self.calls)
+
+    def test_force_rebuilds_current_deployment(self):
+        self.state['Config']['Labels']['org.opencontainers.image.revision'] = 'b' * 40
+        self.args.force = True
+        self.failure = 'build'
+        with self.assertRaises(subprocess.CalledProcessError): u.update(self.args, self.state)
 
     def test_build_failure_keeps_old_app_running(self):
         self.failure = 'build'

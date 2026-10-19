@@ -27,7 +27,7 @@ def output(*args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Check local prerequisites without updating or restarting')
-    parser.add_argument('--force', action='store_true', help='Rebuild even when main has no new commits')
+    parser.add_argument('--force', action='store_true', help='Rebuild even when the running app already has the latest commit')
     args = parser.parse_args()
     os.chdir(ROOT)
     if output('git', 'branch', '--show-current') != 'main':
@@ -80,9 +80,14 @@ def update(args, state):
     old = output('git', 'rev-parse', 'HEAD')
     new = output('git', 'rev-parse', 'origin/main')
     run('git', 'merge-base', '--is-ancestor', old, new)
-    if old == new and not args.force:
-        print('Already on the latest main. Nothing restarted. Use --force to rebuild.')
+    deployed = state['Config'].get('Labels', {}).get('org.opencontainers.image.revision')
+    if deployed == new and not args.force:
+        if old != new:
+            run('git', 'merge', '--ff-only', 'origin/main')
+        print('The running app already has ' + new[:12] + '. Nothing restarted. Use --force to rebuild.')
         return
+    print('Running release: ' + (deployed[:12] if deployed else 'unknown (legacy image)') +
+          '; target: ' + new[:12], flush=True)
     stamp = time.strftime('%Y%m%d-%H%M%S')
     image = 'llm-cyoa-cyoa-game-server:' + new[:12]
     print('Building ' + new[:12] + ' while the current app stays online.', flush=True)
@@ -96,7 +101,8 @@ def update(args, state):
         ignore = source / '.dockerignore'
         with ignore.open('a') as f:
             f.write('\n!frontend/src/media/\n!frontend/src/media/**\n')
-        run('docker', 'build', '-f', str(source / 'deploy/Dockerfile.prod'), '-t', image, str(source))
+        run('docker', 'build', '--label', 'org.opencontainers.image.revision=' + new,
+            '-f', str(source / 'deploy/Dockerfile.prod'), '-t', image, str(source))
     backup = ROOT / 'backups' / stamp
     backup.mkdir(parents=True, mode=0o700)
     previous = state['Config']['Image']
@@ -109,7 +115,7 @@ def update(args, state):
     with os.fdopen(fd, 'w') as f:
         json.dump(effective, f)
 
-    (backup / 'release.json').write_text(json.dumps({'previous_commit': old, 'target_commit': new,
+    (backup / 'release.json').write_text(json.dumps({'previous_commit': deployed, 'previous_checkout_commit': old, 'target_commit': new,
         'previous_image': previous, 'previous_image_id': state['Image'], 'new_image': image}, indent=2))
     overlay = ROOT / 'compose.home-prod.yml'
     (backup / 'compose.home-prod.yml').write_bytes(overlay.read_bytes())
@@ -140,7 +146,7 @@ def update(args, state):
         run(*COMPOSE, 'config', '--quiet')
         deployment_attempted = True
         # Creation cannot execute the entrypoint or touch the database.
-        run(*COMPOSE, 'create', '--no-build', '--no-deps', 'cyoa-game-server')
+        run(*COMPOSE, 'create', '--no-build', 'cyoa-game-server')
         run('docker', 'start', 'cyoa-game-server')
         for attempt in range(60):
             try:

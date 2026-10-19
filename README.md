@@ -44,7 +44,10 @@ From a clean `main` checkout with the home deployment already running, its exist
 ./scripts/update-production.py
 ```
 
-The updater builds an isolated `origin/main` image before stopping the app. It then
+The updater compares `origin/main` with the revision label on the running container,
+so manually pulling Git changes does not skip deployment. Legacy images without a
+revision label are rebuilt once. It builds an isolated `origin/main` image with the
+full commit revision label before stopping the app. It then
 backs up the stopped container's `/app/db` and `/app/media`, including Docker volume
 contents, under `backups/<timestamp>/`. Media is compressed as `media.tar.gz`.
 Backups also contain release metadata, the prior overlay, and a private
