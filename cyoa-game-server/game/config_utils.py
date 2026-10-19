@@ -1,7 +1,9 @@
 """
 Configuration utilities.
 """
-from .models import Configuration
+from django.db.models import Prefetch
+
+from .models import Configuration, JudgeStep
 
 
 def get_active_configuration():
@@ -66,6 +68,20 @@ def conversation_tts_enabled(conversation):
     return bool(config and config.enable_tts and OPENAI_API_KEY and TTSSettings.get_settings().enabled)
 
 
+def with_model_availability(queryset):
+    """Load every availability dependency in two queries for a configuration list."""
+    return queryset.select_related(
+        'storyteller_model__provider', 'classifier_model__provider',
+        'turn_correction_model__provider', 'image_model__provider',
+    ).prefetch_related(Prefetch(
+        'judge_steps',
+        queryset=JudgeStep.objects.filter(enabled=True).select_related(
+            'classifier_model__provider', 'rewrite_model__provider', 'compare_model__provider',
+        ),
+        to_attr='availability_judge_steps',
+    ))
+
+
 def configuration_models_available(config):
     """All model roles needed by this saved adventure must still be usable."""
     if not config:
@@ -78,7 +94,10 @@ def configuration_models_available(config):
             models.append(config.turn_correction_model)
     if config.enable_image_generation:
         models.append(config.image_model)
-    for step in config.judge_steps.filter(enabled=True):
+    steps = getattr(config, 'availability_judge_steps', None)
+    if steps is None:
+        steps = config.judge_steps.filter(enabled=True)
+    for step in steps:
         models.extend([step.rewrite_model, step.compare_model])
         if step.classifier_prompt_id:
             models.append(step.classifier_model)

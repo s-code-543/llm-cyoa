@@ -105,8 +105,15 @@ def snapshot(conversation):
 @player_api
 @require_http_methods(['GET'])
 def bootstrap(request):
-    from .config_utils import configuration_models_available
-    return JsonResponse({'debug_allowed': request.user.is_staff, 'configurations': [{'id': c.pk, 'name': c.name} for c in Configuration.objects.all() if configuration_models_available(c)]})
+    from .config_utils import configuration_models_available, with_model_availability
+    configurations = with_model_availability(Configuration.objects.all())
+    return JsonResponse({
+        'debug_allowed': request.user.is_staff,
+        'configurations': [
+            {'id': c.pk, 'name': c.name}
+            for c in configurations if configuration_models_available(c)
+        ],
+    })
 
 
 @player_api

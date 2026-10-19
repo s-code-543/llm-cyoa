@@ -16,7 +16,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from .chat_api import body, error, player_api
-from .config_utils import configuration_models_available
+from .config_utils import configuration_models_available, with_model_availability
 from .models import ChatConversation, Configuration, GameSession
 
 PLAY = 'play'
@@ -129,8 +129,10 @@ def home(request):
             })
         if len(recent) >= 5:
             break
-    configurations = Configuration.objects.filter(storyteller_model__isnull=False).select_related(
-        'adventure_prompt', 'difficulty',
+    configurations = with_model_availability(
+        Configuration.objects.filter(storyteller_model__isnull=False).select_related(
+            'adventure_prompt', 'difficulty',
+        )
     )
     return JsonResponse({
         'recent_games': recent,
