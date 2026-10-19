@@ -80,7 +80,8 @@ def illustrate_message(message):
 @login_required
 @require_GET
 def scene_image(request, message_id):
-    message = get_object_or_404(ChatMessage, pk=message_id, conversation__user=request.user)
+    messages = ChatMessage.objects.all() if request.user.is_staff else ChatMessage.objects.filter(conversation__user=request.user)
+    message = get_object_or_404(messages, pk=message_id)
     filename = message.metadata.get('scene_image', {}).get('filename', '')
     if not filename or Path(filename).name != filename:
         raise Http404

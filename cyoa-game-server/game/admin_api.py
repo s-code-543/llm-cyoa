@@ -267,3 +267,24 @@ def prompt_save_to_disk(request, prompt_id):
     except Exception as exc:
         return error('save_failed', f'Failed to save to disk: {exc}', 500)
     return JsonResponse({'message': message, 'prompt': prompt_full(prompt)})
+
+
+@admin_api
+@require_http_methods(['GET'])
+def chat_collection(request):
+    """Find chats across all players for administrator inspection."""
+    from django.db.models import Q
+    from .models import ChatConversation
+    search = request.GET.get('search', '').strip()
+    offset = max(0, int(request.GET.get('offset', 0)))
+    chats = ChatConversation.objects.select_related('user').order_by('-updated_at', '-pk')
+    if search:
+        chats = chats.filter(Q(title__icontains=search) | Q(user__username__icontains=search)
+                             | Q(user__email__icontains=search) | Q(conversation_id__icontains=search))
+    rows = list(chats[offset:offset + 51])
+    return JsonResponse({
+        'chats': [{'id': c.conversation_id, 'title': c.title,
+                   'owner': c.user.email or c.user.get_username(),
+                   'updated_at': c.updated_at.isoformat()} for c in rows[:50]],
+        'has_more': len(rows) > 50,
+    })

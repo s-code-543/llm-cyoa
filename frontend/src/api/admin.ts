@@ -269,3 +269,7 @@ export const validateModels = () =>
   );
 export const deleteUnavailableModels = (delete_ids: number[]) =>
   apiFetch<Message>(`${base}/models/validate`, { payload: { delete_ids } });
+
+export type AdminChat = { id: string; title: string; owner: string; updated_at: string };
+export const getAdminChats = (search: string, offset: number) =>
+  apiFetch<{ chats: AdminChat[]; has_more: boolean }>(`${base}/chats?${new URLSearchParams({ search, offset: String(offset) })}`);

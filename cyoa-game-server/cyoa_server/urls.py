@@ -34,6 +34,7 @@ urlpatterns = [
     path('api/v1/session/logout', app_api.logout),
     path('api/v1/home', app_api.home),
     path('api/v1/admin/dashboard', admin_api.dashboard),
+    path('api/v1/admin/chats', admin_api.chat_collection),
     path('api/v1/admin/audit', admin_api.audit_collection),
     path('api/v1/admin/audit/<int:log_id>', admin_api.audit_detail),
     path('api/v1/admin/prompts', admin_api.prompt_collection),
