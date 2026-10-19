@@ -121,6 +121,48 @@ test("checkbox selections stay visible in removable chips while filtering", asyn
   expect(screen.queryByRole("region", { name: "Selected models" })).toBeNull();
 });
 
+test("refresh clears selections that may no longer be in the catalog", async () => {
+  const api = vi.mocked(apiFetch);
+  let refreshed = false;
+  api.mockImplementation(async (url) => {
+    if (url.endsWith("/providers/1/models")) {
+      return {
+        provider: { name: "OpenRouter" },
+        models: refreshed
+          ? [{ id: "beta", name: "Beta", pricing: { prompt: "0.000001" } }]
+          : [
+              {
+                id: "alpha",
+                name: "Alpha",
+                pricing: { prompt: "0.000001" },
+              },
+              { id: "beta", name: "Beta", pricing: { prompt: "0.000001" } },
+            ],
+      };
+    }
+    refreshed = true;
+    return {};
+  });
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={["/providers/1"]}>
+        <Routes>
+          <Route path="/providers/:id" element={<ModelBrowserPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Select Alpha" }));
+  expect(screen.getByText("1 selected")).toBeTruthy();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Refresh models and costs" }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole("region", { name: "Selected models" })).toBeNull(),
+  );
+  expect(screen.queryByRole("button", { name: "Import selected" })).toBeDisabled();
+});
+
 test("model list refreshes provider costs and reports partial failures", async () => {
   const api = vi.mocked(apiFetch);
   let refreshed = false;

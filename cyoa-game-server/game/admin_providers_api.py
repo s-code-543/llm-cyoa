@@ -66,13 +66,16 @@ def pricing_metadata(item, checked_at=None):
     }
 
 
-def catalog_metadata(item):
-    return {
+def catalog_metadata(item, *, include_defaults=True):
+    metadata = {
         'context_length': item.get('context_length', 0),
         'created': item.get('created'),
         'architecture': item.get('architecture') or {},
         'supported_parameters': item.get('supported_parameters') or {},
     }
+    if include_defaults:
+        return metadata
+    return {key: value for key, value in metadata.items() if key in item}
 
 
 def get_provider(provider_id):
@@ -273,9 +276,8 @@ def provider_models_sync(request, provider_id):
             item = next(m for m in available if m['id'] == model.model_identifier)
             capabilities = dict(model.capabilities or {})
             capabilities.update(pricing_metadata(item))
-            capabilities.update(catalog_metadata(item))
-            capabilities.update(image_generation=bool(item.get('image_generation')),
-                                supported_parameters=item.get('supported_parameters', {}))
+            capabilities.update(catalog_metadata(item, include_defaults=False))
+            capabilities.update(image_generation=bool(item.get('image_generation')))
             if not model.is_available or model.capabilities != capabilities:
                 model.is_available = True
                 model.capabilities = capabilities
@@ -341,7 +343,7 @@ def refresh_model_pricing(request):
                 continue
             capabilities = dict(model.capabilities or {})
             capabilities.update(pricing_metadata(item, checked_at))
-            capabilities.update(catalog_metadata(item))
+            capabilities.update(catalog_metadata(item, include_defaults=False))
             model.capabilities = capabilities
             model.save(update_fields=['capabilities'])
             updated += 1
@@ -372,8 +374,13 @@ def validate_models(request):
         for model in LLMModel.objects.filter(provider=provider):
             model.is_available = model.model_identifier in available
             if model.is_available:
-                model.capabilities = {**(model.capabilities or {}), **pricing_metadata(available[model.model_identifier]),
-                                      **catalog_metadata(available[model.model_identifier])}
+                item = available[model.model_identifier]
+                model.capabilities = {
+                    **(model.capabilities or {}),
+                    **pricing_metadata(item),
+                    **catalog_metadata(item, include_defaults=False),
+                    'image_generation': bool(item.get('image_generation')),
+                }
             model.save(update_fields=['is_available', 'capabilities'])
             if not model.is_available:
                 unavailable.append(model_json(model))

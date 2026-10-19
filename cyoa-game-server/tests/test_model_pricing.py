@@ -82,6 +82,40 @@ def test_refresh_is_once_per_provider_and_preserves_availability_and_other_capab
         assert not model.is_available
 
 
+@pytest.mark.parametrize('operation', ['pricing', 'validation', 'sync'])
+def test_catalog_updates_preserve_metadata_omitted_by_provider(admin_client, operation):
+    provider = APIProviderFactory(provider_type='openrouter')
+    model = LLMModelFactory(
+        provider=provider,
+        capabilities={
+            'context_length': 128000,
+            'created': 1700000000,
+            'architecture': {'tokenizer': 'Qwen'},
+            'supported_parameters': ['tools'],
+            'image_generation': True,
+        },
+    )
+    catalog = [{'id': model.model_identifier, 'pricing': PRICING}]
+    with patch('game.admin_providers_api.fetch_provider_models', return_value=catalog):
+        if operation == 'pricing':
+            admin_client.post(REFRESH, '{}', content_type='application/json')
+        elif operation == 'validation':
+            admin_client.post('/api/v1/admin/models/validate', '{}', content_type='application/json')
+        else:
+            admin_client.post(
+                f'/api/v1/admin/providers/{provider.pk}/models/sync',
+                '{}',
+                content_type='application/json',
+            )
+    model.refresh_from_db()
+    assert model.capabilities['context_length'] == 128000
+    assert model.capabilities['created'] == 1700000000
+    assert model.capabilities['architecture'] == {'tokenizer': 'Qwen'}
+    assert model.capabilities['supported_parameters'] == ['tools']
+    if operation == 'validation':
+        assert model.capabilities['image_generation'] is False
+
+
 @pytest.mark.parametrize('catalog', [[], RuntimeError('offline'), [{'id': 'another-model'}]])
 def test_failed_refresh_keeps_saved_price_and_timestamp(admin_client, catalog):
     model = LLMModelFactory(capabilities={'pricing': PRICING, 'pricing_updated_at': 'old'})

@@ -282,7 +282,9 @@ export function ModelBrowserPage() {
           type="button"
           isDisabled={busy}
           onPress={() => {
-            void remote.refetch();
+            void remote.refetch().then((result) => {
+              if (!result.error) setSelected([]);
+            });
           }}
         >
           {remote.isFetching ? "Refreshing costs…" : "Refresh models and costs"}
