@@ -1,9 +1,14 @@
-import { Toggle } from "../../components/Toggle";
+import { Button, Chip, CloseButton, Input } from "@heroui/react";
+import { ModelTable } from "./ModelTable";
+import { ModelSelect } from "./ModelSelect";
+import { ModelFilterControls } from "./ModelFilterControls";
+import { defaultModelFilters, filterModels } from "./modelCatalog";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   browseModels,
+  refreshModelCosts,
   validateModels,
   deleteUnavailableModels,
   deleteModel,
@@ -21,6 +26,7 @@ export function ModelListPage() {
     queryFn: getModels,
   });
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState(defaultModelFilters);
   const [provider, setProvider] = useState("");
   const refresh = () => cache.invalidateQueries({ queryKey: ["admin"] });
   const validation = useMutation({
@@ -34,6 +40,10 @@ export function ModelListPage() {
       refresh();
     },
   });
+  const costs = useMutation({
+    mutationFn: refreshModelCosts,
+    onSuccess: refresh,
+  });
   const remove = useMutation({
     mutationFn: deleteModel,
     onSuccess: () => cache.invalidateQueries({ queryKey: ["admin", "models"] }),
@@ -41,26 +51,50 @@ export function ModelListPage() {
   if (models.isPending) return <Loading />;
   if (models.error) return <Failure error={models.error} />;
   const needle = search.trim().toLowerCase();
-  const rows = models.data.models.filter(
-    (m) =>
-      (!provider || String(m.provider_id) === provider) &&
-      (!needle ||
-        `${m.name} ${m.model_identifier}`.toLowerCase().includes(needle)),
+  const rows = filterModels(
+    models.data.models.filter(
+      (m) =>
+        (!provider || String(m.provider_id) === provider) &&
+        (!needle ||
+          `${m.name} ${m.model_identifier}`.toLowerCase().includes(needle)),
+    ),
+    filters,
   );
   return (
     <>
       <h1>Models</h1>
-      <button
-        type="button"
-        disabled={validation.isPending || cleanup.isPending}
-        onClick={() => {
-          cleanup.reset();
-          validation.mutate();
-        }}
-      >
-        {validation.isPending ? "Validating models…" : "Validate models"}
-      </button>
-      <Failure error={validation.error ?? cleanup.error} />
+      <div className="toolbar model-toolbar">
+        <Button
+          type="button"
+          isDisabled={validation.isPending || cleanup.isPending}
+          onPress={() => {
+            cleanup.reset();
+            validation.mutate();
+          }}
+        >
+          {validation.isPending ? "Validating models…" : "Validate models"}
+        </Button>
+        <Button
+          type="button"
+          isDisabled={costs.isPending}
+          onPress={() => costs.mutate()}
+        >
+          {costs.isPending
+            ? "Refreshing costs…"
+            : "Refresh costs from providers"}
+        </Button>
+      </div>
+      <p>
+        Provider rates in USD. Token prices are per 1M tokens; actual charges
+        depend on usage and routing.
+      </p>
+      {costs.data && <p role="status">{costs.data.message}</p>}
+      {costs.data?.failures.map((failure) => (
+        <p role="alert" key={failure}>
+          {failure}
+        </p>
+      ))}
+      <Failure error={validation.error ?? cleanup.error ?? costs.error} />
       {cleanup.data && <p role="status">{cleanup.data.message}</p>}
       {validation.data && (
         <section aria-label="Model validation results">
@@ -80,11 +114,11 @@ export function ModelListPage() {
                   <li key={model.id}>{model.name}</li>
                 ))}
               </ul>
-              <button
+              <Button
                 type="button"
                 className="danger"
-                disabled={cleanup.isPending}
-                onClick={() => {
+                isDisabled={cleanup.isPending}
+                onPress={() => {
                   if (
                     window.confirm(
                       "Delete these unavailable models? Saved configurations will be kept and must be updated before their adventures can start.",
@@ -96,7 +130,7 @@ export function ModelListPage() {
                 }}
               >
                 Delete unavailable models
-              </button>
+              </Button>
             </>
           ) : (
             <p role="status">
@@ -107,65 +141,62 @@ export function ModelListPage() {
           )}
         </section>
       )}
-      <div className="toolbar">
-        <input
+      <div className="toolbar model-toolbar">
+        <Input
           aria-label="Search models"
           placeholder="Search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select
-          aria-label="Provider"
+        <ModelSelect
+          label="Provider"
           value={provider}
-          onChange={(e) => setProvider(e.target.value)}
-        >
-          <option value="">All providers</option>
-          {models.data.providers.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+          onChange={setProvider}
+          options={[
+            { value: "", label: "All providers" },
+            ...models.data.providers.map((p) => ({
+              value: String(p.id),
+              label: p.name,
+            })),
+          ]}
+        />
         <Link to="/manage/providers">Import from a provider →</Link>
       </div>
+      <ModelFilterControls
+        models={models.data.models}
+        value={filters}
+        onChange={setFilters}
+      />
+      <p>
+        {rows.length} of {models.data.models.length} models match.
+      </p>
       <Failure error={remove.error} />
       {rows.length === 0 ? (
         <p className="empty">No models match.</p>
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Identifier</th>
-              <th>Provider</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((m) => (
-              <tr key={m.id}>
-                <td>
-                  {m.name}
-                  {m.image_generation ? " · Image generation" : ""}
-                  {m.is_available ? "" : " (unavailable)"}
-                </td>
-                <td>{m.model_identifier}</td>
-                <td>{m.provider_name}</td>
-                <td>
-                  <button
-                    type="button"
-                    className="danger"
-                    onClick={() =>
-                      window.confirm(`Delete ${m.name}?`) && remove.mutate(m.id)
-                    }
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ModelTable
+          models={rows}
+          sort={filters.sort}
+          onSort={(sort) => setFilters({ ...filters, sort })}
+          showProvider
+          renderName={(m) => (
+            <>
+              {m.name}
+              {m.image_generation ? " · Image generation" : ""}
+              {m.is_available ? "" : " (unavailable)"}
+            </>
+          )}
+          renderAction={(m) => (
+            <Button
+              variant="danger-soft"
+              onPress={() => {
+                if (window.confirm(`Delete ${m.name}?`)) remove.mutate(m.id);
+              }}
+            >
+              Delete
+            </Button>
+          )}
+        />
       )}
     </>
   );
@@ -180,6 +211,7 @@ export function ModelBrowserPage() {
   });
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState(defaultModelFilters);
   const [notice, setNotice] = useState("");
   const refresh = (result: { message: string }) => {
     setNotice(result.message);
@@ -201,8 +233,11 @@ export function ModelBrowserPage() {
   if (remote.isPending) return <Loading />;
   if (remote.error) return <Failure error={remote.error} />;
   const needle = search.trim().toLowerCase();
-  const shown = remote.data.models.filter(
-    (m) => !needle || `${m.name} ${m.id}`.toLowerCase().includes(needle),
+  const shown = filterModels(
+    remote.data.models.filter(
+      (m) => !needle || `${m.name} ${m.id}`.toLowerCase().includes(needle),
+    ),
+    filters,
   );
   const toggle = (modelId: string) =>
     setSelected((cur) =>
@@ -210,55 +245,123 @@ export function ModelBrowserPage() {
         ? cur.filter((x) => x !== modelId)
         : [...cur, modelId],
     );
-  const busy = doImport.isPending || doRemove.isPending || doSync.isPending;
+  const busy =
+    doImport.isPending ||
+    doRemove.isPending ||
+    doSync.isPending ||
+    remote.isFetching;
   return (
     <>
       <h1>Models from {remote.data.provider.name}</h1>
-      <div className="toolbar">
-        <input
+      <p>
+        Live provider rates in USD. Token prices are per 1M tokens; actual
+        charges depend on usage and routing.
+      </p>
+      <div className="toolbar model-toolbar">
+        <Input
           aria-label="Search available models"
           placeholder="Search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button
+        <Button
           type="button"
-          disabled={busy || !selected.length}
-          onClick={() => doImport.mutate()}
+          isDisabled={busy || !selected.length}
+          onPress={() => doImport.mutate()}
         >
           Import selected
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          disabled={busy || !selected.length}
-          onClick={() => doRemove.mutate()}
+          isDisabled={busy || !selected.length}
+          onPress={() => doRemove.mutate()}
         >
           Remove selected
-        </button>
-        <button type="button" disabled={busy} onClick={() => doSync.mutate()}>
-          Sync with provider
-        </button>
+        </Button>
+        <Button
+          type="button"
+          isDisabled={busy}
+          onPress={() => {
+            void remote.refetch();
+          }}
+        >
+          {remote.isFetching ? "Refreshing costs…" : "Refresh models and costs"}
+        </Button>
+        <Button
+          type="button"
+          isDisabled={busy}
+          onPress={() => {
+            if (
+              window.confirm(
+                "Sync all models already imported from this provider? This refreshes their prices and metadata and deletes any no longer in the catalog. Saved configurations using deleted models will need repair. New models are not imported.",
+              )
+            )
+              doSync.mutate();
+          }}
+        >
+          Sync imported models
+        </Button>
       </div>
+      <p>
+        Sync updates all imported models from this provider and deletes those no
+        longer available. It does not import new models or use the current
+        selection.
+      </p>
+      <ModelFilterControls
+        models={remote.data.models}
+        value={filters}
+        onChange={setFilters}
+      />
+      <p>
+        {shown.length} of {remote.data.models.length} models match.
+      </p>
+      {selected.length > 0 && (
+        <section aria-label="Selected models" className="toolbar">
+          <span>{selected.length} selected</span>
+          {selected.map((modelId) => {
+            const model = remote.data.models.find((m) => m.id === modelId);
+            return (
+              <Chip key={modelId} color="accent" className="gap-2">
+                <Chip.Label>{model?.name ?? modelId}</Chip.Label>
+                <CloseButton
+                  isDisabled={busy}
+                  aria-label={`Deselect ${model?.name ?? modelId}`}
+                  onPress={() => toggle(modelId)}
+                />
+              </Chip>
+            );
+          })}
+        </section>
+      )}
       {notice && <p role="status">{notice}</p>}
       <Failure error={doImport.error ?? doRemove.error ?? doSync.error} />
       {shown.length === 0 ? (
-        <p className="empty">No models available from this provider.</p>
+        <p className="empty">
+          No models match these filters. Clear the input cost limit to include
+          all prices.
+        </p>
       ) : (
-        <ul className="plain">
-          {shown.map((m) => (
-            <li key={m.id}>
-              <Toggle
+        <ModelTable
+          models={shown}
+          sort={filters.sort}
+          onSort={(sort) => setFilters({ ...filters, sort })}
+          renderName={(m) => (
+            <label className="model-checkbox">
+              <input
+                type="checkbox"
                 checked={selected.includes(m.id)}
+                disabled={busy}
                 onChange={() => toggle(m.id)}
-              >
+                aria-label={`Select ${m.name}`}
+              />
+              <span>
                 <strong>{m.name}</strong>
-                {m.image_generation ? " · Image generation" : ""}{" "}
-                <code>{m.id}</code>
+                {m.image_generation ? " · Image generation" : ""}
                 {m.imported ? " ✓ imported" : ""}
-              </Toggle>
-            </li>
-          ))}
-        </ul>
+              </span>
+            </label>
+          )}
+        />
       )}
     </>
   );

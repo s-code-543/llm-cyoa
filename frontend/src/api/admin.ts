@@ -87,7 +87,16 @@ export type ProviderInput = {
   api_key?: string;
   clear_api_key?: boolean;
 };
-export type ModelRow = {
+export type ModelPricing = Record<string, unknown>;
+export type ModelMetadata = {
+  context_length?: number;
+  created?: number | null;
+  architecture?: { input_modalities?: string[]; output_modalities?: string[]; tokenizer?: string };
+  supported_parameters?: string[] | Record<string, unknown>;
+};
+export type ModelRow = ModelMetadata & {
+  pricing?: ModelPricing;
+  pricing_updated_at?: string | null;
   image_generation?: boolean;
   id: number;
   name: string;
@@ -98,7 +107,8 @@ export type ModelRow = {
   is_available: boolean;
   description: string;
 };
-export type RemoteModel = {
+export type RemoteModel = ModelMetadata & {
+  pricing?: ModelPricing;
   image_generation?: boolean;
   id: string;
   name: string;
@@ -273,3 +283,6 @@ export const deleteUnavailableModels = (delete_ids: number[]) =>
 export type AdminChat = { id: string; title: string; owner: string; updated_at: string };
 export const getAdminChats = (search: string, offset: number) =>
   apiFetch<{ chats: AdminChat[]; has_more: boolean }>(`${base}/chats?${new URLSearchParams({ search, offset: String(offset) })}`);
+
+export const refreshModelCosts = () =>
+  apiFetch<Message & { failures: string[] }>(`${base}/models/pricing/refresh`, { payload: {} });
