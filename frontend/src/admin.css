@@ -265,7 +265,7 @@
     serif;
   padding: 0 8px;
 }
-.page button:not(.text-button) {
+.page button:not(.text-button):not([data-slot]) {
   background: var(--accent);
   color: var(--accent-foreground);
   border: 0;
@@ -274,7 +274,7 @@
   font-size: 13px;
   font-weight: 600;
 }
-.page button:not(.text-button):hover:not(:disabled) {
+.page button:not(.text-button):not([data-slot]):hover:not(:disabled) {
   background: var(--accent-hover);
 }
 .page button.danger,
@@ -427,3 +427,62 @@
     padding: 4px;
   }
 }
+
+.model-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+.model-checkbox input {
+  appearance: auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  accent-color: var(--color-accent);
+}
+.model-costs {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+.model-costs small {
+  display: block;
+  color: var(--muted);
+}
+
+.model-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+}
+.model-filters label:not(.model-checkbox) {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+.model-filters input[type="number"] { width: 11rem; }
+.model-filters small { flex-basis: 100%; }
+
+/* HeroUI controls own their focus rings, indicators, and button variants. */
+.model-toolbar { align-items: end; gap: 0.75rem; }
+.model-toolbar > [data-slot="input"],
+.model-toolbar > [data-slot="button"] {
+  height: 2.5rem;
+  min-height: 2.5rem;
+  box-sizing: border-box;
+}
+.model-toolbar > [data-slot="input"] { padding-block: 0; }
+.model-select { min-width: 11rem; }
+.model-select [data-slot="select-trigger"] { min-height: 2.5rem; padding-inline-end: 2.25rem; }
+.model-select .select__indicator { inset-inline-end: 0.75rem; }
+.model-filters .setting-toggle { align-self: center; }
+.model-filters .model-select [data-slot="label"] { display: block; }
+.model-table { margin-top: 1rem; }
+.model-table [data-slot="table-cell"] { vertical-align: top; }
+
+.model-filters input[type="number"] { min-height: 2.5rem; box-sizing: border-box; }

@@ -124,6 +124,7 @@ def get_openrouter_models(api_key, timeout=10):
         
         response = requests.get(
             "https://openrouter.ai/api/v1/models",
+            params={"output_modalities": "text,image"},
             headers=headers,
             timeout=timeout
         )
@@ -141,37 +142,36 @@ def get_openrouter_models(api_key, timeout=10):
             model_name = model.get('name', model_id)
             description = model.get('description', '')
             
-            # Get pricing info for context (optional)
-            pricing = model.get('pricing', {})
-            prompt_price = pricing.get('prompt', 0)
-            completion_price = pricing.get('completion', 0)
-            
-            # Build description with pricing if available
-            full_description = description
-            if prompt_price or completion_price:
-                full_description += f" (${prompt_price}/M prompt, ${completion_price}/M completion)"
-            
+            pricing = model.get('pricing') or {}
+
             models_list.append({
                 'id': model_id,
                 'name': model_name,
-                'description': full_description,
+                'description': description,
                 'size': 0,  # API models don't have a size
                 'context_length': model.get('context_length', 0),
+                'created': model.get('created'),
                 'pricing': pricing,
+                'image_generation': 'image' in (model.get('architecture') or {}).get('output_modalities', []),
+                'supported_parameters': model.get('supported_parameters', {}),
                 'architecture': model.get('architecture', {}),
             })
         
-        # Dedicated catalog includes image-only models absent from the chat catalog.
+        # Dedicated image metadata supplies generation parameters; retain unified catalog prices.
         try:
             image_response = requests.get(
                 'https://openrouter.ai/api/v1/images/models', headers=headers, timeout=timeout)
             if image_response.status_code == 200:
                 for model in image_response.json().get('data', []):
+                    previous = next((m for m in models_list if m['id'] == model['id']), {})
                     entry = {
                         'id': model['id'], 'name': model.get('name', model['id']),
                         'description': model.get('description', ''), 'size': 0,
                         'image_generation': True,
-                        'architecture': model.get('architecture', {}),
+                        'pricing': model.get('pricing') or previous.get('pricing', {}),
+                        'context_length': model.get('context_length') or previous.get('context_length', 0),
+                        'created': model.get('created') or previous.get('created'),
+                        'architecture': model.get('architecture') or previous.get('architecture', {}),
                         'supported_parameters': model.get('supported_parameters', {}),
                     }
                     models_list = [m for m in models_list if m['id'] != entry['id']]

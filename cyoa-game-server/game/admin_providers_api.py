@@ -58,6 +58,26 @@ def fetch_provider_models(provider):
     return []
 
 
+def pricing_metadata(item, checked_at=None):
+    pricing = item.get('pricing')
+    return {
+        'pricing': pricing if isinstance(pricing, dict) else {},
+        'pricing_updated_at': checked_at or timezone.now().isoformat(),
+    }
+
+
+def catalog_metadata(item, *, include_defaults=True):
+    metadata = {
+        'context_length': item.get('context_length', 0),
+        'created': item.get('created'),
+        'architecture': item.get('architecture') or {},
+        'supported_parameters': item.get('supported_parameters') or {},
+    }
+    if include_defaults:
+        return metadata
+    return {key: value for key, value in metadata.items() if key in item}
+
+
 def get_provider(provider_id):
     return APIProvider.objects.filter(pk=provider_id).first()
 
@@ -165,6 +185,8 @@ def provider_models(request, provider_id):
             'size': m.get('size', 0),
             'imported': m['id'] in imported,
             'image_generation': bool(m.get('image_generation')),
+            'pricing': m.get('pricing') or {},
+            **catalog_metadata(m),
         }
         for m in fetch_provider_models(provider)
     ]
@@ -197,6 +219,8 @@ def provider_models_import(request, provider_id):
                     'name': f"{provider.name}: {item['name']}",
                     'is_available': True,
                     'capabilities': {
+                        **pricing_metadata(item),
+                        **catalog_metadata(item),
                         'description': item.get('description', ''),
                         'size': item.get('size', 0),
                         'image_generation': bool(item.get('image_generation')),
@@ -251,8 +275,9 @@ def provider_models_sync(request, provider_id):
         else:
             item = next(m for m in available if m['id'] == model.model_identifier)
             capabilities = dict(model.capabilities or {})
-            capabilities.update(image_generation=bool(item.get('image_generation')),
-                                supported_parameters=item.get('supported_parameters', {}))
+            capabilities.update(pricing_metadata(item))
+            capabilities.update(catalog_metadata(item, include_defaults=False))
+            capabilities.update(image_generation=bool(item.get('image_generation')))
             if not model.is_available or model.capabilities != capabilities:
                 model.is_available = True
                 model.capabilities = capabilities
@@ -278,6 +303,9 @@ def model_json(model):
         'provider_name': model.provider.name,
         'provider_type': model.provider.provider_type,
         'is_available': model.is_available,
+        **catalog_metadata(model.capabilities or {}),
+        'pricing': (model.capabilities or {}).get('pricing', {}),
+        'pricing_updated_at': (model.capabilities or {}).get('pricing_updated_at'),
         'description': (model.capabilities or {}).get('description', ''),
         'image_generation': bool((model.capabilities or {}).get('image_generation')),
     }
@@ -291,6 +319,35 @@ def model_collection(request):
         'models': [model_json(m) for m in models],
         'providers': [{'id': p.id, 'name': p.name} for p in APIProvider.objects.filter(is_active=True)],
     })
+
+
+@admin_api
+@require_http_methods(['POST'])
+def refresh_model_pricing(request):
+    """Refresh saved rates without removing models or changing availability."""
+    updated, failures = 0, []
+    for provider in APIProvider.objects.filter(llmmodel__isnull=False).distinct():
+        try:
+            catalog = fetch_provider_models(provider)
+            if not catalog:
+                raise ValueError('No catalog returned')
+            items = {item['id']: item for item in catalog}
+        except Exception:
+            failures.append(f'Could not refresh costs from {provider.name}; saved prices were kept.')
+            continue
+        checked_at = timezone.now().isoformat()
+        for model in LLMModel.objects.filter(provider=provider):
+            item = items.get(model.model_identifier)
+            if item is None:
+                failures.append(f'{model.name} was absent from the catalog; its saved price was kept.')
+                continue
+            capabilities = dict(model.capabilities or {})
+            capabilities.update(pricing_metadata(item, checked_at))
+            capabilities.update(catalog_metadata(item, include_defaults=False))
+            model.capabilities = capabilities
+            model.save(update_fields=['capabilities'])
+            updated += 1
+    return JsonResponse({'message': f'Refreshed costs for {updated} models.', 'failures': failures})
 
 
 @admin_api
@@ -310,13 +367,21 @@ def validate_models(request):
             catalog = fetch_provider_models(provider)
             if not catalog:
                 raise ValueError('No catalog returned')
-            available = {item['id'] for item in catalog}
+            available = {item['id']: item for item in catalog}
         except Exception:
             failures.append(f'Could not validate {provider.name}; its models were left unchanged.')
             continue
         for model in LLMModel.objects.filter(provider=provider):
             model.is_available = model.model_identifier in available
-            model.save(update_fields=['is_available'])
+            if model.is_available:
+                item = available[model.model_identifier]
+                model.capabilities = {
+                    **(model.capabilities or {}),
+                    **pricing_metadata(item),
+                    **catalog_metadata(item, include_defaults=False),
+                    'image_generation': bool(item.get('image_generation')),
+                }
+            model.save(update_fields=['is_available', 'capabilities'])
             if not model.is_available:
                 unavailable.append(model_json(model))
     return JsonResponse({'unavailable': unavailable, 'failures': failures})
