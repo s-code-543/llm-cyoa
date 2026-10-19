@@ -7,6 +7,7 @@ type Props = {
   messages: Message[];
   busy: boolean;
   waiting: boolean;
+  readOnly?: boolean;
   debugEnabled?: boolean;
   onDebug?: (message: Message) => void;
   onRollback: (message: Message) => void;
@@ -17,6 +18,7 @@ export function Transcript({
   waiting,
   onRollback,
   debugEnabled,
+  readOnly,
   onDebug,
 }: Props) {
   const end = useRef<HTMLDivElement>(null);
@@ -49,7 +51,7 @@ export function Transcript({
               className="ml-auto flex max-w-[92%] lg:max-w-[85%] flex-col items-end gap-1.5"
             >
               <div className="flex items-center gap-2 text-xs font-bold tracking-widest text-grape">
-                YOUR MOVE
+                {readOnly ? "PLAYER MOVE" : "YOUR MOVE"}
                 <span className="font-normal text-muted">{time}</span>
               </div>
               <p className="rounded-[16px] rounded-tr-[6px] text-white bg-linear-to-br from-brand to-brand-coral px-5 py-3 whitespace-pre-wrap lg:px-5 lg:py-3 text-white shadow-lg shadow-grape/25">
@@ -106,7 +108,7 @@ export function Transcript({
             <div className="story-prose">
               <Markdown skipHtml>{message.content}</Markdown>
             </div>
-            {!message.is_error && index < messages.length - 1 && (
+            {!readOnly && !message.is_error && index < messages.length - 1 && (
               <Button
                 size="sm"
                 variant="ghost"

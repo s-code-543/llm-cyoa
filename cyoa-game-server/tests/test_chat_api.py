@@ -138,10 +138,10 @@ def test_cannot_reuse_someone_elses_creation_id(auth_client, admin_user, configu
 
 
 @pytest.mark.django_db
-def test_debug_requires_admin_and_ownership(auth_client, admin_client, adventure):
+def test_debug_requires_admin(auth_client, admin_client, adventure):
     path = BASE + f'conversations/{adventure.conversation_id}/debug'
     assert auth_client.get(path).status_code == 403
-    assert admin_client.get(path).status_code == 404
+    assert admin_client.get(path).status_code == 200
 
 
 @pytest.mark.django_db

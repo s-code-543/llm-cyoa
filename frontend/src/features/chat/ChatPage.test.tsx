@@ -198,3 +198,49 @@ test("admin debug toggle opens a trace and closes when disabled", async () => {
   fireEvent.click(screen.getByRole("switch", { name: "Debug mode" }));
   expect(screen.queryByLabelText("Pipeline debug")).toBeNull();
 });
+
+test("admin inspection shows debug controls without action or rollback controls", async () => {
+  window.history.replaceState({}, "", "/chat?conversation_id=test&debug=true");
+  api.mockImplementation(async (path) =>
+    path === "bootstrap"
+      ? { configurations: [], debug_allowed: true }
+      : {
+          conversation: {
+            ...game,
+            read_only: true,
+            owner: "player@example.com",
+            messages: [
+              ...game.messages,
+              {
+                id: 2,
+                role: "user",
+                content: "Go",
+                is_error: false,
+                created_at: "2026-10-11T08:01:00Z",
+              },
+            ],
+          },
+        },
+  );
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ChatPage />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText(/Inspecting player@example.com/)).toBeTruthy();
+  expect(screen.queryByLabelText("Your action")).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: /Continue from here/ }),
+  ).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Debug narrator response 1" }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Inspect latest failed attempt" }),
+  ).toBeTruthy();
+  expect(
+    api.mock.calls.some(
+      ([path, payload]) => path.endsWith("/turns") && payload,
+    ),
+  ).toBe(false);
+});

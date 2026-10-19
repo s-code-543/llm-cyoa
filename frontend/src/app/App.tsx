@@ -1,3 +1,4 @@
+import { ChatsPage } from "../features/admin/ChatsPage";
 import { ConfigEditPage, ConfigListPage, ConfigNewPage } from "../features/admin/ConfigPages";
 import { ProviderEditPage, ProviderListPage, ProviderNewPage } from "../features/admin/ProvidersPage";
 import { ModelBrowserPage, ModelListPage } from "../features/admin/ModelsPage";
@@ -53,6 +54,7 @@ export function AppRoutes() {
           >
             <Route index element={<AdminHome />} />
             <Route path="audit" element={<AuditPage />} />
+            <Route path="chats" element={<ChatsPage />} />
             <Route path="audit/:id" element={<AuditDetailPage />} />
             <Route path="prompts" element={<PromptListPage />} />
             <Route path="prompts/new" element={<PromptNewPage />} />

@@ -27,7 +27,7 @@ def illustrated_config(configuration):
     (b'RIFF\x04\x00\x00\x00WEBPprototype', 'image/webp'),
     (b'\xff\xd8\xffprototype', 'image/jpeg'),
 ])
-def test_image_saved_and_only_owner_can_read(auth_client, user, admin_user, tmp_path, image, media_type, illustrated_config):
+def test_image_saved_and_owner_or_admin_can_read(auth_client, user, admin_user, tmp_path, image, media_type, illustrated_config):
     message = ChatMessageFactory(role='assistant', content='A moonlit forest.', conversation__user=user, conversation__metadata={'config_id': illustrated_config.pk}, metadata={})
     png = image
     response = Mock()
@@ -48,8 +48,13 @@ def test_image_saved_and_only_owner_can_read(auth_client, user, admin_user, tmp_
         assert result['Content-Type'] == media_type
         assert 'scene_image_failed' not in message.metadata
         assert b''.join(result.streaming_content) == png
-        auth_client.force_login(admin_user)
+        from django.contrib.auth.models import User
+        auth_client.force_login(User.objects.create_user(username='other-image-player'))
         assert auth_client.get(url).status_code == 404
+        auth_client.force_login(admin_user)
+        inspected = auth_client.get(url)
+        assert inspected.status_code == 200
+        assert b''.join(inspected.streaming_content) == png
 
 
 @pytest.mark.django_db

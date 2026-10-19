@@ -59,7 +59,10 @@ secrets in ordinary prose; this is not a guarantee against narrative spoilers.
 
 RunPython uses a separate Python interpreter with an empty environment and a
 scratch working directory, a three-second wall timeout, two CPU seconds, and
-128 MB address-space limit. This runner targets the Linux Docker deployment.
+a 128 MB address-space limit on Linux. macOS does not apply the address-space
+limit because Darwin rejects it; the CPU, wall-time, file-descriptor, and
+payload limits still apply. Existing lower hard limits are respected.
+Use the Linux Docker deployment when the memory limit is required.
 Scripts are restricted to data operations: assignment, conditions, loops,
 comprehensions, safe collection methods, and basic builtins. `random()`,
 `randint(a, b)`, and `choice(values)` use an engine-supplied seeded generator.

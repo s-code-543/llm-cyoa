@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router";
 const sections = [
   ["/manage", "Dashboard", true],
   ["/manage/audit", "Audit log", false],
+  ["/manage/chats", "Chats", false],
   ["/manage/configurations", "Configurations", false],
   ["/manage/prompts", "Prompts", false],
   ["/manage/providers", "Providers", false],

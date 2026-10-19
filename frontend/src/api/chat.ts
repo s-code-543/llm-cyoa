@@ -12,6 +12,8 @@ export type Configuration = { id: number; name: string };
 export type Conversation = {
   id: string;
   title: string;
+  read_only?: boolean;
+  owner?: string;
   configuration: Configuration | null;
   messages: Message[];
   state: {

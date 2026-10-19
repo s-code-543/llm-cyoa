@@ -35,7 +35,9 @@ export function ChatPage() {
   const [needsReview, setNeedsReview] = useState(false);
   const [notice, setNotice] = useState("");
   const [debugEnabled, setDebugEnabled] = useState(
-    () => localStorage.getItem("cyoa:debug") === "true",
+    () =>
+      initial.get("debug") === "true" ||
+      localStorage.getItem("cyoa:debug") === "true",
   );
   const [debugTarget, setDebugTarget] = useState<number | "failure" | null>(
     null,
@@ -164,9 +166,11 @@ export function ChatPage() {
     rollback.isPending ||
     Boolean(game?.pending_request_id) ||
     needsReview;
+  const readOnly = Boolean(game?.read_only);
   const finished = game?.state.blocked || game?.state.game_over;
   function submit(message: string) {
-    if (!message.trim() || busy || finished || submitting.current) return;
+    if (!message.trim() || readOnly || busy || finished || submitting.current)
+      return;
     submitting.current = true;
     setNotice("");
     send.mutate(message);
@@ -192,7 +196,11 @@ export function ChatPage() {
           >
             <Card.Header>
               <p className="hidden text-xs font-bold tracking-[0.2em] opacity-80 lg:block">
-                {game ? "NOW PLAYING" : "BEGIN A STORY"}
+                {game
+                  ? readOnly
+                    ? "INSPECTING CHAT"
+                    : "NOW PLAYING"
+                  : "BEGIN A STORY"}
               </p>
               <h1 className="font-story text-lg leading-tight [overflow-wrap:anywhere] lg:mt-1 lg:text-3xl">
                 {game?.title ?? "Your next adventure"}
@@ -330,11 +338,39 @@ export function ChatPage() {
           )}
           {game && (
             <>
+              {readOnly && (
+                <Alert status="accent" role="status">
+                  <Alert.Content>
+                    <Alert.Description>
+                      Inspecting {game.owner}’s chat. This view is read-only.
+                    </Alert.Description>
+                    <div className="mt-2 flex gap-3">
+                      <a href="/manage/chats" className="underline">
+                        All chats
+                      </a>
+                      <button
+                        type="button"
+                        className="underline"
+                        disabled={conversation.isFetching}
+                        onClick={() => {
+                          void conversation.refetch();
+                          void cache.invalidateQueries({
+                            queryKey: ["turn-debug", id],
+                          });
+                        }}
+                      >
+                        Refresh chat
+                      </button>
+                    </div>
+                  </Alert.Content>
+                </Alert>
+              )}
               <Transcript
                 messages={game.messages}
                 busy={busy}
                 waiting={send.isPending}
                 onRollback={setRollbackTarget}
+                readOnly={readOnly}
                 debugEnabled={debugAllowed && debugEnabled}
                 onDebug={(message) => setDebugTarget(message.id)}
               />
@@ -347,7 +383,7 @@ export function ChatPage() {
                   </Alert.Content>
                 </Alert>
               )}
-              {finished && (
+              {finished && !readOnly && (
                 <Alert status="accent">
                   <Alert.Content>
                     <Alert.Description>
@@ -358,15 +394,17 @@ export function ChatPage() {
                   </Alert.Content>
                 </Alert>
               )}
-              <ActionComposer
-                opening={game.messages.length === 0}
-                choices={game.state.choices}
-                busy={busy}
-                finished={Boolean(finished)}
-                draft={draft}
-                onDraft={setDraft}
-                onSubmit={submit}
-              />
+              {!readOnly && (
+                <ActionComposer
+                  opening={game.messages.length === 0}
+                  choices={game.state.choices}
+                  busy={busy}
+                  finished={Boolean(finished)}
+                  draft={draft}
+                  onDraft={setDraft}
+                  onSubmit={submit}
+                />
+              )}
             </>
           )}
           {error && (

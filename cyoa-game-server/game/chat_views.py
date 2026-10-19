@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import login_required
 
 from .models import ChatConversation, ChatMessage, GameSession, Configuration, AuditLog, ChatSubmission
 from .llm_router import call_llm
-from .config_utils import conversation_tts_enabled
+from .config_utils import conversation_tts_enabled, configuration_models_available
 from .response_format import extract_game_state, is_story_ending, public_metadata, public_content
 from .engine.turn_execution import execute_turn
 from .engine.nodes import TurnUnavailable
@@ -38,6 +38,8 @@ def chat_api_new_conversation(request):
         if config_id:
             try:
                 config = Configuration.objects.get(id=config_id)
+                if not configuration_models_available(config):
+                    return JsonResponse({"error": "This adventure uses models that are no longer available. Update its configuration before starting."}, status=409)
                 title = config.name
             except Configuration.DoesNotExist:
                 pass

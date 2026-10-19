@@ -105,7 +105,15 @@ def snapshot(conversation):
 @player_api
 @require_http_methods(['GET'])
 def bootstrap(request):
-    return JsonResponse({'debug_allowed': request.user.is_staff, 'configurations': list(Configuration.objects.filter(storyteller_model__isnull=False).values('id', 'name'))})
+    from .config_utils import configuration_models_available, with_model_availability
+    configurations = with_model_availability(Configuration.objects.all())
+    return JsonResponse({
+        'debug_allowed': request.user.is_staff,
+        'configurations': [
+            {'id': c.pk, 'name': c.name}
+            for c in configurations if configuration_models_available(c)
+        ],
+    })
 
 
 @player_api
@@ -119,6 +127,9 @@ def conversations(request):
     if existing and existing.user_id != request.user.pk:
         return error('not_found', 'Adventure not found.', 404)
     config = get_object_or_404(Configuration, pk=data.get('config_id'), storyteller_model__isnull=False)
+    from .config_utils import configuration_models_available
+    if not configuration_models_available(config):
+        return error('models_unavailable', 'This adventure uses models that are no longer available. Ask an admin to update its configuration.', 409)
     conversation, _ = ChatConversation.objects.get_or_create(
         conversation_id=conversation_id, user=request.user,
         defaults={'title': config.name, 'metadata': {'config_id': config.pk}},
@@ -131,11 +142,17 @@ def conversations(request):
 @player_api
 @require_http_methods(['GET', 'DELETE'])
 def detail(request, conversation_id):
-    conversation = owned(request, conversation_id)
+    conversation = (get_object_or_404(ChatConversation, conversation_id=conversation_id)
+                    if request.method == 'GET' and request.user.is_staff
+                    else owned(request, conversation_id))
     if request.method == 'DELETE':
         GameSession.objects.filter(session_id=conversation_id, user=request.user).update(game_over=True)
         return JsonResponse({'deleted': True})
-    return JsonResponse({'conversation': snapshot(conversation)})
+    data = snapshot(conversation)
+    if conversation.user_id != request.user.pk:
+        data['read_only'] = True
+        data['owner'] = conversation.user.email or conversation.user.get_username()
+    return JsonResponse({'conversation': data})
 
 
 def mutate(request, conversation_id, operation):
@@ -219,10 +236,10 @@ def rollback(request, conversation_id):
 @player_api
 @require_http_methods(['GET'])
 def debug(request, conversation_id):
-    """Full prompts and hidden state are available only to the owning admin."""
+    """Administrators can inspect full prompts and hidden state for any player."""
     if not request.user.is_staff:
         return error('forbidden', 'Administrator access required.', 403)
-    conversation = owned(request, conversation_id)
+    conversation = get_object_or_404(ChatConversation, conversation_id=conversation_id)
     message_id = request.GET.get('message_id')
     if message_id:
         message = get_object_or_404(conversation.messages, pk=int(message_id), role='assistant')
