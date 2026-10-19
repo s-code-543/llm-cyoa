@@ -16,6 +16,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from .chat_api import body, error, player_api
+from .config_utils import configuration_models_available
 from .models import ChatConversation, Configuration, GameSession
 
 PLAY = 'play'
@@ -140,5 +141,5 @@ def home(request):
             'prompt_name': config.adventure_prompt.name if config.adventure_prompt else None,
             'total_turns': config.total_turns,
             'difficulty': config.difficulty.name if config.difficulty else None,
-        } for config in configurations],
+        } for config in configurations if configuration_models_available(config)],
     })

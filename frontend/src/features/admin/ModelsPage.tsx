@@ -4,6 +4,8 @@ import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   browseModels,
+  validateModels,
+  deleteUnavailableModels,
   deleteModel,
   getModels,
   importModels,
@@ -20,6 +22,18 @@ export function ModelListPage() {
   });
   const [search, setSearch] = useState("");
   const [provider, setProvider] = useState("");
+  const refresh = () => cache.invalidateQueries({ queryKey: ["admin"] });
+  const validation = useMutation({
+    mutationFn: validateModels,
+    onSuccess: refresh,
+  });
+  const cleanup = useMutation({
+    mutationFn: deleteUnavailableModels,
+    onSuccess: () => {
+      validation.reset();
+      refresh();
+    },
+  });
   const remove = useMutation({
     mutationFn: deleteModel,
     onSuccess: () => cache.invalidateQueries({ queryKey: ["admin", "models"] }),
@@ -36,6 +50,63 @@ export function ModelListPage() {
   return (
     <>
       <h1>Models</h1>
+      <button
+        type="button"
+        disabled={validation.isPending || cleanup.isPending}
+        onClick={() => {
+          cleanup.reset();
+          validation.mutate();
+        }}
+      >
+        {validation.isPending ? "Validating models…" : "Validate models"}
+      </button>
+      <Failure error={validation.error ?? cleanup.error} />
+      {cleanup.data && <p role="status">{cleanup.data.message}</p>}
+      {validation.data && (
+        <section aria-label="Model validation results">
+          {validation.data.failures.map((failure) => (
+            <p role="alert" key={failure}>
+              {failure}
+            </p>
+          ))}
+          {validation.data.unavailable.length ? (
+            <>
+              <p>
+                These models are no longer available. Adventures requiring them
+                cannot be started.
+              </p>
+              <ul>
+                {validation.data.unavailable.map((model) => (
+                  <li key={model.id}>{model.name}</li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="danger"
+                disabled={cleanup.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Delete these unavailable models? Saved configurations will be kept and must be updated before their adventures can start.",
+                    )
+                  )
+                    cleanup.mutate(
+                      validation.data.unavailable.map((model) => model.id),
+                    );
+                }}
+              >
+                Delete unavailable models
+              </button>
+            </>
+          ) : (
+            <p role="status">
+              {validation.data.failures.length
+                ? "No unavailable models found among providers checked successfully."
+                : "All models are available."}
+            </p>
+          )}
+        </section>
+      )}
       <div className="toolbar">
         <input
           aria-label="Search models"

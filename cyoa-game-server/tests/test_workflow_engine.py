@@ -1,5 +1,6 @@
 """Workflow contracts: hidden state, script limits, routing, and atomic recovery."""
 import json
+import signal
 from unittest.mock import Mock
 
 import pytest
@@ -54,7 +55,9 @@ def test_python_rejects_capabilities(source):
 
 
 def test_python_infinite_loop_is_stopped():
-    with pytest.raises((ValueError, TimeoutError)):
+    signals = f'{signal.SIGKILL}|{signal.SIGXCPU}'
+    with pytest.raises((ValueError, TimeoutError),
+                       match=rf'execution time limit|^RunPython terminated by signal ({signals})$'):
         run_python('while True:\n    pass', {}, {}, 1)
 
 
@@ -96,15 +99,21 @@ def test_custom_state_persists_and_is_hidden_in_both_apis(adventure, auth_client
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize('block', ['{"secret":"changed"}', '{bad json}', '[]'])
-def test_invalid_proposal_commits_nothing(adventure, block):
+@pytest.mark.parametrize('block, error', [
+    ('{"secret":"changed"}', 'protected state field'),
+    ('{bad json}', 'Expecting property name'),
+    ('[]', 'Proposed game state must be an object'),
+])
+def test_invalid_proposal_commits_nothing(adventure, block, error):
     configure(adventure, workflow(
         {'type': 'RunPython', 'code': "state['secret'] = 'fixed'"},
-        {'type': 'GenerateTurn'}, {'type': 'ExtractJSON'},
+        {'type': 'GenerateTurn'}, {'type': 'ExtractJSON', 'repair_attempts': 0},
         {'type': 'ApplyStateChanges', 'allowed_keys': ['inventory']},
     ))
-    with pytest.raises(ValueError):
-        execute(adventure, Mock(return_value=STORY + f'\n```game-state\n{block}\n```'))
+    llm = Mock(return_value=STORY + f'\n```game-state\n{block}\n```')
+    with pytest.raises(ValueError, match=error):
+        execute(adventure, llm)
+    llm.assert_called_once()
     assert not adventure.messages.exists()
     assert not GameSession.objects.filter(session_id=adventure.conversation_id).exists()
 
@@ -344,3 +353,30 @@ def test_scheduled_final_turn_uses_ending_prompt_and_audits_it(adventure, game_e
     assert result['state']['game_over'] is True
     assert game_ending_prompt.prompt_text in llm.call_args.kwargs['system_prompt']
     assert AuditLog.objects.latest('id').prompt_used_id == game_ending_prompt.pk
+
+
+@pytest.mark.parametrize('platform', ['darwin', 'linux'])
+def test_worker_limits_respect_platform_and_inherited_hard_limits(monkeypatch, platform):
+    from game.engine import python_worker as worker
+    monkeypatch.setattr(worker.sys, 'platform', platform)
+    inherited = {worker.resource.RLIMIT_CPU: (1, 1),
+                 worker.resource.RLIMIT_NOFILE: (8, 8),
+                 worker.resource.RLIMIT_AS: (64 * 1024 * 1024,) * 2}
+    monkeypatch.setattr(worker.resource, 'getrlimit', inherited.__getitem__)
+    apply = Mock()
+    monkeypatch.setattr(worker.resource, 'setrlimit', apply)
+    worker.apply_resource_limits()
+    apply.assert_any_call(worker.resource.RLIMIT_CPU, (1, 1))
+    apply.assert_any_call(worker.resource.RLIMIT_NOFILE, (8, 8))
+    if platform == 'linux':
+        apply.assert_any_call(worker.resource.RLIMIT_AS, (64 * 1024 * 1024,) * 2)
+    else:
+        assert all(call.args[0] != worker.resource.RLIMIT_AS for call in apply.call_args_list)
+
+
+def test_python_wall_timeout_is_reported_as_timeout(monkeypatch):
+    from game.engine import python_steps
+    monkeypatch.setattr(python_steps.subprocess, 'run',
+                        Mock(side_effect=python_steps.subprocess.TimeoutExpired('worker', 3)))
+    with pytest.raises(TimeoutError, match='execution time limit'):
+        run_python('while True:\n    pass', {}, {}, 1)

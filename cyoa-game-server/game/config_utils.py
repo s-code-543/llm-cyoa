@@ -64,3 +64,22 @@ def conversation_tts_enabled(conversation):
 
     config = get_conversation_configuration(conversation)
     return bool(config and config.enable_tts and OPENAI_API_KEY and TTSSettings.get_settings().enabled)
+
+
+def configuration_models_available(config):
+    """All model roles needed by this saved adventure must still be usable."""
+    if not config:
+        return False
+    models = [config.storyteller_model]
+    if config.enable_refusal_detection:
+        if config.classifier_prompt_id or config.classifier_model_id:
+            models.append(config.classifier_model)
+        if config.turn_correction_prompt_id or config.turn_correction_model_id:
+            models.append(config.turn_correction_model)
+    if config.enable_image_generation:
+        models.append(config.image_model)
+    for step in config.judge_steps.filter(enabled=True):
+        models.extend([step.rewrite_model, step.compare_model])
+        if step.classifier_prompt_id:
+            models.append(step.classifier_model)
+    return all(model and model.is_available and model.provider.is_active for model in models)

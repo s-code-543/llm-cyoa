@@ -293,6 +293,35 @@ def model_collection(request):
     })
 
 
+@admin_api
+@require_http_methods(['POST'])
+def validate_models(request):
+    """Catalog failures must never be interpreted as missing models."""
+    data = body(request)
+    if 'delete_ids' in data:
+        ids = data['delete_ids']
+        if not isinstance(ids, list) or any(type(pk) is not int for pk in ids):
+            return error('invalid_request', 'Select models from validation results.', 400)
+        removed, _ = LLMModel.objects.filter(pk__in=ids, is_available=False).delete()
+        return JsonResponse({'message': f'Deleted {removed} unavailable models.', 'removed': removed})
+    unavailable, failures = [], []
+    for provider in APIProvider.objects.filter(llmmodel__isnull=False).distinct():
+        try:
+            catalog = fetch_provider_models(provider)
+            if not catalog:
+                raise ValueError('No catalog returned')
+            available = {item['id'] for item in catalog}
+        except Exception:
+            failures.append(f'Could not validate {provider.name}; its models were left unchanged.')
+            continue
+        for model in LLMModel.objects.filter(provider=provider):
+            model.is_available = model.model_identifier in available
+            model.save(update_fields=['is_available'])
+            if not model.is_available:
+                unavailable.append(model_json(model))
+    return JsonResponse({'unavailable': unavailable, 'failures': failures})
+
+
 def model_usage(model):
     names = list(
         Configuration.objects.filter(

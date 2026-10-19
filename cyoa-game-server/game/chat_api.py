@@ -105,7 +105,8 @@ def snapshot(conversation):
 @player_api
 @require_http_methods(['GET'])
 def bootstrap(request):
-    return JsonResponse({'debug_allowed': request.user.is_staff, 'configurations': list(Configuration.objects.filter(storyteller_model__isnull=False).values('id', 'name'))})
+    from .config_utils import configuration_models_available
+    return JsonResponse({'debug_allowed': request.user.is_staff, 'configurations': [{'id': c.pk, 'name': c.name} for c in Configuration.objects.all() if configuration_models_available(c)]})
 
 
 @player_api
@@ -119,6 +120,9 @@ def conversations(request):
     if existing and existing.user_id != request.user.pk:
         return error('not_found', 'Adventure not found.', 404)
     config = get_object_or_404(Configuration, pk=data.get('config_id'), storyteller_model__isnull=False)
+    from .config_utils import configuration_models_available
+    if not configuration_models_available(config):
+        return error('models_unavailable', 'This adventure uses models that are no longer available. Ask an admin to update its configuration.', 409)
     conversation, _ = ChatConversation.objects.get_or_create(
         conversation_id=conversation_id, user=request.user,
         defaults={'title': config.name, 'metadata': {'config_id': config.pk}},

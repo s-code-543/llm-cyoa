@@ -48,6 +48,7 @@ urlpatterns = [
     path('api/v1/admin/providers/<int:provider_id>/models/remove', providers_api.provider_models_remove),
     path('api/v1/admin/providers/<int:provider_id>/models/sync', providers_api.provider_models_sync),
     path('api/v1/admin/models', providers_api.model_collection),
+    path('api/v1/admin/models/validate', providers_api.validate_models),
     path('api/v1/admin/models/<int:model_id>', providers_api.model_detail),
     path('api/v1/admin/difficulty', providers_api.difficulty_collection),
     path('api/v1/admin/difficulty/<int:difficulty_id>', providers_api.difficulty_detail),

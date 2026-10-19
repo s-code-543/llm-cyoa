@@ -14,11 +14,16 @@ def run_python(code, state, turn_input, seed):
     if len(payload.encode()) > 1024 * 1024:
         raise ValueError('Python step input exceeds 1 MB')
     with tempfile.TemporaryDirectory(prefix='cyoa-step-') as directory:
-        result = subprocess.run(
-            [sys.executable, '-I', '-S', str(Path(__file__).with_name('python_worker.py'))],
-            input=payload, text=True, capture_output=True, timeout=3,
-            cwd=directory, env={'LANG': 'C.UTF-8'},
-        )
+        try:
+            result = subprocess.run(
+                [sys.executable, '-I', '-S', str(Path(__file__).with_name('python_worker.py'))],
+                input=payload, text=True, capture_output=True, timeout=3,
+                cwd=directory, env={'LANG': 'C.UTF-8'},
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError('Python step exceeded its execution time limit') from exc
+    if result.returncode < 0:
+        raise ValueError(f'RunPython terminated by signal {-result.returncode}')
     if result.returncode:
         raise ValueError('RunPython failed: ' + result.stderr[-500:])
     return json.loads(result.stdout)

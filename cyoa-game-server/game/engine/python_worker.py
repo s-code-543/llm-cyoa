@@ -50,10 +50,24 @@ def validate_script(source):
     return tree
 
 
+def set_limit(kind, maximum):
+    """Lower limits without trying to raise an inherited hard limit."""
+    _, hard = resource.getrlimit(kind)
+    limit = maximum if hard == resource.RLIM_INFINITY else min(maximum, hard)
+    resource.setrlimit(kind, (limit, limit))
+
+
+def apply_resource_limits():
+    set_limit(resource.RLIMIT_CPU, 2)
+    # Darwin exposes RLIMIT_AS but rejects this limit. Linux deployment keeps
+    # the memory bound; macOS retains CPU, wall-time, file and payload bounds.
+    if sys.platform != 'darwin':
+        set_limit(resource.RLIMIT_AS, 128 * 1024 * 1024)
+    set_limit(resource.RLIMIT_NOFILE, 16)
+
+
 def main():
-    resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
-    resource.setrlimit(resource.RLIMIT_AS, (128 * 1024 * 1024,) * 2)
-    resource.setrlimit(resource.RLIMIT_NOFILE, (16, 16))
+    apply_resource_limits()
     payload = json.loads(sys.stdin.read(1024 * 1024 + 1))
     tree = validate_script(payload['code'])
     rng = random.Random(payload['seed'])

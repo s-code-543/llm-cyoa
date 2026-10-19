@@ -108,12 +108,13 @@ class TestModelsAndConfigs:
         self.adv, self.end, self.cls = adventure_prompt, game_ending_prompt, classifier_prompt
         self.corr, self.judge, self.model = turn_correction_prompt, judge_prompt, llm_model
 
-    def test_model_list_and_protected_delete_names_configs(self, admin_client):
+    def test_model_delete_preserves_saved_configs(self, admin_client):
         send('post', admin_client, '/api/v1/admin/configurations', self.payload(name='Uses It'))
         assert admin_client.get('/api/v1/admin/models').json()['models'][0]['id'] == self.model.id
         resp = admin_client.delete(f'/api/v1/admin/models/{self.model.id}')
-        assert resp.status_code == 409
-        assert 'Uses It' in resp.json()['error']['message']
+        assert resp.status_code == 200
+        config = Configuration.objects.get(name='Uses It')
+        assert config.storyteller_model is None
 
     def test_create_minimal_and_clears_refusal_fields(self, admin_client):
         resp = send('post', admin_client, '/api/v1/admin/configurations',
@@ -194,7 +195,8 @@ class TestModelsAndConfigs:
         assert 'character_prompt' in bad.json()['error']['fields']
         disabled = send('put', admin_client, f'{url}/{cid}', {**data, 'enable_image_generation': False})
         assert disabled.status_code == 200 and disabled.json()['image_model'] == model.pk
-        assert admin_client.delete(f'/api/v1/admin/models/{model.pk}').status_code == 409
+        assert admin_client.delete(f'/api/v1/admin/models/{model.pk}').status_code == 200
+        assert Configuration.objects.get(pk=cid).image_model is None
 
     def test_options(self, admin_client):
         data = admin_client.get('/api/v1/admin/configurations/options').json()

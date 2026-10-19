@@ -161,7 +161,7 @@ class Configuration(models.Model):
     )
     storyteller_model = models.ForeignKey(
         'LLMModel',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='configs_as_storyteller',
         null=True,
         help_text="Model to use for story generation"
@@ -183,7 +183,7 @@ class Configuration(models.Model):
     )
     turn_correction_model = models.ForeignKey(
         'LLMModel',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='configs_as_turn_correction',
         null=True,
         blank=True,
@@ -252,7 +252,7 @@ class Configuration(models.Model):
         Prompt, on_delete=models.PROTECT, related_name='configs_as_character',
         limit_choices_to={'prompt_type': 'character'}, null=True, blank=True)
     image_model = models.ForeignKey(
-        'LLMModel', on_delete=models.PROTECT, related_name='configs_as_image_model',
+        'LLMModel', on_delete=models.SET_NULL, related_name='configs_as_image_model',
         null=True, blank=True)
     image_aspect_ratio = models.CharField(max_length=10, default='16:9')
     image_timeout = models.PositiveIntegerField(default=60)
@@ -264,7 +264,7 @@ class Configuration(models.Model):
     )
     classifier_model = models.ForeignKey(
         'LLMModel',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='configs_as_classifier',
         null=True,
         blank=True,
@@ -396,7 +396,7 @@ class JudgeStep(models.Model):
     )
     classifier_model = models.ForeignKey(
         'LLMModel',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='judge_steps_as_classifier',
         null=True,
         blank=True,
@@ -426,8 +426,10 @@ class JudgeStep(models.Model):
     )
     rewrite_model = models.ForeignKey(
         'LLMModel',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='judge_steps_as_rewriter',
+        null=True,
+        blank=True,
         help_text="Model for rewriting turns"
     )
     rewrite_timeout = models.IntegerField(
@@ -459,8 +461,10 @@ class JudgeStep(models.Model):
     )
     compare_model = models.ForeignKey(
         'LLMModel',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='judge_steps_as_comparator',
+        null=True,
+        blank=True,
         help_text="Model for comparing turns"
     )
     compare_timeout = models.IntegerField(
