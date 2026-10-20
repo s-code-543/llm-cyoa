@@ -6,6 +6,12 @@
 .page.narrow {
   max-width: 420px;
 }
+.admin-layout {
+  margin-block: 36px;
+}
+.admin-layout > .page {
+  margin-block: 0;
+}
 .form {
   display: grid;
   gap: 16px;
@@ -303,21 +309,15 @@
 }
 
 @media (max-width: 700px) {
+  .admin-layout {
+    margin-block: 12px;
+  }
   .page {
     margin: 12px auto;
     padding: 0 12px;
   }
   .page h1 {
     font-size: 26px;
-  }
-  .subnav {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    width: 100%;
-  }
-  .subnav a {
-    white-space: nowrap;
   }
   .table {
     display: block;
@@ -486,3 +486,54 @@
 .model-table [data-slot="table-cell"] { vertical-align: top; }
 
 .model-filters input[type="number"] { min-height: 2.5rem; box-sizing: border-box; }
+
+/* Model catalogs use the available desktop canvas instead of the form width. */
+.page.page--models {
+  max-width: none;
+  width: 100%;
+  padding-inline: clamp(1rem, 2vw, 2.25rem);
+}
+.model-table [data-slot="table-content"] { table-layout: fixed; width: 100%; }
+.model-table [data-slot="table-column"],
+.model-table [data-slot="table-cell"] { white-space: normal; overflow-wrap: anywhere; padding: 0.65rem; }
+.model-table [data-slot="table-sortable-column-header"] { white-space: normal; }
+.model-name-cell { display: grid; gap: 0.4rem; min-width: 0; }
+.model-name-cell > code { font-size: 0.75rem; color: var(--muted); }
+.model-drawers { display: grid; gap: 0.75rem; margin-block: 1rem; min-width: 0; }
+.model-card { border: 1px solid var(--border); border-radius: 0.85rem; padding: 0.85rem; min-width: 0; }
+.model-card-heading { display: flex; align-items: start; justify-content: space-between; gap: 0.5rem; }
+.model-card-name { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.model-card-name > small { display: block; font-weight: 400; color: var(--muted); margin-top: 0.25rem; }
+.model-card-heading [data-slot="disclosure-trigger"] { padding: 0.25rem; gap: 0.25rem; white-space: nowrap; }
+.model-card-prices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+.model-card-description { margin-top: 0.75rem; overflow-wrap: anywhere; }
+.model-card-details { display: grid; gap: 0.75rem; margin-top: 1rem; }
+.model-card-details > div { min-width: 0; }
+.model-card-details dt { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.model-card-details dd { margin: 0.2rem 0 0; overflow-wrap: anywhere; }
+.model-card-actions { margin-top: 1rem; }
+@media (max-width: 767px) {
+  .page.page--models { padding-inline: 1rem; }
+  .page--models .model-toolbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+  .page--models .model-toolbar > [data-slot="input"],
+  .page--models .model-toolbar > .model-select { grid-column: 1 / -1; width: 100%; min-width: 0; }
+  .page--models .model-toolbar > [data-slot="button"] { height: auto; min-height: 2.5rem; white-space: normal; }
+  .page--models .model-filters { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .page--models .model-filters .model-select,
+  .page--models .model-filters input[type="number"] { width: 100%; min-width: 0; }
+  .page--models .model-filters .setting-toggle { justify-self: start; max-width: 100%; }
+}
+@media (max-width: 767px) {
+  .page--models .toolbar .chip { max-width: 100%; }
+  .page--models .toolbar .chip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}
+
+.model-filter-drawer [data-slot="disclosure-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+.model-filter-drawer [data-slot="disclosure-indicator"] {
+  flex-shrink: 0;
+}

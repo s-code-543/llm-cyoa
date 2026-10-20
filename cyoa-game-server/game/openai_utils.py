@@ -4,6 +4,7 @@ Supports GPT-4, GPT-3.5-turbo, and other OpenAI models.
 """
 import requests
 import json
+import re
 
 
 def test_openai_connection(api_key, timeout=10):
@@ -121,15 +122,14 @@ def get_openai_models(api_key, timeout=10):
         for model in data.get('data', []):
             model_id = model.get('id', '')
             
-            # Filter to useful chat models
-            if not any([
-                model_id.startswith('gpt-4'),
-                model_id.startswith('gpt-3.5'),
-                model_id == 'o1-preview',
-                model_id == 'o1-mini'
-            ]):
+            # Include current text and reasoning families without freezing the
+            # catalog to a few historical model names. Audio/image-only models
+            # have separate generation APIs and are not storyteller choices.
+            if not (model_id.startswith(('gpt-', 'chatgpt-')) or re.match(r'^o[0-9]', model_id)):
                 continue
-            
+            if any(part in model_id for part in ('audio', 'realtime', 'transcribe', 'tts', 'image')):
+                continue
+
             # Build friendly description
             description = ""
             if 'gpt-4' in model_id:

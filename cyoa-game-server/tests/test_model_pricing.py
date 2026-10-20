@@ -132,8 +132,28 @@ def test_unknown_prices_are_not_recorded_as_free(admin_client):
     with patch('game.admin_providers_api.fetch_provider_models', return_value=[{'id': model.model_identifier}]):
         admin_client.post(REFRESH, '{}', content_type='application/json')
     model.refresh_from_db()
-    assert model.capabilities['pricing'] == {}
+    assert model.capabilities.get('pricing', {}) == {}
 
 
 def test_refresh_requires_admin(auth_client):
     assert auth_client.post(REFRESH, '{}', content_type='application/json').status_code == 403
+
+
+@pytest.mark.parametrize('capabilities', [{}, {'pricing': PRICING, 'pricing_updated_at': 'old'}])
+def test_model_listing_never_contacts_providers(admin_client, capabilities):
+    model = LLMModelFactory(capabilities=capabilities)
+    with patch('game.admin_providers_api.fetch_provider_models', side_effect=RuntimeError('offline')) as fetch:
+        result = admin_client.get('/api/v1/admin/models')
+    fetch.assert_not_called()
+    assert result.status_code == 200
+    assert result.json()['models'][0]['pricing'] == capabilities.get('pricing', {})
+    model.refresh_from_db()
+    assert model.capabilities == capabilities
+
+
+def test_explicit_refresh_without_prices_keeps_saved_rates(admin_client):
+    model = LLMModelFactory(capabilities={'pricing': PRICING})
+    with patch('game.admin_providers_api.fetch_provider_models', return_value=[{'id': model.model_identifier}]):
+        admin_client.post(REFRESH, '{}', content_type='application/json')
+    model.refresh_from_db()
+    assert model.capabilities['pricing'] == PRICING

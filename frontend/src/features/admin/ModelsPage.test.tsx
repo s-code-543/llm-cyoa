@@ -16,6 +16,7 @@ vi.mock("../../api/client", () => ({ apiFetch: vi.fn() }));
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 test("validation offers confirmed cleanup and reports provider failures", async () => {
@@ -92,8 +93,8 @@ test("checkbox selections stay visible in removable chips while filtering", asyn
   fireEvent.click(alpha);
   fireEvent.click(screen.getByRole("checkbox", { name: "Select Beta" }));
   expect(screen.getByText("2 selected")).toBeTruthy();
-  expect(screen.getByText("$1 input / 1M tokens")).toBeTruthy();
-  expect(screen.getByText("$4 output / 1M tokens")).toBeTruthy();
+  expect(screen.getByText("$1")).toBeTruthy();
+  expect(screen.getByText("$4")).toBeTruthy();
   fireEvent.change(screen.getByLabelText("Search available models"), {
     target: { value: "Beta" },
   });
@@ -152,15 +153,21 @@ test("refresh clears selections that may no longer be in the catalog", async () 
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  fireEvent.click(await screen.findByRole("checkbox", { name: "Select Alpha" }));
+  fireEvent.click(
+    await screen.findByRole("checkbox", { name: "Select Alpha" }),
+  );
   expect(screen.getByText("1 selected")).toBeTruthy();
   fireEvent.click(
     screen.getByRole("button", { name: "Refresh models and costs" }),
   );
   await waitFor(() =>
-    expect(screen.queryByRole("region", { name: "Selected models" })).toBeNull(),
+    expect(
+      screen.queryByRole("region", { name: "Selected models" }),
+    ).toBeNull(),
   );
-  expect(screen.queryByRole("button", { name: "Import selected" })).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: "Import selected" }),
+  ).toBeDisabled();
 });
 
 test("model list refreshes provider costs and reports partial failures", async () => {
@@ -195,11 +202,11 @@ test("model list refreshes provider costs and reports partial failures", async (
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  expect(await screen.findByText("$0.5 input / 1M tokens")).toBeTruthy();
+  expect(await screen.findByText("$0.5")).toBeTruthy();
   fireEvent.click(
     screen.getByRole("button", { name: "Refresh costs from providers" }),
   );
-  expect(await screen.findByText("$1 input / 1M tokens")).toBeTruthy();
+  expect(await screen.findByText("$1")).toBeTruthy();
   expect(screen.getByRole("alert")).toHaveTextContent("Offline");
 });
 
@@ -283,6 +290,25 @@ test("HeroUI table sorting and shared switches and selects update the results", 
   const header = await screen.findByRole("columnheader", {
     name: /Input cost/,
   });
+  expect(screen.queryByRole("columnheader", { name: /Image cost/ })).toBeNull();
+  expect(
+    screen.queryByRole("columnheader", { name: /Other costs/ }),
+  ).toBeNull();
+  const drawer = screen.getByRole("button", { name: "Filter and sort models" });
+  expect(drawer).toHaveAttribute("aria-expanded", "false");
+  expect(
+    screen.queryByRole("switch", { name: "Exclude free models" }),
+  ).toBeNull();
+  expect(
+    screen.getByText("Image · Image generation (unavailable)"),
+  ).toBeTruthy();
+  fireEvent.click(drawer);
+  expect(drawer).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByLabelText("Max input (¢ / 1M tokens)")).toHaveValue(null);
+  fireEvent.change(screen.getByLabelText("Max input (¢ / 1M tokens)"), {
+    target: { value: "100" },
+  });
+  fireEvent.click(header);
   expect(header).toHaveAttribute("aria-sort", "ascending");
   fireEvent.click(header);
   await waitFor(() =>
@@ -293,18 +319,227 @@ test("HeroUI table sorting and shared switches and selects update the results", 
   expect(rows[2]).toHaveTextContent("Free");
   fireEvent.click(screen.getByRole("switch", { name: "Exclude free models" }));
   expect(screen.queryByText("Free", { exact: true })).toBeNull();
-  fireEvent.click(
-    screen.getByRole("switch", {
-      name: "Include unknown or variable token prices",
-    }),
-  );
+  const includeUnknown = screen.getByRole("switch", {
+    name: "Include unknown or variable token prices",
+  });
+  expect(includeUnknown).toBeChecked();
+  fireEvent.click(includeUnknown);
+  expect(screen.queryByText(/UnpricedModel/)).toBeNull();
+  fireEvent.click(includeUnknown);
   expect(screen.getByText(/UnpricedModel/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: /Output type/ }));
-  fireEvent.click(
-    await screen.findByRole("option", { name: "image" }),
-  );
+  fireEvent.click(await screen.findByRole("option", { name: "image" }));
   expect(
     await screen.findByText("Image · Image generation (unavailable)"),
   ).toBeTruthy();
   expect(screen.queryByText("Alpha", { exact: true })).toBeNull();
+  expect(screen.getByRole("columnheader", { name: /Image cost/ })).toBeTruthy();
+  fireEvent.click(drawer);
+  expect(drawer).toHaveAttribute("aria-expanded", "false");
+  expect(
+    screen.queryByRole("switch", { name: "Exclude free models" }),
+  ).toBeNull();
+  expect(
+    screen.getByText("Image · Image generation (unavailable)"),
+  ).toBeTruthy();
+  fireEvent.click(drawer);
+  expect(
+    screen.getByRole("switch", { name: "Exclude free models" }),
+  ).toBeChecked();
+});
+
+test("direct provider rates expose their official source and checked date", () => {
+  render(
+    <ModelCosts
+      pricing={{ prompt: "0.000001", completion: "0.000005" }}
+      source="https://platform.claude.com/docs/en/about-claude/pricing"
+      updatedAt="2026-10-19T12:00:00Z"
+      note="Standard base input/output rates."
+    />,
+  );
+  expect(
+    screen.getByRole("link", { name: "Official pricing" }),
+  ).toHaveAttribute(
+    "href",
+    "https://platform.claude.com/docs/en/about-claude/pricing",
+  );
+  expect(screen.getByText(/Checked/)).toBeTruthy();
+  expect(screen.getByText("$1 input / 1M tokens")).toBeTruthy();
+  expect(screen.getByText("$5 output / 1M tokens")).toBeTruthy();
+});
+
+function mobileViewport() {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query === "(max-width: 767px)",
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
+test("mobile model drawers reveal details and keep deletion behind confirmation", async () => {
+  mobileViewport();
+  const api = vi.mocked(apiFetch);
+  let deleted = false;
+  api.mockImplementation(async (_url, options) => {
+    if (options?.method === "DELETE") {
+      deleted = true;
+      return { deleted: true };
+    }
+    return {
+      providers: [],
+      models: deleted
+        ? []
+        : [
+            {
+              id: 7,
+              name: "Pocket model",
+              model_identifier: "maker/a-very-long-model-identifier",
+              is_available: true,
+              provider_name: "Direct provider",
+              context_length: 128000,
+              pricing: { prompt: "0.000001", completion: "0.000002" },
+              pricing_source: "https://developers.openai.com/api/docs/pricing",
+            },
+          ],
+    };
+  });
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <ModelListPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  const details = await screen.findByRole("button", {
+    name: "Details for Pocket model",
+  });
+  expect(screen.queryByRole("grid")).toBeNull();
+  expect(details).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+  expect(screen.getByText("$1 input / 1M tokens")).toBeTruthy();
+  fireEvent.click(details);
+  expect(details).toHaveAttribute("aria-expanded", "true");
+  expect(
+    await screen.findByText("maker/a-very-long-model-identifier"),
+  ).toBeTruthy();
+  expect(screen.getByText("128,000 tokens")).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Official pricing" })).toBeNull();
+  expect(screen.queryByText("Other costs and pricing source")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+  expect(deleted).toBe(false);
+  confirm.mockReturnValue(true);
+  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/api/v1/admin/models/7", {
+      method: "DELETE",
+    }),
+  );
+  expect(await screen.findByText("No models match.")).toBeTruthy();
+});
+
+test("mobile import selection works independently from expanding model details", async () => {
+  mobileViewport();
+  const api = vi.mocked(apiFetch);
+  api.mockImplementation(async (url) =>
+    url.endsWith("/import")
+      ? { message: "Imported pocket model" }
+      : {
+          provider: { name: "OpenRouter" },
+          models: [
+            {
+              id: "maker/pocket",
+              name: "Pocket",
+              context_length: 32000,
+              pricing: { prompt: "0.000001" },
+            },
+          ],
+        },
+  );
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={["/providers/1"]}>
+        <Routes>
+          <Route path="/providers/:id" element={<ModelBrowserPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  const select = await screen.findByRole("checkbox", { name: "Select Pocket" });
+  const details = screen.getByRole("button", { name: "Details for Pocket" });
+  fireEvent.click(select);
+  expect(select).toBeChecked();
+  expect(details).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(details);
+  expect(screen.getByText("32,000 tokens")).toBeTruthy();
+  expect(select).toBeChecked();
+  expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Import selected" }));
+  expect(await screen.findByText("Imported pocket model")).toBeTruthy();
+  expect(api).toHaveBeenCalledWith("/api/v1/admin/providers/1/models/import", {
+    payload: { model_ids: ["maker/pocket"] },
+  });
+});
+
+test("provider browse shows image cost only with image output selected", async () => {
+  vi.mocked(apiFetch).mockResolvedValue({
+    provider: { name: "OpenRouter" },
+    models: [
+      { id: "text", name: "Text model", pricing: { prompt: "0" } },
+      {
+        id: "provider/image-model",
+        name: "Image model",
+        image_generation: true,
+        pricing: { prompt: "0", image_token: "0.000002" },
+      },
+    ],
+  });
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={["/providers/1"]}>
+        <Routes>
+          <Route path="/providers/:id" element={<ModelBrowserPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await screen.findByRole("checkbox", { name: "Select Text model" });
+  expect(screen.queryByRole("columnheader", { name: /Image cost/ })).toBeNull();
+  expect(
+    screen.queryByRole("columnheader", { name: /Other costs/ }),
+  ).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Filter and sort models" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Output type/ }));
+  fireEvent.click(await screen.findByRole("option", { name: "image" }));
+  expect(
+    await screen.findByRole("columnheader", { name: /Image cost/ }),
+  ).toBeTruthy();
+  expect(screen.getByText("$2")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Sort by/ }));
+  fireEvent.click(
+    await screen.findByRole("option", {
+      name: "Image token cost: low to high",
+    }),
+  );
+  expect(
+    screen.getByRole("columnheader", { name: /Image cost/ }),
+  ).toHaveAttribute("aria-sort", "ascending");
+  fireEvent.click(screen.getByRole("button", { name: /Output type/ }));
+  fireEvent.click(await screen.findByRole("option", { name: /^text$/ }));
+  expect(screen.queryByRole("columnheader", { name: /Image cost/ })).toBeNull();
+  expect(screen.getByRole("button", { name: /Sort by/ })).toHaveTextContent(
+    "Name: A–Z",
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Sort by/ }));
+  expect(screen.queryByRole("option", { name: /Image token cost/ })).toBeNull();
 });

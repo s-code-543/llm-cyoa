@@ -5,7 +5,9 @@ export function ModelSelect({
   value,
   onChange,
   options,
+  hideLabel = false,
 }: {
+  hideLabel?: boolean;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -18,10 +20,10 @@ export function ModelSelect({
       value={value || "__all__"}
       onChange={(key) => onChange(String(key) === "__all__" ? "" : String(key))}
     >
-      <Label>{label}</Label>
-      <Select.Trigger>
+      <Label className={hideLabel ? "sr-only" : undefined}>{label}</Label>
+      <Select.Trigger className="h-10 min-h-10 pe-9">
         <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-        <Select.Indicator />
+        <Select.Indicator className="end-3" />
       </Select.Trigger>
       <Select.Popover>
         <ListBox aria-label={label}>

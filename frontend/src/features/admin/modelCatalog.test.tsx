@@ -1,7 +1,10 @@
 import { test, expect } from "vitest";
 import {
   defaultModelFilters,
+  existingModelFilters,
   filterModels,
+  modelSortDescriptor,
+  modelSortValue,
   tokenCost,
   type CatalogModel,
 } from "./modelCatalog";
@@ -123,4 +126,44 @@ test("text defaults exclude image output and free exclusion does not hide paid i
       excludeFree: true,
     }).map((m) => m.name),
   ).toEqual(["Paid image input", "Boundary"]);
+});
+
+test("existing model defaults retain every model regardless of cost, modality or missing prices", () => {
+  expect(
+    filterModels(models, existingModelFilters)
+      .map((m) => m.id)
+      .sort(),
+  ).toEqual(models.map((m) => m.id).sort());
+  expect(existingModelFilters.maxInput).toBe("");
+  expect(existingModelFilters.input).toBe("");
+  expect(existingModelFilters.output).toBe("");
+  expect(defaultModelFilters.maxInput).toBe("100");
+  expect(defaultModelFilters.input).toBe("text");
+  expect(defaultModelFilters.output).toBe("text");
+});
+
+test("image-token costs sort numerically in both directions with unknown rates last", () => {
+  const models = [
+    { id: 1, name: "Unknown", pricing: {} },
+    { id: 2, name: "Expensive", pricing: { image_token: "0.00003" } },
+    { id: 3, name: "Cheap", pricing: { image_token: "0.000002" } },
+    { id: 4, name: "Variable", pricing: { image_token: "-1" } },
+  ];
+  const filters = {
+    ...defaultModelFilters,
+    maxInput: "",
+    input: "",
+    output: "",
+  };
+  expect(
+    filterModels(models, { ...filters, sort: "image-asc" }).map((m) => m.id),
+  ).toEqual([3, 2, 1, 4]);
+  expect(
+    filterModels(models, { ...filters, sort: "image-desc" }).map((m) => m.id),
+  ).toEqual([2, 3, 1, 4]);
+  expect(modelSortDescriptor("image-desc")).toEqual({
+    column: "image",
+    direction: "descending",
+  });
+  expect(modelSortValue("image", "ascending")).toBe("image-asc");
 });

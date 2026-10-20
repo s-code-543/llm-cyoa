@@ -20,6 +20,15 @@ export const defaultModelFilters = {
   sort: "input-asc",
 };
 export type ModelFilterValues = typeof defaultModelFilters;
+export const existingModelFilters: ModelFilterValues = {
+  ...defaultModelFilters,
+  maxInput: "",
+  maxOutput: "",
+  input: "",
+  output: "",
+  includeUnknown: true,
+  sort: "name",
+};
 export const publisherOf = (model: CatalogModel) => {
   const id = model.model_identifier ?? String(model.id);
   return id.includes("/") ? id.split("/")[0] : "";
@@ -31,7 +40,10 @@ export const parametersOf = (model: CatalogModel) =>
 export const outputsOf = (model: CatalogModel) =>
   model.architecture?.output_modalities ??
   (model.image_generation ? ["image"] : ["text"]);
-export function tokenCost(model: CatalogModel, key: "prompt" | "completion") {
+export function tokenCost(
+  model: CatalogModel,
+  key: "prompt" | "completion" | "image_token",
+) {
   const value = model.pricing?.[key];
   if (
     (typeof value !== "string" && typeof value !== "number") ||
@@ -81,9 +93,14 @@ export function filterModels<T extends CatalogModel>(
       let result = 0;
       if (
         filters.sort.startsWith("input-") ||
-        filters.sort.startsWith("output-")
+        filters.sort.startsWith("output-") ||
+        filters.sort.startsWith("image-")
       ) {
-        const key = filters.sort.startsWith("input-") ? "prompt" : "completion";
+        const key = filters.sort.startsWith("input-")
+          ? "prompt"
+          : filters.sort.startsWith("image-")
+            ? "image_token"
+            : "completion";
         const left = tokenCost(a, key),
           right = tokenCost(b, key);
         if (left === null || right === null)
@@ -124,7 +141,11 @@ export function modelSortDescriptor(sort: string): {
   column: string;
   direction: "ascending" | "descending";
 } {
-  if (sort.startsWith("input-") || sort.startsWith("output-"))
+  if (
+    sort.startsWith("input-") ||
+    sort.startsWith("output-") ||
+    sort.startsWith("image-")
+  )
     return {
       column: sort.split("-")[0],
       direction: sort.endsWith("desc") ? "descending" : "ascending",
