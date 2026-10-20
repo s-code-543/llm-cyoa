@@ -141,7 +141,7 @@ class AuditLog(models.Model):
 class Configuration(models.Model):
     """
     Store preset configurations combining adventure prompt, models, and judge prompt.
-    Only one configuration can be active at a time.
+    Active configurations are published for players.
     """
     name = models.CharField(
         max_length=200,
@@ -152,6 +152,7 @@ class Configuration(models.Model):
         blank=True,
         help_text="Optional description of this configuration"
     )
+    is_active = models.BooleanField(default=True, help_text="Published and playable by users")
     adventure_prompt = models.ForeignKey(
         Prompt,
         on_delete=models.PROTECT,

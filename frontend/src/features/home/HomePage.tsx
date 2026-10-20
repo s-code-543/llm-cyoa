@@ -24,7 +24,13 @@ export function HomePage() {
       </p>
     );
   const { recent_games: recent, configurations } = home.data;
-  const tints = ["bg-grape-soft", "bg-coral-soft", "bg-mint-soft", "bg-sun-soft", "bg-sky-soft"];
+  const tints = [
+    "bg-grape-soft",
+    "bg-coral-soft",
+    "bg-mint-soft",
+    "bg-sun-soft",
+    "bg-sky-soft",
+  ];
   return (
     <main className="mx-auto max-w-7xl px-4 py-10">
       <h1 className="mx-auto text-center font-story text-4xl font-bold text-grape sm:text-5xl">
@@ -43,13 +49,22 @@ export function HomePage() {
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recent.map((game) => (
               <li key={game.id}>
-                <Card className="h-full">
+                <Card
+                  className={`h-full ${game.unavailable_reason ? "opacity-50 grayscale" : ""}`}
+                >
                   <Card.Content className="gap-3">
                     <Link
+                      aria-disabled={Boolean(game.unavailable_reason)}
+                      title={game.unavailable_reason ?? undefined}
+                      onClick={(event) => {
+                        if (game.unavailable_reason) event.preventDefault();
+                      }}
                       to={`/chat?conversation_id=${game.id}`}
                       className="flex flex-col gap-2"
                     >
-                      <strong className="font-story text-xl">{game.title}</strong>
+                      <strong className="font-story text-xl">
+                        {game.title}
+                      </strong>
                       <ProgressBar
                         aria-label={`Progress for ${game.title}`}
                         minValue={0}
@@ -65,6 +80,9 @@ export function HomePage() {
                         Turn {game.turn}/{game.max_turns}
                       </span>
                     </Link>
+                    {game.unavailable_reason && (
+                      <p className="text-sm">{game.unavailable_reason}</p>
+                    )}
                     <Button
                       size="sm"
                       variant="danger-soft"
@@ -100,7 +118,9 @@ export function HomePage() {
                 >
                   <strong className="font-story text-2xl">{config.name}</strong>
                   {config.description && (
-                    <span className="text-foreground/80">{config.description}</span>
+                    <span className="text-foreground/80">
+                      {config.description}
+                    </span>
                   )}
                   <small className="mt-auto pt-2 font-bold text-grape">
                     {config.total_turns} turns

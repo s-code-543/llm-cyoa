@@ -1,4 +1,5 @@
 """Contracts for the React player API, using mocked generation only."""
+import hashlib
 import json
 import uuid
 from unittest.mock import patch
@@ -65,6 +66,38 @@ def test_send_reload_and_replay_do_not_call_provider_twice(auth_client, adventur
     assert set(loaded['messages'][1]) == {'id', 'role', 'content', 'created_at', 'is_error', 'image_url', 'image_failed'}
     assert loaded['pending_request_id'] is None
     assert ChatSubmission.objects.get().status == 'completed'
+
+
+@pytest.mark.django_db
+def test_completed_submission_replays_after_configuration_deactivation(auth_client, adventure, configuration):
+    payload = {'message': 'Go', 'request_id': str(uuid.uuid4())}
+    path = f'conversations/{adventure.conversation_id}/turns'
+    with patch('game.chat_views.call_llm', return_value='Turn 1 of 10\nSnow\n1) Enter\n2) Wait') as llm:
+        first = post(auth_client, path, payload)
+        configuration.is_active = False
+        configuration.save()
+        replay = post(auth_client, path, payload)
+
+    assert first.status_code == replay.status_code == 200
+    assert llm.call_count == 1
+
+
+@pytest.mark.django_db
+def test_pending_submission_is_reported_after_configuration_deactivation(auth_client, adventure, configuration):
+    payload = {'message': 'Go', 'request_id': str(uuid.uuid4())}
+    digest = hashlib.sha256(json.dumps({
+        'conversation_id': adventure.conversation_id, 'message': 'Go',
+    }, sort_keys=True).encode()).hexdigest()
+    ChatSubmission.objects.create(
+        conversation=adventure, request_id=payload['request_id'], operation='send', payload_hash=digest,
+    )
+    configuration.is_active = False
+    configuration.save()
+
+    response = post(auth_client, f'conversations/{adventure.conversation_id}/turns', payload)
+
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'request_pending'
 
 
 @pytest.mark.django_db

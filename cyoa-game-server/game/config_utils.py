@@ -15,8 +15,8 @@ def get_active_configuration():
         Configuration instance or None
     """
     try:
-        # Fallback to the most recently updated configuration since implicit 'active' is removed
-        config = Configuration.objects.order_by('-updated_at').first()
+        # Use the most recently updated published configuration as the fallback.
+        config = Configuration.objects.filter(is_active=True).order_by('-updated_at').first()
         if not config:
             print("[WARNING] No configurations found in database")
         return config
@@ -54,8 +54,7 @@ def get_conversation_configuration(conversation):
     config_id = (conversation.metadata or {}).get('config_id')
     if config_id:
         config = Configuration.objects.filter(pk=config_id).first()
-        if config:
-            return config
+        return config
     return get_active_configuration()
 
 
@@ -102,3 +101,13 @@ def configuration_models_available(config):
         if step.classifier_prompt_id:
             models.append(step.classifier_model)
     return all(model and model.is_available and model.provider.is_active for model in models)
+
+
+def configuration_unavailable_reason(config):
+    if not config:
+        return 'This adventure’s configuration is no longer available.'
+    if not config.is_active:
+        return 'This adventure’s configuration has been disabled by an administrator.'
+    if not configuration_models_available(config):
+        return 'This adventure requires models that are unavailable. An administrator must update its configuration.'
+    return None

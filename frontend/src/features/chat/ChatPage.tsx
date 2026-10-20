@@ -370,7 +370,7 @@ export function ChatPage() {
                 busy={busy}
                 waiting={send.isPending}
                 onRollback={setRollbackTarget}
-                readOnly={readOnly}
+                readOnly={readOnly || Boolean(game.unavailable_reason)}
                 debugEnabled={debugAllowed && debugEnabled}
                 onDebug={(message) => setDebugTarget(message.id)}
               />
@@ -394,7 +394,10 @@ export function ChatPage() {
                   </Alert.Content>
                 </Alert>
               )}
-              {!readOnly && (
+              {game.unavailable_reason && (
+                <p role="status">{game.unavailable_reason}</p>
+              )}
+              {!readOnly && !game.unavailable_reason && (
                 <ActionComposer
                   opening={game.messages.length === 0}
                   choices={game.state.choices}

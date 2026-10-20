@@ -7,6 +7,7 @@ export type HomeData = {
     turn: number;
     max_turns: number;
     updated_at: string;
+    unavailable_reason?: string | null;
   }[];
   configurations: {
     id: number;
