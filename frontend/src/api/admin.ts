@@ -94,7 +94,11 @@ export type ModelMetadata = {
   pricing_updated_at?: string | null;
   context_length?: number;
   created?: number | null;
-  architecture?: { input_modalities?: string[]; output_modalities?: string[]; tokenizer?: string };
+  architecture?: {
+    input_modalities?: string[];
+    output_modalities?: string[];
+    tokenizer?: string;
+  };
   supported_parameters?: string[] | Record<string, unknown>;
 };
 export type ModelRow = ModelMetadata & {
@@ -145,40 +149,61 @@ export type Tts = {
 export type Message = { message: string };
 
 export const getProviders = () =>
-  apiFetch<{ types: { value: string; label: string }[]; providers: Provider[] }>(`${base}/providers`);
+  apiFetch<{
+    types: { value: string; label: string }[];
+    providers: Provider[];
+  }>(`${base}/providers`);
 export const createProvider = (payload: ProviderInput) =>
   apiFetch<Provider>(`${base}/providers`, { payload });
 export const updateProvider = (id: number, payload: Partial<ProviderInput>) =>
   apiFetch<Provider>(`${base}/providers/${id}`, { method: "PUT", payload });
 export const deleteProvider = (id: number) =>
-  apiFetch<{ deleted: boolean }>(`${base}/providers/${id}`, { method: "DELETE" });
+  apiFetch<{ deleted: boolean }>(`${base}/providers/${id}`, {
+    method: "DELETE",
+  });
 export const testProvider = (payload: {
   provider_id?: number;
   provider_type: string;
   base_url: string;
   api_key?: string;
-}) => apiFetch<{ success: boolean; message: string }>(`${base}/providers/test`, { payload });
+}) =>
+  apiFetch<{ success: boolean; message: string }>(`${base}/providers/test`, {
+    payload,
+  });
 export const browseModels = (id: number) =>
-  apiFetch<{ provider: Provider; models: RemoteModel[]; pricing_warnings?: string[] }>(`${base}/providers/${id}/models`);
+  apiFetch<{
+    provider: Provider;
+    models: RemoteModel[];
+    pricing_warnings?: string[];
+  }>(`${base}/providers/${id}/models`);
 export const importModels = (id: number, model_ids: string[]) =>
-  apiFetch<Message>(`${base}/providers/${id}/models/import`, { payload: { model_ids } });
+  apiFetch<Message>(`${base}/providers/${id}/models/import`, {
+    payload: { model_ids },
+  });
 export const removeModels = (id: number, model_ids: string[]) =>
-  apiFetch<Message>(`${base}/providers/${id}/models/remove`, { payload: { model_ids } });
+  apiFetch<Message>(`${base}/providers/${id}/models/remove`, {
+    payload: { model_ids },
+  });
 export const syncModels = (id: number) =>
   apiFetch<Message>(`${base}/providers/${id}/models/sync`, { payload: {} });
 
 export const getModels = () =>
-  apiFetch<{ models: ModelRow[]; providers: { id: number; name: string }[] }>(`${base}/models`);
+  apiFetch<{ models: ModelRow[]; providers: { id: number; name: string }[] }>(
+    `${base}/models`,
+  );
 export const deleteModel = (id: number) =>
   apiFetch<{ deleted: boolean }>(`${base}/models/${id}`, { method: "DELETE" });
 
-export const getDifficulties = () => apiFetch<{ profiles: Difficulty[] }>(`${base}/difficulty`);
+export const getDifficulties = () =>
+  apiFetch<{ profiles: Difficulty[] }>(`${base}/difficulty`);
 export const createDifficulty = (payload: DifficultyInput) =>
   apiFetch<Difficulty>(`${base}/difficulty`, { payload });
 export const updateDifficulty = (id: number, payload: DifficultyInput) =>
   apiFetch<Difficulty>(`${base}/difficulty/${id}`, { method: "PUT", payload });
 export const deleteDifficulty = (id: number) =>
-  apiFetch<{ deleted: boolean }>(`${base}/difficulty/${id}`, { method: "DELETE" });
+  apiFetch<{ deleted: boolean }>(`${base}/difficulty/${id}`, {
+    method: "DELETE",
+  });
 
 export const getTts = () => apiFetch<Tts>(`${base}/tts`);
 export const updateTts = (payload: Partial<Tts>) =>
@@ -207,7 +232,15 @@ export type JudgeStepData = {
 };
 export type WorkflowNode = { type: string; [key: string]: unknown };
 export type Workflow = { version?: number; nodes?: WorkflowNode[] };
+export type ImageReference = {
+  id: string;
+  name: string;
+  kind: "character" | "scene";
+  url: string;
+};
+
 export type ConfigData = {
+  image_references?: ImageReference[];
   is_active?: boolean;
   in_progress_count?: number;
   id?: number;
@@ -263,21 +296,33 @@ export type ConfigOptions = {
   judge_prompts: PromptSummary[];
   character_prompts: PromptSummary[];
   image_meta_prompts: PromptSummary[];
-  image_models: { id: number; name: string; available: boolean }[];
+  image_models: {
+    id: number;
+    name: string;
+    available: boolean;
+    reference_limit?: number | null;
+  }[];
   models: { id: number; name: string; available: boolean }[];
   difficulties: { id: number; name: string }[];
 };
 
 export const getConfigs = () =>
   apiFetch<{ configurations: ConfigSummary[] }>(`${base}/configurations`);
-export const getConfigOptions = () => apiFetch<ConfigOptions>(`${base}/configurations/options`);
-export const getConfig = (id: number) => apiFetch<ConfigData>(`${base}/configurations/${id}`);
+export const getConfigOptions = () =>
+  apiFetch<ConfigOptions>(`${base}/configurations/options`);
+export const getConfig = (id: number) =>
+  apiFetch<ConfigData>(`${base}/configurations/${id}`);
 export const createConfig = (payload: ConfigData) =>
   apiFetch<ConfigData>(`${base}/configurations`, { payload });
 export const updateConfig = (id: number, payload: ConfigData) =>
-  apiFetch<ConfigData>(`${base}/configurations/${id}`, { method: "PUT", payload });
+  apiFetch<ConfigData>(`${base}/configurations/${id}`, {
+    method: "PUT",
+    payload,
+  });
 export const deleteConfig = (id: number) =>
-  apiFetch<{ deleted: boolean }>(`${base}/configurations/${id}`, { method: "DELETE" });
+  apiFetch<{ deleted: boolean }>(`${base}/configurations/${id}`, {
+    method: "DELETE",
+  });
 
 export const validateModels = () =>
   apiFetch<{ unavailable: ModelRow[]; failures: string[] }>(
@@ -287,9 +332,18 @@ export const validateModels = () =>
 export const deleteUnavailableModels = (delete_ids: number[]) =>
   apiFetch<Message>(`${base}/models/validate`, { payload: { delete_ids } });
 
-export type AdminChat = { id: string; title: string; owner: string; updated_at: string };
+export type AdminChat = {
+  id: string;
+  title: string;
+  owner: string;
+  updated_at: string;
+};
 export const getAdminChats = (search: string, offset: number) =>
-  apiFetch<{ chats: AdminChat[]; has_more: boolean }>(`${base}/chats?${new URLSearchParams({ search, offset: String(offset) })}`);
+  apiFetch<{ chats: AdminChat[]; has_more: boolean }>(
+    `${base}/chats?${new URLSearchParams({ search, offset: String(offset) })}`,
+  );
 
 export const refreshModelCosts = () =>
-  apiFetch<Message & { failures: string[] }>(`${base}/models/pricing/refresh`, { payload: {} });
+  apiFetch<Message & { failures: string[] }>(`${base}/models/pricing/refresh`, {
+    payload: {},
+  });

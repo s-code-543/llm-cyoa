@@ -6,7 +6,7 @@ from django.http import HttpResponsePermanentRedirect
 from django.urls import path, re_path
 
 from game import admin_api, admin_config_api as config_api, admin_providers_api as providers_api, app_api
-from game import chat_views, chat_api, scene_images
+from game import chat_views, chat_api, scene_images, image_references
 from game import stt_views
 from game import pwa_views, tts_views
 
@@ -55,6 +55,8 @@ urlpatterns = [
     path('api/v1/admin/difficulty', providers_api.difficulty_collection),
     path('api/v1/admin/difficulty/<int:difficulty_id>', providers_api.difficulty_detail),
     path('api/v1/admin/tts', providers_api.tts_settings),
+    path('api/v1/admin/image-references', image_references.upload_reference),
+    path('api/v1/admin/image-references/<uuid:reference_id>', image_references.reference_image),
     path('api/v1/admin/configurations', config_api.config_collection),
     path('api/v1/admin/configurations/options', config_api.config_options),
     path('api/v1/admin/configurations/<int:config_id>', config_api.config_detail),

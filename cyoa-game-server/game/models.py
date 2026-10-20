@@ -138,6 +138,14 @@ class AuditLog(models.Model):
         return f"{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')} - {modified}"
 
 
+class ImageReference(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=160)
+    kind = models.CharField(max_length=16, choices=[('character', 'Character sheet'), ('scene', 'Scene reference')])
+    image = models.FileField(upload_to='image_references/')
+    media_type = models.CharField(max_length=32)
+
+
 class Configuration(models.Model):
     """
     Store preset configurations combining adventure prompt, models, and judge prompt.
@@ -255,6 +263,7 @@ class Configuration(models.Model):
     image_model = models.ForeignKey(
         'LLMModel', on_delete=models.SET_NULL, related_name='configs_as_image_model',
         null=True, blank=True)
+    image_references = models.ManyToManyField('ImageReference', blank=True, related_name='configurations')
     image_aspect_ratio = models.CharField(max_length=10, default='16:9')
     image_timeout = models.PositiveIntegerField(default=60)
 

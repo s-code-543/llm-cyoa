@@ -1,3 +1,4 @@
+import { confirmAction } from "../../components/notifications";
 import { Toggle } from "../../components/Toggle";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
@@ -72,9 +73,9 @@ export function AuditPage() {
           type="button"
           className="danger"
           disabled={clear.isPending}
-          onClick={() => {
+          onClick={async () => {
             if (
-              window.confirm(
+              await confirmAction(
                 "Delete every audit log entry? This cannot be undone.",
               )
             )

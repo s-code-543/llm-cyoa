@@ -244,6 +244,9 @@ def debug(request, conversation_id):
     if not request.user.is_staff:
         return error('forbidden', 'Administrator access required.', 403)
     conversation = get_object_or_404(ChatConversation, conversation_id=conversation_id)
+    if request.GET.get('summary') == 'true':
+        from .billing import game_cost
+        return JsonResponse({'cost': game_cost(conversation_id)})
     message_id = request.GET.get('message_id')
     if message_id:
         message = get_object_or_404(conversation.messages, pk=int(message_id), role='assistant')

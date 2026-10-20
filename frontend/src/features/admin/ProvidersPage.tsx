@@ -1,3 +1,4 @@
+import { confirmAction } from "../../components/notifications";
 import { Toggle } from "../../components/Toggle";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -196,8 +197,9 @@ function ProviderForm({
           <button
             type="button"
             className="danger"
-            onClick={() =>
-              window.confirm(`Delete ${provider.name}?`) && remove.mutate()
+            onClick={async () =>
+              (await confirmAction(`Delete ${provider.name}?`)) &&
+              remove.mutate()
             }
           >
             Delete

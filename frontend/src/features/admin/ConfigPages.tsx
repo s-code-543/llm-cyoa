@@ -1,3 +1,6 @@
+import { SectionSpy } from "../../components/SectionSpy";
+import { ImageReferences } from "./ImageReferences";
+import { confirmAction, notify } from "../../components/notifications";
 import { Toggle } from "../../components/Toggle";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -56,6 +59,7 @@ const blankConfig = (): ConfigData => ({
   phase4_turns: 1,
   enable_tts: false,
   enable_image_generation: false,
+  image_references: [],
   image_meta_prompt: null,
   character_prompt: null,
   image_model: null,
@@ -297,19 +301,20 @@ function ConfigForm({
   const navigate = useNavigate();
   const cache = useQueryClient();
   const [form, setForm] = useState(initial);
+  const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState("");
   const set = <K extends keyof ConfigData>(name: K, value: ConfigData[K]) =>
-    setForm({ ...form, [name]: value });
+    setForm((current) => ({ ...current, [name]: value }));
 
   const save = useMutation({
     mutationFn: () =>
       initial.id ? updateConfig(initial.id, form) : createConfig(form),
     onSuccess: (saved) => {
+      notify("Configuration saved.");
       cache.invalidateQueries({ queryKey: key });
       cache.setQueryData([...key, saved.id], saved);
       if (initial.id) {
         setForm(saved);
-        setNotice("Saved");
       } else navigate(`/manage/configurations/${saved.id}`);
     },
   });
@@ -330,7 +335,7 @@ function ConfigForm({
 
   return (
     <form
-      className="form"
+      className="form configuration-form"
       onSubmit={async (event) => {
         event.preventDefault();
         setNotice("");
@@ -338,9 +343,9 @@ function ConfigForm({
           try {
             const current = await getConfig(initial.id);
             if (
-              !window.confirm(
+              !(await confirmAction(
                 `Disable this configuration? ${current.in_progress_count ?? 0} adventures in progress will be unable to continue until it is reactivated.`,
-              )
+              ))
             )
               return;
           } catch {
@@ -348,9 +353,25 @@ function ConfigForm({
             return;
           }
         }
-        save.mutate();
+        if (!uploading) save.mutate();
       }}
     >
+      <SectionSpy
+        title={initial.id ? initial.name : "New configuration"}
+        sections={[
+          { id: "config-basics", label: "Overview" },
+          { id: "config-story", label: "Story" },
+          { id: "config-pacing", label: "Pacing" },
+          { id: "config-images", label: "Scene illustrations" },
+          { id: "config-refusal", label: "Refusal detection" },
+          { id: "config-judges", label: "Judge steps" },
+          { id: "config-workflow", label: "Turn workflow" },
+          { id: "config-save", label: "Save changes" },
+        ]}
+      />
+      <h2 id="config-basics" tabIndex={-1}>
+        Overview
+      </h2>
       <Toggle
         checked={form.is_active ?? true}
         onChange={(v) => set("is_active", v)}
@@ -375,7 +396,9 @@ function ConfigForm({
         />
       </Field>
 
-      <h2>Story</h2>
+      <h2 id="config-story" tabIndex={-1}>
+        Story
+      </h2>
       <Pick
         label="Adventure prompt"
         value={form.adventure_prompt}
@@ -412,7 +435,9 @@ function ConfigForm({
         optional
       />
 
-      <h2>Pacing</h2>
+      <h2 id="config-pacing" tabIndex={-1}>
+        Pacing
+      </h2>
       <Num
         label="Total turns"
         value={form.total_turns}
@@ -453,7 +478,9 @@ function ConfigForm({
         Enable text-to-speech
       </Toggle>
 
-      <h2>Scene illustrations</h2>
+      <h2 id="config-images" tabIndex={-1}>
+        Scene illustrations
+      </h2>
       <Toggle
         checked={form.enable_image_generation}
         onChange={(checked) => set("enable_image_generation", checked)}
@@ -508,7 +535,23 @@ function ConfigForm({
         error={errors.image_timeout}
       />
 
-      <h2>Refusal detection</h2>
+      {!!form.image_references?.length &&
+        options.image_models?.find((model) => model.id === form.image_model)
+          ?.reference_limit === 0 && (
+          <p role="alert">
+            This image model does not accept reference images. Choose one with
+            image input.
+          </p>
+        )}
+      <ImageReferences
+        value={form.image_references ?? []}
+        onChange={(images) => set("image_references", images)}
+        onBusyChange={setUploading}
+      />
+      {errors.image_references && <p role="alert">{errors.image_references}</p>}
+      <h2 id="config-refusal" tabIndex={-1}>
+        Refusal detection
+      </h2>
       <Toggle
         checked={form.enable_refusal_detection}
         onChange={(checked) => set("enable_refusal_detection", checked)}
@@ -574,7 +617,9 @@ function ConfigForm({
         </>
       )}
 
-      <h2>Judge steps</h2>
+      <h2 id="config-judges" tabIndex={-1}>
+        Judge steps
+      </h2>
       {form.judge_steps.map((step, index) => (
         <StepEditor
           key={step.id ?? `new-${index}`}
@@ -610,10 +655,12 @@ function ConfigForm({
         </button>
       </div>
 
-      <WorkflowEditor
-        value={form.workflow}
-        onChange={(workflow) => set("workflow", workflow)}
-      />
+      <div id="config-workflow" tabIndex={-1}>
+        <WorkflowEditor
+          value={form.workflow}
+          onChange={(workflow) => set("workflow", workflow)}
+        />
+      </div>
       {errors.workflow && (
         <span role="alert" className="field-error">
           {errors.workflow}
@@ -622,16 +669,20 @@ function ConfigForm({
 
       {notice && <p role="status">{notice}</p>}
       <Failure error={remove.error ?? save.error} />
-      <div className="toolbar">
-        <button type="submit" disabled={save.isPending}>
+      <div
+        id="config-save"
+        tabIndex={-1}
+        className="toolbar config-save-actions"
+      >
+        <button type="submit" disabled={save.isPending || uploading}>
           {initial.id ? "Save changes" : "Create configuration"}
         </button>
         {initial.id && (
           <button
             type="button"
             className="danger"
-            onClick={() =>
-              window.confirm(`Delete ${form.name}?`) && remove.mutate()
+            onClick={async () =>
+              (await confirmAction(`Delete ${form.name}?`)) && remove.mutate()
             }
           >
             Delete

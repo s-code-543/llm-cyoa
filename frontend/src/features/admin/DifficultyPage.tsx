@@ -1,3 +1,4 @@
+import { confirmAction } from "../../components/notifications";
 import { Button, Card } from "@heroui/react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -225,8 +226,9 @@ function DifficultyForm({ profile }: { profile?: Difficulty }) {
           <button
             type="button"
             className="danger"
-            onClick={() =>
-              window.confirm(`Delete ${profile.name}?`) && remove.mutate()
+            onClick={async () =>
+              (await confirmAction(`Delete ${profile.name}?`)) &&
+              remove.mutate()
             }
           >
             Delete

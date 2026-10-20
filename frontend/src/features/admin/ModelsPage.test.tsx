@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { ModelListPage, ModelBrowserPage } from "./ModelsPage";
 import { ModelCosts } from "./ModelCosts";
+import * as notifications from "../../components/notifications";
 import { apiFetch } from "../../api/client";
 
 vi.mock("../../api/client", () => ({ apiFetch: vi.fn() }));
@@ -34,7 +35,9 @@ test("validation offers confirmed cleanup and reports provider failures", async 
     }
     return { models: [], providers: [] };
   });
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  const confirm = vi
+    .spyOn(notifications, "confirmAction")
+    .mockResolvedValue(false);
   render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
@@ -54,7 +57,7 @@ test("validation offers confirmed cleanup and reports provider failures", async 
   expect(api).not.toHaveBeenCalledWith(expect.anything(), {
     payload: { delete_ids: [2] },
   });
-  confirm.mockReturnValue(true);
+  confirm.mockResolvedValue(true);
   fireEvent.click(remove);
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/api/v1/admin/models/validate", {
@@ -236,7 +239,9 @@ test("sync explains its scope and requires confirmation", async () => {
       ? { message: "Sync complete" }
       : { provider: { name: "OpenRouter" }, models: [] },
   );
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  const confirm = vi
+    .spyOn(notifications, "confirmAction")
+    .mockResolvedValue(false);
   render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={["/providers/1"]}>
@@ -257,7 +262,7 @@ test("sync explains its scope and requires confirmation", async () => {
     "/api/v1/admin/providers/1/models/sync",
     expect.anything(),
   );
-  confirm.mockReturnValue(true);
+  confirm.mockResolvedValue(true);
   fireEvent.click(sync);
   expect(await screen.findByText("Sync complete")).toBeTruthy();
   expect(api).toHaveBeenCalledWith("/api/v1/admin/providers/1/models/sync", {
@@ -411,7 +416,9 @@ test("mobile model drawers reveal details and keep deletion behind confirmation"
           ],
     };
   });
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  const confirm = vi
+    .spyOn(notifications, "confirmAction")
+    .mockResolvedValue(false);
   render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
@@ -436,7 +443,7 @@ test("mobile model drawers reveal details and keep deletion behind confirmation"
   expect(screen.queryByText("Other costs and pricing source")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Delete" }));
   expect(deleted).toBe(false);
-  confirm.mockReturnValue(true);
+  confirm.mockResolvedValue(true);
   fireEvent.click(screen.getByRole("button", { name: "Delete" }));
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/api/v1/admin/models/7", {

@@ -40,16 +40,28 @@ def illustrate_message(message):
             parts.append('Character descriptions (use only characters present in the scene):\n'
                          + config.character_prompt.prompt_text)
         parts.append('Narrative turn (illustrate the current scene, not unchosen options):\n' + scene)
+        from .image_references import reference_inputs, reference_limit
+        references, descriptions = reference_inputs(config)
+        if references:
+            limit = reference_limit(model)
+            if limit is not None and len(references) > limit:
+                raise ValueError("Image model cannot accept the configured references")
+            parts.append('Reference images, in attachment order:\n' + '\n'.join(descriptions)
+                         + '\nUse character sheets for consistent identity and scene references for architecture and surroundings. '
+                         'Compose the current narrative scene; references do not require absent characters or locations to appear.')
         prompt = '\n\n'.join(parts)
         response = requests.post(
             'https://openrouter.ai/api/v1/images',
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
             json={'model': model.model_identifier, 'prompt': prompt,
-                  'aspect_ratio': config.image_aspect_ratio, 'n': 1, 'output_format': 'png'},
+                  'aspect_ratio': config.image_aspect_ratio, 'n': 1, 'output_format': 'png',
+                  **({'input_references': references} if references else {})},
             timeout=config.image_timeout,
         )
         response.raise_for_status()
         result = response.json()
+        from .billing import record_call
+        record_call(message.conversation.conversation_id, {'usage': result.get('usage', {})}, model, kind='image')
         item = result['data'][0]
         data = base64.b64decode(item['b64_json'], validate=True)
         if data.startswith(b'\x89PNG\r\n\x1a\n'):

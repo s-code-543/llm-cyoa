@@ -65,6 +65,20 @@ export function ChatPage() {
     setDebugTarget(null);
   }, [id]);
   const game = conversation.data?.conversation;
+  const cost = useQuery({
+    queryKey: ["game-cost", id, conversation.dataUpdatedAt],
+    refetchInterval: 10000,
+    enabled: Boolean(id) && debugAllowed && debugEnabled,
+    queryFn: () =>
+      request<{
+        cost: {
+          total_usd: string;
+          calls: number;
+          unpriced_calls: number;
+          estimated_calls: number;
+        };
+      }>(`conversations/${id}/debug?summary=true`),
+  });
   useEffect(() => {
     localStorage.setItem(draftKey, draft);
   }, [draftKey, draft]);
@@ -301,6 +315,32 @@ export function ChatPage() {
             >
               Debug mode
             </Toggle>
+          )}
+          {debugAllowed && debugEnabled && game && (
+            <div className="p-2 text-sm" aria-label="Cumulative API cost">
+              <p className="font-bold">
+                Game API total:{" "}
+                {cost.data
+                  ? `$${Number(cost.data.cost.total_usd).toFixed(6)} USD`
+                  : "…"}
+              </p>
+              {cost.data && (
+                <p>
+                  {cost.data.cost.calls} calls ·{" "}
+                  {cost.data.cost.estimated_calls} estimated ·{" "}
+                  {cost.data.cost.unpriced_calls} unpriced
+                </p>
+              )}
+              {Boolean(cost.data?.cost.unpriced_calls) && (
+                <p>Partial total — some API calls have no price.</p>
+              )}
+              {cost.error && (
+                <p role="alert">
+                  Cost unavailable.{" "}
+                  <button onClick={() => void cost.refetch()}>Retry</button>
+                </p>
+              )}
+            </div>
           )}
           {debugAllowed && debugEnabled && game && (
             <button

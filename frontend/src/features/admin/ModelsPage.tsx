@@ -1,3 +1,4 @@
+import { confirmAction } from "../../components/notifications";
 import { Button, Chip, CloseButton } from "@heroui/react";
 import { ModelCatalogBrowser } from "./ModelCatalogBrowser";
 import { ModelSelect } from "./ModelSelect";
@@ -112,9 +113,9 @@ export function ModelListPage() {
                   type="button"
                   className="danger"
                   isDisabled={cleanup.isPending}
-                  onPress={() => {
+                  onPress={async () => {
                     if (
-                      window.confirm(
+                      await confirmAction(
                         "Delete these unavailable models? Saved configurations will be kept and must be updated before their adventures can start.",
                       )
                     )
@@ -172,8 +173,8 @@ export function ModelListPage() {
         renderAction={(m) => (
           <Button
             variant="danger-soft"
-            onPress={() => {
-              if (window.confirm(`Delete ${m.name}?`)) remove.mutate(m.id);
+            onPress={async () => {
+              if (await confirmAction(`Delete ${m.name}?`)) remove.mutate(m.id);
             }}
           >
             Delete
@@ -278,9 +279,9 @@ export function ModelBrowserPage() {
               className="h-auto min-h-10 md:h-10"
               type="button"
               isDisabled={busy}
-              onPress={() => {
+              onPress={async () => {
                 if (
-                  window.confirm(
+                  await confirmAction(
                     "Sync all models already imported from this provider? This refreshes their prices and metadata and deletes any no longer in the catalog. Saved configurations using deleted models will need repair. New models are not imported.",
                   )
                 )

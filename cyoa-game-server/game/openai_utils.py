@@ -249,7 +249,8 @@ def call_openai(messages, system_prompt, model, api_key, timeout=30):
         if 'choices' in result and len(result['choices']) > 0:
             content = result['choices'][0]['message']['content']
             print(f"[OPENAI] Received {len(content)} chars")
-            return content
+            from .openrouter_utils import MeteredText
+            return MeteredText(content, result)
         else:
             raise Exception("No response content in OpenAI API result")
     
