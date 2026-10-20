@@ -487,68 +487,76 @@ function ConfigForm({
       >
         Enable image generation
       </Toggle>
-      <p>
-        Manage styles under Image Meta Prompts and appearance descriptions under
-        Character Prompts. Import image models from an OpenRouter provider on
-        the Providers page.
-      </p>
-      <Pick
-        label="Image meta prompt"
-        value={form.image_meta_prompt}
-        onChange={(v) => set("image_meta_prompt", v)}
-        choices={promptChoices(options.image_meta_prompts ?? [])}
-        error={errors.image_meta_prompt}
-        optional={!form.enable_image_generation}
-      />
-      <Pick
-        label="Character prompt"
-        value={form.character_prompt}
-        onChange={(v) => set("character_prompt", v)}
-        choices={promptChoices(options.character_prompts ?? [])}
-        error={errors.character_prompt}
-        optional
-      />
-      <Pick
-        label="OpenRouter image model"
-        value={form.image_model}
-        onChange={(v) => set("image_model", v)}
-        choices={options.image_models ?? []}
-        error={errors.image_model}
-        optional={!form.enable_image_generation}
-      />
-      <Field label="Image aspect ratio" error={errors.image_aspect_ratio}>
-        <select
-          value={form.image_aspect_ratio}
-          onChange={(e) => set("image_aspect_ratio", e.target.value)}
-        >
-          {["16:9", "1:1", "9:16", "4:3", "3:4", "3:2", "2:3"].map((ratio) => (
-            <option key={ratio} value={ratio}>
-              {ratio}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Num
-        label="Image timeout (s)"
-        value={form.image_timeout}
-        onChange={(v) => set("image_timeout", v)}
-        error={errors.image_timeout}
-      />
-
-      {!!form.image_references?.length &&
-        options.image_models?.find((model) => model.id === form.image_model)
-          ?.reference_limit === 0 && (
-          <p role="alert">
-            This image model does not accept reference images. Choose one with
-            image input.
+      {form.enable_image_generation && (
+        <>
+          <p>
+            Manage styles under Image Meta Prompts and appearance descriptions
+            under Character Prompts. Import image models from an OpenRouter
+            provider on the Providers page.
           </p>
-        )}
-      <ImageReferences
-        value={form.image_references ?? []}
-        onChange={(images) => set("image_references", images)}
-        onBusyChange={setUploading}
-      />
-      {errors.image_references && <p role="alert">{errors.image_references}</p>}
+          <Pick
+            label="Image meta prompt"
+            value={form.image_meta_prompt}
+            onChange={(v) => set("image_meta_prompt", v)}
+            choices={promptChoices(options.image_meta_prompts ?? [])}
+            error={errors.image_meta_prompt}
+            optional={!form.enable_image_generation}
+          />
+          <Pick
+            label="Character prompt"
+            value={form.character_prompt}
+            onChange={(v) => set("character_prompt", v)}
+            choices={promptChoices(options.character_prompts ?? [])}
+            error={errors.character_prompt}
+            optional
+          />
+          <Pick
+            label="OpenRouter image model"
+            value={form.image_model}
+            onChange={(v) => set("image_model", v)}
+            choices={options.image_models ?? []}
+            error={errors.image_model}
+            optional={!form.enable_image_generation}
+          />
+          <Field label="Image aspect ratio" error={errors.image_aspect_ratio}>
+            <select
+              value={form.image_aspect_ratio}
+              onChange={(e) => set("image_aspect_ratio", e.target.value)}
+            >
+              {["16:9", "1:1", "9:16", "4:3", "3:4", "3:2", "2:3"].map(
+                (ratio) => (
+                  <option key={ratio} value={ratio}>
+                    {ratio}
+                  </option>
+                ),
+              )}
+            </select>
+          </Field>
+          <Num
+            label="Image timeout (s)"
+            value={form.image_timeout}
+            onChange={(v) => set("image_timeout", v)}
+            error={errors.image_timeout}
+          />
+
+          {!!form.image_references?.length &&
+            options.image_models?.find((model) => model.id === form.image_model)
+              ?.reference_limit === 0 && (
+              <p role="alert">
+                This image model does not accept reference images. Choose one
+                with image input.
+              </p>
+            )}
+          <ImageReferences
+            value={form.image_references ?? []}
+            onChange={(images) => set("image_references", images)}
+            onBusyChange={setUploading}
+          />
+          {errors.image_references && (
+            <p role="alert">{errors.image_references}</p>
+          )}
+        </>
+      )}
       <h2 id="config-refusal" tabIndex={-1}>
         Refusal detection
       </h2>
@@ -655,12 +663,13 @@ function ConfigForm({
         </button>
       </div>
 
-      <div id="config-workflow" tabIndex={-1}>
-        <WorkflowEditor
-          value={form.workflow}
-          onChange={(workflow) => set("workflow", workflow)}
-        />
-      </div>
+      <h2 id="config-workflow" tabIndex={-1}>
+        Turn workflow
+      </h2>
+      <WorkflowEditor
+        value={form.workflow}
+        onChange={(workflow) => set("workflow", workflow)}
+      />
       {errors.workflow && (
         <span role="alert" className="field-error">
           {errors.workflow}

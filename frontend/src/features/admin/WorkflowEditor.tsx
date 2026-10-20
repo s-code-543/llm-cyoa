@@ -226,8 +226,7 @@ export function WorkflowEditor({
   const raw = draft ?? JSON.stringify(value, null, 2);
 
   return (
-    <fieldset className="workflow">
-      <legend>Turn workflow</legend>
+    <div className="workflow" role="group" aria-label="Turn workflow">
       {isDefault && (
         <p>
           Default: difficulty → context → storyteller → refusal repair →
@@ -393,6 +392,6 @@ export function WorkflowEditor({
           )}
         </>
       )}
-    </fieldset>
+    </div>
   );
 }
