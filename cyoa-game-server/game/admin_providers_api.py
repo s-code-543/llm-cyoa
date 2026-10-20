@@ -1,4 +1,8 @@
 """Admin JSON API: providers, models, difficulty profiles and voice settings."""
+from datetime import timedelta
+
+from django.core.cache import cache
+from django.utils.dateparse import parse_datetime
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.http import JsonResponse
@@ -11,6 +15,7 @@ from .chat_api import body, error
 from .models import (
     APIProvider, Configuration, DifficultyProfile, JudgeStep, LLMModel, TTSSettings,
 )
+from .provider_pricing import enrich_models
 from .ollama_utils import get_ollama_models, test_ollama_connection
 from .openai_utils import get_openai_models, test_openai_connection
 from .openrouter_utils import get_openrouter_models, test_openrouter_connection
@@ -46,23 +51,29 @@ def run_connection_test(provider_type, base_url, api_key):
     return {'success': False, 'message': 'Unknown provider type'}
 
 
-def fetch_provider_models(provider):
+def fetch_provider_models(provider, *, refresh_pricing=False):
     if provider.provider_type == 'ollama':
         return get_ollama_models(provider.base_url)
     if provider.provider_type == 'anthropic':
-        return get_anthropic_models(provider.api_key)
+        return enrich_models('anthropic', get_anthropic_models(provider.api_key), force=refresh_pricing)
     if provider.provider_type == 'openai':
-        return get_openai_models(provider.api_key)
+        return enrich_models('openai', get_openai_models(provider.api_key), force=refresh_pricing)
     if provider.provider_type == 'openrouter':
         return get_openrouter_models(provider.api_key)
     return []
 
 
 def pricing_metadata(item, checked_at=None):
+    if item.get('pricing_warning'):
+        return {}
     pricing = item.get('pricing')
+    if not isinstance(pricing, dict) or not pricing:
+        return {}
     return {
         'pricing': pricing if isinstance(pricing, dict) else {},
-        'pricing_updated_at': checked_at or timezone.now().isoformat(),
+        'pricing_updated_at': item.get('pricing_checked_at') or checked_at or timezone.now().isoformat(),
+        'pricing_source': item.get('pricing_source'),
+        'pricing_note': item.get('pricing_note'),
     }
 
 
@@ -177,6 +188,7 @@ def provider_models(request, provider_id):
     imported = set(
         LLMModel.objects.filter(provider=provider).values_list('model_identifier', flat=True)
     )
+    catalog = fetch_provider_models(provider)
     available = [
         {
             'id': m['id'],
@@ -185,12 +197,13 @@ def provider_models(request, provider_id):
             'size': m.get('size', 0),
             'imported': m['id'] in imported,
             'image_generation': bool(m.get('image_generation')),
-            'pricing': m.get('pricing') or {},
+            **pricing_metadata(m),
             **catalog_metadata(m),
         }
-        for m in fetch_provider_models(provider)
+        for m in catalog
     ]
-    return JsonResponse({'provider': provider_json(provider), 'models': available})
+    return JsonResponse({'provider': provider_json(provider), 'models': available,
+                         'pricing_warnings': list(dict.fromkeys(m.get('pricing_warning') for m in catalog if m.get('pricing_warning')))})
 
 
 def model_ids_from(request):
@@ -210,8 +223,12 @@ def provider_models_import(request, provider_id):
     if not wanted:
         return error('invalid_request', 'Select at least one model.', 400)
     count = 0
+    warnings = []
     for item in fetch_provider_models(provider):
         if item['id'] in wanted:
+            if item.get('pricing_warning'):
+                warnings.append(item['pricing_warning'])
+            existing = LLMModel.objects.filter(provider=provider, model_identifier=item['id']).first()
             LLMModel.objects.update_or_create(
                 provider=provider,
                 model_identifier=item['id'],
@@ -219,6 +236,7 @@ def provider_models_import(request, provider_id):
                     'name': f"{provider.name}: {item['name']}",
                     'is_available': True,
                     'capabilities': {
+                        **(existing.capabilities if existing else {}),
                         **pricing_metadata(item),
                         **catalog_metadata(item),
                         'description': item.get('description', ''),
@@ -229,7 +247,7 @@ def provider_models_import(request, provider_id):
                 },
             )
             count += 1
-    return JsonResponse({'message': f'Imported {count} models from {provider.name}', 'imported': count})
+    return JsonResponse({'message': f'Imported {count} models from {provider.name}', 'imported': count, 'pricing_warnings': list(dict.fromkeys(warnings))})
 
 
 @admin_api
@@ -306,15 +324,51 @@ def model_json(model):
         **catalog_metadata(model.capabilities or {}),
         'pricing': (model.capabilities or {}).get('pricing', {}),
         'pricing_updated_at': (model.capabilities or {}).get('pricing_updated_at'),
+        'pricing_source': (model.capabilities or {}).get('pricing_source'),
+        'pricing_note': (model.capabilities or {}).get('pricing_note'),
         'description': (model.capabilities or {}).get('description', ''),
         'image_generation': bool((model.capabilities or {}).get('image_generation')),
     }
 
 
+def refresh_stale_model_prices(models):
+    """Persist daily rates; retain old prices on failures and throttle retries."""
+    cutoff = timezone.now() - timedelta(days=1)
+    providers = {}
+    for model in models:
+        if not model.provider.is_active or model.provider.provider_type == 'ollama':
+            continue
+        metadata = model.capabilities or {}
+        try:
+            checked = parse_datetime(metadata.get('pricing_updated_at') or '')
+            fresh = checked is not None and checked >= cutoff
+        except (TypeError, ValueError):
+            fresh = False
+        if not metadata.get('pricing') or not fresh:
+            providers[model.provider_id] = model.provider
+    for provider_id, provider in providers.items():
+        # Also prevent simultaneous admin requests from duplicating provider calls.
+        if not cache.add(f'model-pricing-attempt:{provider_id}', True, 900):
+            continue
+        try:
+            catalog = {item['id']: item for item in fetch_provider_models(provider)}
+        except Exception:
+            continue
+        for model in models:
+            if model.provider_id != provider_id:
+                continue
+            metadata = pricing_metadata(catalog.get(model.model_identifier, {}))
+            if not metadata:
+                continue
+            model.capabilities = {**(model.capabilities or {}), **metadata}
+            model.save(update_fields=['capabilities'])
+
+
 @admin_api
 @require_http_methods(['GET'])
 def model_collection(request):
-    models = LLMModel.objects.select_related('provider')
+    models = list(LLMModel.objects.select_related('provider'))
+    refresh_stale_model_prices(models)
     return JsonResponse({
         'models': [model_json(m) for m in models],
         'providers': [{'id': p.id, 'name': p.name} for p in APIProvider.objects.filter(is_active=True)],
@@ -328,7 +382,7 @@ def refresh_model_pricing(request):
     updated, failures = 0, []
     for provider in APIProvider.objects.filter(llmmodel__isnull=False).distinct():
         try:
-            catalog = fetch_provider_models(provider)
+            catalog = fetch_provider_models(provider, refresh_pricing=True)
             if not catalog:
                 raise ValueError('No catalog returned')
             items = {item['id']: item for item in catalog}
@@ -341,13 +395,16 @@ def refresh_model_pricing(request):
             if item is None:
                 failures.append(f'{model.name} was absent from the catalog; its saved price was kept.')
                 continue
+            if item.get('pricing_warning'):
+                failures.append(item['pricing_warning'])
+                continue
             capabilities = dict(model.capabilities or {})
             capabilities.update(pricing_metadata(item, checked_at))
             capabilities.update(catalog_metadata(item, include_defaults=False))
             model.capabilities = capabilities
             model.save(update_fields=['capabilities'])
             updated += 1
-    return JsonResponse({'message': f'Refreshed costs for {updated} models.', 'failures': failures})
+    return JsonResponse({'message': f'Refreshed costs for {updated} models.', 'failures': list(dict.fromkeys(failures))})
 
 
 @admin_api

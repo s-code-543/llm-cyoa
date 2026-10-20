@@ -89,6 +89,9 @@ export type ProviderInput = {
 };
 export type ModelPricing = Record<string, unknown>;
 export type ModelMetadata = {
+  pricing_source?: string | null;
+  pricing_note?: string | null;
+  pricing_updated_at?: string | null;
   context_length?: number;
   created?: number | null;
   architecture?: { input_modalities?: string[]; output_modalities?: string[]; tokenizer?: string };
@@ -156,7 +159,7 @@ export const testProvider = (payload: {
   api_key?: string;
 }) => apiFetch<{ success: boolean; message: string }>(`${base}/providers/test`, { payload });
 export const browseModels = (id: number) =>
-  apiFetch<{ provider: Provider; models: RemoteModel[] }>(`${base}/providers/${id}/models`);
+  apiFetch<{ provider: Provider; models: RemoteModel[]; pricing_warnings?: string[] }>(`${base}/providers/${id}/models`);
 export const importModels = (id: number, model_ids: string[]) =>
   apiFetch<Message>(`${base}/providers/${id}/models/import`, { payload: { model_ids } });
 export const removeModels = (id: number, model_ids: string[]) =>

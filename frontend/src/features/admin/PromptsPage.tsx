@@ -1,4 +1,4 @@
-import { Accordion, Button, Card } from "@heroui/react";
+import { Accordion, Button, Card, buttonVariants } from "@heroui/react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +32,9 @@ export function PromptListPage() {
       </p>
     );
   const { types, prompts: all } = prompts.data;
+  const populatedTypes = types.filter((type) =>
+    all.some((prompt) => prompt.type === type.value),
+  );
   return (
     <>
       <div className="page-heading">
@@ -45,7 +48,22 @@ export function PromptListPage() {
           New prompt
         </Button>
       </div>
-      {types.map((type) => {
+      <nav
+        aria-label="Prompt sections"
+        className="my-5 flex flex-wrap items-center gap-2 rounded-2xl bg-default/50 p-3"
+      >
+        <span className="px-2 text-sm font-medium text-muted">Jump to</span>
+        {populatedTypes.map((type) => (
+          <a
+            key={type.value}
+            href={`#prompt-section-${type.value}`}
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
+          >
+            {type.label}
+          </a>
+        ))}
+      </nav>
+      {populatedTypes.map((type) => {
         const byName = new Map<string, PromptSummary[]>();
         all
           .filter((p) => p.type === type.value)
@@ -55,7 +73,13 @@ export function PromptListPage() {
         if (!byName.size) return null;
         return (
           <section key={type.value} aria-label={type.label}>
-            <h2>{type.label}</h2>
+            <h2
+              id={`prompt-section-${type.value}`}
+              className="scroll-mt-24"
+              tabIndex={-1}
+            >
+              {type.label}
+            </h2>
             <div className="prompt-grid">
               {[...byName].map(([name, versions]) => {
                 const sorted = [...versions].sort(

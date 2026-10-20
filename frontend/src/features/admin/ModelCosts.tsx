@@ -21,14 +21,23 @@ export function ModelCosts({
   pricing,
   updatedAt,
   section,
+  source,
+  note,
+  compact = false,
 }: {
   pricing?: ModelPricing;
   updatedAt?: string | null;
-  section?: "prompt" | "completion" | "other";
+  section?: "prompt" | "completion" | "image_token" | "other";
+  source?: string | null;
+  note?: string | null;
+  compact?: boolean;
 }) {
   const visibleRates =
     section === "other"
-      ? rates.filter(([key]) => key !== "prompt" && key !== "completion")
+      ? rates.filter(
+          ([key]) =>
+            key !== "prompt" && key !== "completion" && key !== "image_token",
+        )
       : section
         ? rates.filter(([key]) => key === section)
         : rates;
@@ -44,7 +53,8 @@ export function ModelCosts({
       return [];
     return [
       <div key={key}>
-        {number < 0 ? "Variable" : dollars.format(number * multiplier)} {label}
+        {number < 0 ? "Variable" : dollars.format(number * multiplier)}{" "}
+        {compact ? null : label}
       </div>,
     ];
   });
@@ -57,6 +67,14 @@ export function ModelCosts({
       )}
       {Array.isArray(pricing?.overrides) && pricing.overrides.length > 0 && (
         <small>Conditional rates also apply.</small>
+      )}
+      {note && <small>{note}</small>}
+      {source && (
+        <small>
+          <a href={source} target="_blank" rel="noreferrer">
+            Official pricing
+          </a>
+        </small>
       )}
       {updatedAt && (
         <small>Checked {new Date(updatedAt).toLocaleString()}</small>

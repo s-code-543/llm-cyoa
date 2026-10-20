@@ -132,8 +132,40 @@ def test_unknown_prices_are_not_recorded_as_free(admin_client):
     with patch('game.admin_providers_api.fetch_provider_models', return_value=[{'id': model.model_identifier}]):
         admin_client.post(REFRESH, '{}', content_type='application/json')
     model.refresh_from_db()
-    assert model.capabilities['pricing'] == {}
+    assert model.capabilities.get('pricing', {}) == {}
 
 
 def test_refresh_requires_admin(auth_client):
     assert auth_client.post(REFRESH, '{}', content_type='application/json').status_code == 403
+
+
+def test_list_backfills_prices_and_reuses_saved_daily_rates(admin_client):
+    from django.core.cache import cache
+    cache.clear()
+    provider = APIProviderFactory(provider_type='openrouter')
+    model = LLMModelFactory(provider=provider, capabilities={})
+    with patch('game.admin_providers_api.fetch_provider_models', return_value=[
+        {'id': model.model_identifier, 'pricing': PRICING}
+    ]) as fetch:
+        first = admin_client.get('/api/v1/admin/models').json()
+        cache.clear()  # Persistence, not just process cache, prevents another fetch.
+        second = admin_client.get('/api/v1/admin/models').json()
+    fetch.assert_called_once()
+    assert first['models'][0]['pricing'] == second['models'][0]['pricing'] == PRICING
+
+
+def test_missing_provider_prices_preserve_saved_rates_and_throttle_retries(admin_client):
+    from django.core.cache import cache
+    cache.clear()
+    provider = APIProviderFactory(provider_type='openrouter')
+    model = LLMModelFactory(provider=provider, capabilities={'pricing': PRICING})
+    with patch('game.admin_providers_api.fetch_provider_models', return_value=[
+        {'id': model.model_identifier}
+    ]) as fetch:
+        admin_client.get('/api/v1/admin/models')
+        result = admin_client.get('/api/v1/admin/models').json()
+        admin_client.post(REFRESH, '{}', content_type='application/json')
+    assert fetch.call_count == 2  # One automatic attempt plus explicit refresh.
+    model.refresh_from_db()
+    assert result['models'][0]['pricing'] == model.capabilities['pricing'] == PRICING
+    cache.clear()
