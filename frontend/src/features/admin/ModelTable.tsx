@@ -112,16 +112,6 @@ export function ModelTable<T extends RowModel>({
         return model.created
           ? new Date(model.created * 1000).toLocaleDateString()
           : "Unknown";
-      case "other":
-        return (
-          <ModelCosts
-            pricing={model.pricing}
-            section="other"
-            updatedAt={model.pricing_updated_at}
-            source={model.pricing_source}
-            note={model.pricing_note}
-          />
-        );
       case "actions":
         return renderAction?.(model);
     }
@@ -186,10 +176,6 @@ export function ModelTable<T extends RowModel>({
                   <div>
                     <dt>Capabilities</dt>
                     <dd>{parametersOf(model).join(", ") || "Not supplied"}</dd>
-                  </div>
-                  <div>
-                    <dt>Other costs and pricing source</dt>
-                    <dd>{cell(model, "other")}</dd>
                   </div>
                 </dl>
                 {renderAction && (

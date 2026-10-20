@@ -432,9 +432,8 @@ test("mobile model drawers reveal details and keep deletion behind confirmation"
     await screen.findByText("maker/a-very-long-model-identifier"),
   ).toBeTruthy();
   expect(screen.getByText("128,000 tokens")).toBeTruthy();
-  expect(
-    screen.getByRole("link", { name: "Official pricing" }),
-  ).toHaveAttribute("href", "https://developers.openai.com/api/docs/pricing");
+  expect(screen.queryByRole("link", { name: "Official pricing" })).toBeNull();
+  expect(screen.queryByText("Other costs and pricing source")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Delete" }));
   expect(deleted).toBe(false);
   confirm.mockReturnValue(true);
@@ -526,7 +525,21 @@ test("provider browse shows image cost only with image output selected", async (
     await screen.findByRole("columnheader", { name: /Image cost/ }),
   ).toBeTruthy();
   expect(screen.getByText("$2")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Sort by/ }));
+  fireEvent.click(
+    await screen.findByRole("option", {
+      name: "Image token cost: low to high",
+    }),
+  );
+  expect(
+    screen.getByRole("columnheader", { name: /Image cost/ }),
+  ).toHaveAttribute("aria-sort", "ascending");
   fireEvent.click(screen.getByRole("button", { name: /Output type/ }));
   fireEvent.click(await screen.findByRole("option", { name: /^text$/ }));
   expect(screen.queryByRole("columnheader", { name: /Image cost/ })).toBeNull();
+  expect(screen.getByRole("button", { name: /Sort by/ })).toHaveTextContent(
+    "Name: A–Z",
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Sort by/ }));
+  expect(screen.queryByRole("option", { name: /Image token cost/ })).toBeNull();
 });

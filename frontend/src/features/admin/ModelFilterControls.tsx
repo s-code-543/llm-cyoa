@@ -21,7 +21,15 @@ export function ModelFilterControls({
   onChange: (value: ModelFilterValues) => void;
 }) {
   const set = (key: keyof ModelFilterValues, next: string | boolean) =>
-    onChange({ ...value, [key]: next });
+    onChange({
+      ...value,
+      [key]: next,
+      ...(key === "output" &&
+      next !== "image" &&
+      value.sort.startsWith("image-")
+        ? { sort: "name" }
+        : {}),
+    });
   const options = (items: string[]) =>
     [...new Set(items)]
       .filter(Boolean)
@@ -124,8 +132,18 @@ export function ModelFilterControls({
                 { value: "input-desc", label: "Input cost: high to low" },
                 { value: "output-asc", label: "Output cost: low to high" },
                 { value: "output-desc", label: "Output cost: high to low" },
-                { value: "image-asc", label: "Image token cost: low to high" },
-                { value: "image-desc", label: "Image token cost: high to low" },
+                ...(value.output === "image"
+                  ? [
+                      {
+                        value: "image-asc",
+                        label: "Image token cost: low to high",
+                      },
+                      {
+                        value: "image-desc",
+                        label: "Image token cost: high to low",
+                      },
+                    ]
+                  : []),
                 { value: "name", label: "Name: A–Z" },
                 { value: "name-desc", label: "Name: Z–A" },
                 { value: "context", label: "Context: largest first" },

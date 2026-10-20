@@ -1,8 +1,4 @@
 """Admin JSON API: providers, models, difficulty profiles and voice settings."""
-from datetime import timedelta
-
-from django.core.cache import cache
-from django.utils.dateparse import parse_datetime
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.http import JsonResponse
@@ -331,44 +327,11 @@ def model_json(model):
     }
 
 
-def refresh_stale_model_prices(models):
-    """Persist daily rates; retain old prices on failures and throttle retries."""
-    cutoff = timezone.now() - timedelta(days=1)
-    providers = {}
-    for model in models:
-        if not model.provider.is_active or model.provider.provider_type == 'ollama':
-            continue
-        metadata = model.capabilities or {}
-        try:
-            checked = parse_datetime(metadata.get('pricing_updated_at') or '')
-            fresh = checked is not None and checked >= cutoff
-        except (TypeError, ValueError):
-            fresh = False
-        if not metadata.get('pricing') or not fresh:
-            providers[model.provider_id] = model.provider
-    for provider_id, provider in providers.items():
-        # Also prevent simultaneous admin requests from duplicating provider calls.
-        if not cache.add(f'model-pricing-attempt:{provider_id}', True, 900):
-            continue
-        try:
-            catalog = {item['id']: item for item in fetch_provider_models(provider)}
-        except Exception:
-            continue
-        for model in models:
-            if model.provider_id != provider_id:
-                continue
-            metadata = pricing_metadata(catalog.get(model.model_identifier, {}))
-            if not metadata:
-                continue
-            model.capabilities = {**(model.capabilities or {}), **metadata}
-            model.save(update_fields=['capabilities'])
-
 
 @admin_api
 @require_http_methods(['GET'])
 def model_collection(request):
     models = list(LLMModel.objects.select_related('provider'))
-    refresh_stale_model_prices(models)
     return JsonResponse({
         'models': [model_json(m) for m in models],
         'providers': [{'id': p.id, 'name': p.name} for p in APIProvider.objects.filter(is_active=True)],
