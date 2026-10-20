@@ -122,15 +122,21 @@ def home(request):
     for conversation in conversations:
         game = sessions.get(conversation.conversation_id)
         if game and not game.game_over:
+            config_id = (conversation.metadata or {}).get('config_id')
+            if config_id:
+                try:
+                    config = configs.get(int(config_id))
+                except (TypeError, ValueError):
+                    config = None
+            else:
+                config = get_conversation_configuration(conversation)
             recent.append({
                 'id': conversation.conversation_id,
                 'title': conversation.title,
                 'turn': game.turn_number,
                 'max_turns': game.max_turns,
                 'updated_at': conversation.updated_at.isoformat(),
-                'unavailable_reason': configuration_unavailable_reason(
-                    configs.get((conversation.metadata or {}).get('config_id'))
-                    if (conversation.metadata or {}).get('config_id') else get_conversation_configuration(conversation)),
+                'unavailable_reason': configuration_unavailable_reason(config),
             })
         if len(recent) >= 5:
             break

@@ -158,9 +158,6 @@ def detail(request, conversation_id):
 
 def mutate(request, conversation_id, operation):
     conversation = owned(request, conversation_id)
-    reason = configuration_unavailable_reason(get_conversation_configuration(conversation))
-    if reason:
-        return error('configuration_unavailable', reason, 409)
     data = body(request)
     request_id = uuid.UUID(data.get('request_id', ''))
     if operation == 'send':
@@ -181,6 +178,9 @@ def mutate(request, conversation_id, operation):
         replay = dict(previous.response)
         replay['conversation'] = snapshot(conversation)
         return JsonResponse(replay, status=previous.http_status)
+    reason = configuration_unavailable_reason(get_conversation_configuration(conversation))
+    if reason:
+        return error('configuration_unavailable', reason, 409)
     current = snapshot(conversation)
     if operation == 'send' and (current['state']['blocked'] or current['state']['game_over']):
         return error('game_finished', 'This adventure cannot accept another turn. Roll back or start a new adventure.', 409)

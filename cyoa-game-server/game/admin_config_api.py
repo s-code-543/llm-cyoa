@@ -1,5 +1,6 @@
 """Admin JSON API: game configurations with their judge steps and workflow."""
 from django.db import transaction
+from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -63,7 +64,8 @@ def config_summary(config):
         'id': config.id,
         'name': config.name,
         'is_active': config.is_active,
-        'in_progress_count': GameSession.objects.filter(configuration=config, game_over=False).count(),
+        'in_progress_count': config.in_progress_count,
+        'judge_step_count': config.judge_step_count,
         'description': config.description,
         'storyteller_model': config.storyteller_model.name if config.storyteller_model else '',
         'total_turns': config.total_turns,
@@ -284,10 +286,12 @@ def config_options(request):
 @require_http_methods(['GET', 'POST'])
 def config_collection(request):
     if request.method == 'GET':
-        configs = Configuration.objects.select_related('storyteller_model')
+        configs = Configuration.objects.select_related('storyteller_model').annotate(
+            in_progress_count=Count('gamesession', filter=Q(gamesession__game_over=False), distinct=True),
+            judge_step_count=Count('judge_steps', distinct=True),
+        )
         return JsonResponse({'configurations': [
-            {**config_summary(c), 'judge_step_count': JudgeStep.objects.filter(configuration=c).count()}
-            for c in configs
+            config_summary(c) for c in configs
         ]})
     values, steps, fields = parse_config(body(request))
     if fields:
