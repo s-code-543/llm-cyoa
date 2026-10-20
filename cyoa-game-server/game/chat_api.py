@@ -16,7 +16,7 @@ from django.views.decorators.cache import never_cache
 
 from . import chat_views
 from .response_format import public_content
-from .config_utils import get_conversation_configuration, conversation_tts_enabled
+from .config_utils import get_conversation_configuration, conversation_tts_enabled, configuration_unavailable_reason
 from .models import ChatConversation, Configuration, GameSession, ChatSubmission
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,7 @@ def snapshot(conversation):
     return {
         'id': conversation.conversation_id,
         'title': conversation.title,
+        'unavailable_reason': configuration_unavailable_reason(config),
         'configuration': {'id': config.pk, 'name': config.name} if config else None,
         'messages': [{
             'id': msg.pk, 'role': msg.role, 'content': public_content(msg.content, msg.metadata) if msg.role == 'assistant' else msg.content,
@@ -111,7 +112,7 @@ def bootstrap(request):
         'debug_allowed': request.user.is_staff,
         'configurations': [
             {'id': c.pk, 'name': c.name}
-            for c in configurations if configuration_models_available(c)
+            for c in configurations if c.is_active and configuration_models_available(c)
         ],
     })
 
@@ -127,9 +128,9 @@ def conversations(request):
     if existing and existing.user_id != request.user.pk:
         return error('not_found', 'Adventure not found.', 404)
     config = get_object_or_404(Configuration, pk=data.get('config_id'), storyteller_model__isnull=False)
-    from .config_utils import configuration_models_available
-    if not configuration_models_available(config):
-        return error('models_unavailable', 'This adventure uses models that are no longer available. Ask an admin to update its configuration.', 409)
+    reason = configuration_unavailable_reason(config)
+    if reason:
+        return error('configuration_unavailable', reason, 409)
     conversation, _ = ChatConversation.objects.get_or_create(
         conversation_id=conversation_id, user=request.user,
         defaults={'title': config.name, 'metadata': {'config_id': config.pk}},
@@ -157,6 +158,9 @@ def detail(request, conversation_id):
 
 def mutate(request, conversation_id, operation):
     conversation = owned(request, conversation_id)
+    reason = configuration_unavailable_reason(get_conversation_configuration(conversation))
+    if reason:
+        return error('configuration_unavailable', reason, 409)
     data = body(request)
     request_id = uuid.UUID(data.get('request_id', ''))
     if operation == 'send':

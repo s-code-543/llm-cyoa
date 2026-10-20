@@ -10,7 +10,7 @@ import time
 
 from django.db import transaction
 
-from ..config_utils import get_conversation_configuration, apply_pacing_template, configuration_models_available
+from ..config_utils import get_conversation_configuration, apply_pacing_template, configuration_unavailable_reason
 from ..difficulty_utils import should_trigger_death
 from ..models import AuditLog, ChatConversation, ChatMessage, GameSession
 from ..response_format import ENDING_INSTRUCTION, extract_game_state, is_story_ending, public_metadata, parse_state_response, clean_narrative_metadata, normalize_turn_header
@@ -92,10 +92,9 @@ class Turn:
 
 def load_turn(conversation, action, call_llm, correct_refusal, judge_turn):
     config = get_conversation_configuration(conversation)
-    if not config or not config.storyteller_model:
-        raise ValueError('No storyteller model configured')
-    if not configuration_models_available(config):
-        raise TurnUnavailable('This adventure uses models that are no longer available. Update its configuration before playing.')
+    reason = configuration_unavailable_reason(config)
+    if reason:
+        raise TurnUnavailable(reason)
     history = list(conversation.messages.order_by('id'))
     session = GameSession.objects.filter(session_id=conversation.conversation_id, user=conversation.user).first()
     if session and session.game_over:

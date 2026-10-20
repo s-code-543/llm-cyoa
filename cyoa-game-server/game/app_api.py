@@ -117,6 +117,8 @@ def home(request):
             user=request.user, session_id__in=[c.conversation_id for c in conversations],
         )
     }
+    from .config_utils import configuration_unavailable_reason, get_conversation_configuration
+    configs = {c.pk: c for c in with_model_availability(Configuration.objects.all())}
     for conversation in conversations:
         game = sessions.get(conversation.conversation_id)
         if game and not game.game_over:
@@ -126,6 +128,9 @@ def home(request):
                 'turn': game.turn_number,
                 'max_turns': game.max_turns,
                 'updated_at': conversation.updated_at.isoformat(),
+                'unavailable_reason': configuration_unavailable_reason(
+                    configs.get((conversation.metadata or {}).get('config_id'))
+                    if (conversation.metadata or {}).get('config_id') else get_conversation_configuration(conversation)),
             })
         if len(recent) >= 5:
             break
@@ -143,5 +148,5 @@ def home(request):
             'prompt_name': config.adventure_prompt.name if config.adventure_prompt else None,
             'total_turns': config.total_turns,
             'difficulty': config.difficulty.name if config.difficulty else None,
-        } for config in configurations if configuration_models_available(config)],
+        } for config in configurations if config.is_active and configuration_models_available(config)],
     })

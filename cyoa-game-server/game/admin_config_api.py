@@ -6,7 +6,7 @@ from django.views.decorators.http import require_http_methods
 
 from .admin_api import admin_api, invalid, prompt_summary
 from .chat_api import body, error
-from .models import Configuration, DifficultyProfile, JudgeStep, LLMModel, Prompt
+from .models import Configuration, DifficultyProfile, JudgeStep, LLMModel, Prompt, GameSession
 
 CONFIG_INT_FIELDS = {
     'storyteller_timeout': (60, 1),
@@ -62,6 +62,8 @@ def config_summary(config):
     return {
         'id': config.id,
         'name': config.name,
+        'is_active': config.is_active,
+        'in_progress_count': GameSession.objects.filter(configuration=config, game_over=False).count(),
         'description': config.description,
         'storyteller_model': config.storyteller_model.name if config.storyteller_model else '',
         'total_turns': config.total_turns,
@@ -76,6 +78,8 @@ def config_json(config):
     data = {
         'id': config.id,
         'name': config.name,
+        'is_active': config.is_active,
+        'in_progress_count': GameSession.objects.filter(configuration=config, game_over=False).count(),
         'enable_tts': config.enable_tts,
         'enable_image_generation': config.enable_image_generation,
         'image_aspect_ratio': config.image_aspect_ratio,
@@ -154,6 +158,7 @@ def parse_config(data):
     """Returns (values, judge_step_values, fields) from a request payload."""
     fields = {}
     values = {}
+    values['is_active'] = bool(data.get('is_active', True))
     values['name'] = str(data.get('name') or '').strip()
     if not values['name']:
         fields['name'] = 'Configuration name is required.'

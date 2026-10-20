@@ -13,6 +13,7 @@ export type Conversation = {
   id: string;
   title: string;
   read_only?: boolean;
+  unavailable_reason?: string | null;
   owner?: string;
   configuration: Configuration | null;
   messages: Message[];

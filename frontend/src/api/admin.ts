@@ -208,6 +208,8 @@ export type JudgeStepData = {
 export type WorkflowNode = { type: string; [key: string]: unknown };
 export type Workflow = { version?: number; nodes?: WorkflowNode[] };
 export type ConfigData = {
+  is_active?: boolean;
+  in_progress_count?: number;
   id?: number;
   name: string;
   description: string;
@@ -241,6 +243,8 @@ export type ConfigData = {
   judge_steps: JudgeStepData[];
 };
 export type ConfigSummary = {
+  is_active: boolean;
+  in_progress_count: number;
   id: number;
   name: string;
   description: string;

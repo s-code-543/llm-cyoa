@@ -40,6 +40,7 @@ const blankStep = (n: number): JudgeStepData => ({
 });
 
 const blankConfig = (): ConfigData => ({
+  is_active: false,
   name: "",
   description: "",
   adventure_prompt: null,
@@ -330,12 +331,36 @@ function ConfigForm({
   return (
     <form
       className="form"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
         setNotice("");
+        if (initial.id && initial.is_active && !form.is_active) {
+          try {
+            const current = await getConfig(initial.id);
+            if (
+              !window.confirm(
+                `Disable this configuration? ${current.in_progress_count ?? 0} adventures in progress will be unable to continue until it is reactivated.`,
+              )
+            )
+              return;
+          } catch {
+            setNotice("Could not check affected adventures. Please try again.");
+            return;
+          }
+        }
         save.mutate();
       }}
     >
+      <Toggle
+        checked={form.is_active ?? true}
+        onChange={(v) => set("is_active", v)}
+      >
+        Active (published for players)
+      </Toggle>
+      <p>
+        Inactive configurations are hidden from new adventures and prevent
+        existing adventures from continuing.
+      </p>
       <Field label="Name" error={errors.name}>
         <input
           value={form.name}
@@ -634,6 +659,7 @@ export function ConfigListPage() {
           <thead>
             <tr>
               <th>Name</th>
+              <th>Status</th>
               <th>Storyteller</th>
               <th>Turns</th>
               <th>Refusal detection</th>
@@ -647,6 +673,7 @@ export function ConfigListPage() {
                 <td>
                   <Link to={`/manage/configurations/${c.id}`}>{c.name}</Link>
                 </td>
+                <td>{c.is_active ? "Active" : "Inactive"}</td>
                 <td>{c.storyteller_model}</td>
                 <td>{c.total_turns}</td>
                 <td>{c.enable_refusal_detection ? "On" : "Off"}</td>
