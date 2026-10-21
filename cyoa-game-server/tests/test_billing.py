@@ -34,6 +34,13 @@ def test_estimate_and_unknown_prices():
     assert result['unpriced_calls'] == 1
 
 
+def test_usage_audit_populates_required_text_fields():
+    record_call('game', {'usage': {'cost': '0.0012'}})
+    audit = AuditLog.objects.get(details__type='api_usage')
+    assert audit.original_text == ''
+    assert audit.refined_text == ''
+
+
 def test_cost_endpoint_is_staff_only_and_survives_transcript_deletion(auth_client, admin_client, user):
     from tests.conftest import ChatConversationFactory, ChatMessageFactory
     conversation = ChatConversationFactory(user=user)

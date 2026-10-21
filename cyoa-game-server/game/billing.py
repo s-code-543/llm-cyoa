@@ -26,7 +26,7 @@ def record_call(conversation_id, record, model=None, kind='text'):
         if None not in (prompt, completion, input_rate, output_rate) and not cached and not rates.get('overrides'):
             cost = prompt * input_rate + completion * output_rate
             estimated = True
-    AuditLog.objects.create(details={
+    AuditLog.objects.create(original_text='', refined_text='', details={
         'type': 'api_usage', 'conversation_id': conversation_id, 'kind': kind,
         'cost_usd': str(cost) if cost is not None else None, 'estimated': estimated,
     })

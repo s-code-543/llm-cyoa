@@ -5,6 +5,7 @@ import pytest
 from django.test import override_settings
 
 from game.scene_images import illustrate_message
+from game.billing import game_cost
 from tests.conftest import ChatMessageFactory, APIProviderFactory, LLMModelFactory, PromptFactory
 
 
@@ -65,6 +66,23 @@ def test_image_failure_preserves_story(illustrated_config):
     message.refresh_from_db()
     assert message.content == 'The story survives.'
     assert message.metadata['scene_image_failed'] is True
+    cost = game_cost(message.conversation.conversation_id)
+    assert cost['calls'] == 1
+    assert cost['unpriced_calls'] == 1
+
+
+@pytest.mark.django_db
+def test_image_failure_records_usage_from_error_response(illustrated_config):
+    message = ChatMessageFactory(role='assistant', conversation__metadata={'config_id': illustrated_config.pk}, metadata={})
+    response = Mock()
+    response.json.return_value = {'usage': {'cost': '0.012'}}
+    response.raise_for_status.side_effect = ValueError('provider error')
+    with patch('game.scene_images.requests.post', return_value=response):
+        illustrate_message(message)
+    cost = game_cost(message.conversation.conversation_id)
+    assert cost['calls'] == 1
+    assert cost['total_usd'] == '0.012'
+    assert cost['unpriced_calls'] == 0
 
 
 @pytest.mark.django_db

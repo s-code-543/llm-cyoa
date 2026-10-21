@@ -24,6 +24,9 @@ def illustrate_message(message):
     config = get_conversation_configuration(message.conversation)
     if not config or not config.enable_image_generation:
         return
+    request_attempted = False
+    usage = {}
+    usage_recorded = False
     try:
         model = config.image_model
         if (not model or not config.image_meta_prompt or not model.is_available
@@ -50,6 +53,7 @@ def illustrate_message(message):
                          + '\nUse character sheets for consistent identity and scene references for architecture and surroundings. '
                          'Compose the current narrative scene; references do not require absent characters or locations to appear.')
         prompt = '\n\n'.join(parts)
+        request_attempted = True
         response = requests.post(
             'https://openrouter.ai/api/v1/images',
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
@@ -58,10 +62,12 @@ def illustrate_message(message):
                   **({'input_references': references} if references else {})},
             timeout=config.image_timeout,
         )
-        response.raise_for_status()
         result = response.json()
+        usage = result.get('usage') or {}
+        response.raise_for_status()
         from .billing import record_call
-        record_call(message.conversation.conversation_id, {'usage': result.get('usage', {})}, model, kind='image')
+        usage_recorded = True
+        record_call(message.conversation.conversation_id, {'usage': usage}, model, kind='image')
         item = result['data'][0]
         data = base64.b64decode(item['b64_json'], validate=True)
         if data.startswith(b'\x89PNG\r\n\x1a\n'):
@@ -83,6 +89,13 @@ def illustrate_message(message):
         message.metadata.pop('scene_image_failed', None)
         message.save(update_fields=['metadata'])
     except Exception:
+        if request_attempted and not usage_recorded:
+            usage_recorded = True
+            try:
+                from .billing import record_call
+                record_call(message.conversation.conversation_id, {'usage': usage}, model, kind='image')
+            except Exception:
+                logger.warning('Scene illustration usage could not be recorded for message %s', message.pk)
         # Avoid logging provider response bodies or credentials.
         logger.warning('Scene illustration failed for message %s', message.pk)
         message.metadata['scene_image_failed'] = True
