@@ -167,5 +167,26 @@ class UpdateTests(unittest.TestCase):
             self.assertTrue(u.migration_may_have_started('old-container'))
 
 
+class RuntimeMediaIgnoreTests(unittest.TestCase):
+    def test_generated_media_is_allowed_but_untracked_source_is_reported(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            ignore = Path(__file__).parents[2] / '.gitignore'
+            (root / '.gitignore').write_bytes(ignore.read_bytes())
+            for name in ('image_references/reference.png', 'scene_images/scene.png', 'future-format/image.avif'):
+                path = root / 'cyoa-game-server/media' / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'runtime image')
+            command = ['git', 'ls-files', '--others', '--exclude-standard', '--',
+                       'cyoa-game-server', 'frontend', 'deploy', 'cyoa_prompts']
+            self.assertEqual(subprocess.check_output(command, cwd=root, text=True), '')
+            source = root / 'cyoa-game-server/game/new_source.py'
+            source.parent.mkdir(parents=True)
+            source.write_text('# untracked source')
+            self.assertEqual(subprocess.check_output(command, cwd=root, text=True).strip(),
+                             'cyoa-game-server/game/new_source.py')
+
+
 if __name__ == '__main__':
     unittest.main()

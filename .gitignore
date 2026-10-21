@@ -29,6 +29,8 @@ frontend/dist/
 cyoa-game-server/static/frontend/
 cyoa-game-server/staticfiles/
 cyoa-game-server/db/
+# Runtime uploads and generated images are backed up by the updater.
+/cyoa-game-server/media/
 .env.*
 !.env.example
 frontend/test-results/
