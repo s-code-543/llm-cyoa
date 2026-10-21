@@ -1,6 +1,7 @@
 """Prototype scene illustrations; failures never undo a saved story turn."""
 import base64
 import logging
+import time
 import uuid
 from pathlib import Path
 
@@ -24,6 +25,15 @@ def illustrate_message(message):
     config = get_conversation_configuration(message.conversation)
     if not config or not config.enable_image_generation:
         return
+    started = time.monotonic()
+    model = config.image_model
+    step = {
+        'index': len(message.metadata.get('pipeline_debug') or []),
+        'type': 'GenerateImage', 'status': 'running',
+        'configuration': {'model': getattr(model, 'model_identifier', None),
+                          'aspect_ratio': config.image_aspect_ratio, 'timeout': config.image_timeout},
+        'input': {}, 'output': {}, 'model_requests': [],
+    }
     request_attempted = False
     usage = {}
     usage_recorded = False
@@ -53,6 +63,7 @@ def illustrate_message(message):
                          + '\nUse character sheets for consistent identity and scene references for architecture and surroundings. '
                          'Compose the current narrative scene; references do not require absent characters or locations to appear.')
         prompt = '\n\n'.join(parts)
+        step['input'] = {'prompt': prompt, 'reference_count': len(references)}
         request_attempted = True
         response = requests.post(
             'https://openrouter.ai/api/v1/images',
@@ -88,6 +99,8 @@ def illustrate_message(message):
                                             'usage': result.get('usage', {})}
         message.metadata.pop('scene_image_failed', None)
         message.save(update_fields=['metadata'])
+        step['status'] = 'completed'
+        step['output'] = {'media_type': media_type, 'image_url': f'/api/v1/chat/images/{message.pk}'}
     except Exception:
         if request_attempted and not usage_recorded:
             usage_recorded = True
@@ -99,6 +112,24 @@ def illustrate_message(message):
         # Avoid logging provider response bodies or credentials.
         logger.warning('Scene illustration failed for message %s', message.pk)
         message.metadata['scene_image_failed'] = True
+        message.save(update_fields=['metadata'])
+        step['status'] = 'failed'
+        step['error'] = 'Scene illustration failed. The saved story was preserved.'
+    finally:
+        from .billing import amount
+        step['elapsed_ms'] = round((time.monotonic() - started) * 1000)
+        cost = amount(usage.get('cost'))
+        step['cost_usd'] = str(cost) if cost is not None else None
+        if request_attempted:
+            step['model_requests'] = [{
+                'model': getattr(model, 'name', None),
+                'model_identifier': getattr(model, 'model_identifier', None),
+                'status': step['status'], 'usage': usage,
+            }]
+        message.metadata.setdefault('pipeline_debug', [])
+        if message.metadata['pipeline_debug'] is None:
+            message.metadata['pipeline_debug'] = []
+        message.metadata['pipeline_debug'].append(step)
         message.save(update_fields=['metadata'])
 
 

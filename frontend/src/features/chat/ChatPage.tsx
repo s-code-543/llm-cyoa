@@ -72,6 +72,15 @@ export function ChatPage() {
     queryFn: () =>
       request<{
         cost: {
+          models: {
+            model: string;
+            model_identifier: string | null;
+            provider: string | null;
+            total_usd: string;
+            calls: number;
+            estimated_calls: number;
+            unpriced_calls: number;
+          }[];
           total_usd: string;
           calls: number;
           unpriced_calls: number;
@@ -330,6 +339,54 @@ export function ChatPage() {
                   {cost.data.cost.estimated_calls} estimated ·{" "}
                   {cost.data.cost.unpriced_calls} unpriced
                 </p>
+              )}
+              {Boolean(cost.data?.cost.models?.length) && (
+                <div className="overflow-x-auto">
+                  <table
+                    className="w-full text-left"
+                    aria-label="API spending by model"
+                  >
+                    <thead>
+                      <tr>
+                        <th>Model</th>
+                        <th>Spent (USD)</th>
+                        <th>Calls</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cost.data?.cost.models.map((model, index) => (
+                        <tr key={index}>
+                          <td className="py-2 pr-2">
+                            <span className="font-bold">{model.model}</span>
+                            {model.provider && (
+                              <small className="block">{model.provider}</small>
+                            )}
+                            {model.model_identifier &&
+                              model.model_identifier !== model.model && (
+                                <small className="block break-all">
+                                  {model.model_identifier}
+                                </small>
+                              )}
+                            {model.estimated_calls > 0 && (
+                              <small className="block">
+                                {model.estimated_calls} estimated
+                              </small>
+                            )}
+                            {model.unpriced_calls > 0 && (
+                              <small className="block">
+                                {model.unpriced_calls} unpriced
+                              </small>
+                            )}
+                          </td>
+                          <td className="pr-2 tabular-nums">
+                            ${Number(model.total_usd).toFixed(6)}
+                          </td>
+                          <td className="tabular-nums">{model.calls}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
               {Boolean(cost.data?.cost.unpriced_calls) && (
                 <p>Partial total — some API calls have no price.</p>
