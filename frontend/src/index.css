@@ -347,3 +347,260 @@
   font-size: 16px;
   line-height: 1.5;
 }
+
+.app-confirmation {
+  margin: auto;
+  max-width: min(32rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  color: var(--text);
+}
+.app-confirmation::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.notification-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+.app-confirmation button,
+.app-toast button {
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.app-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: calc(100vw - 3rem);
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 4px 20px rgb(0 0 0 / 20%);
+}
+
+/* Compact workflow editor: actions retain their natural width. */
+.workflow {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.workflow-summary {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: steps;
+}
+.workflow-summary li {
+  display: block;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.workflow-summary li::before {
+  counter-increment: steps;
+  content: counter(steps) ". ";
+  color: var(--muted);
+}
+.workflow-step {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.workflow-step-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.workflow-step-heading strong {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.workflow-step-heading p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.15rem 0;
+}
+.workflow-step-number {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--default);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.workflow-step-actions {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+.workflow-step-actions button,
+.workflow-add button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.workflow-step-settings {
+  grid-column: 1 / -1;
+  margin-left: 2.5rem;
+  font-size: 0.8rem;
+}
+.workflow-step-settings summary {
+  cursor: pointer;
+  color: var(--primary);
+  width: fit-content;
+}
+.workflow-step-settings label {
+  margin-block: 0.75rem;
+}
+.workflow-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  min-width: 0;
+}
+.workflow-add > label {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.form .workflow-add select {
+  width: 100%;
+  min-width: 0;
+}
+.configuration-form > h2,
+#config-workflow,
+#config-save {
+  scroll-margin-top: 6rem;
+}
+.configuration-form {
+  min-width: 0;
+}
+.configuration-form > * {
+  min-width: 0;
+}
+.reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.75rem;
+}
+.reference-card {
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  min-width: 0;
+}
+.reference-card img {
+  width: 100%;
+  height: 9rem;
+  object-fit: contain;
+  background: var(--default);
+  border-radius: 0.5rem;
+}
+.reference-card strong {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.reference-card small {
+  display: block;
+  color: var(--muted);
+}
+.reference-card button {
+  justify-self: start;
+}
+.reference-uploads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+.form .reference-uploads input {
+  font-size: 0.75rem;
+  padding: 0.65rem;
+  max-width: 100%;
+}
+
+/* Ant Design Anchor supplies the navigation and active indicator. */
+.section-spy {
+  position: fixed;
+  z-index: 15;
+  left: max(1rem, calc((100vw - 1100px) / 2 + 1rem));
+  top: 14rem;
+  width: 10.75rem;
+  max-height: calc(100dvh - 15rem);
+  overflow-y: auto;
+}
+.admin-layout > .page:has(.section-spy) {
+  padding-left: 12.75rem;
+}
+.section-spy-title {
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.section-spy .ant-anchor-link-title {
+  white-space: normal;
+}
+.page .section-spy-toggle {
+  display: none;
+}
+@media (max-width: 767px) {
+  .section-spy {
+    display: none;
+  }
+  .page .section-spy-toggle {
+    display: inline-flex;
+    position: fixed;
+    z-index: 25;
+    right: 0.35rem;
+    top: 50%;
+    transform: translateY(-50%);
+    writing-mode: vertical-rl;
+    height: auto;
+    min-height: 6rem;
+    padding: 0.75rem 0.4rem;
+  }
+  .section-spy-popover {
+    max-width: min(18rem, calc(100vw - 3.5rem));
+  }
+  .section-spy-popover nav {
+    max-height: calc(100dvh - 10rem);
+    overflow-y: auto;
+  }
+  .admin-layout > .page:has(.section-spy) {
+    padding-left: 1rem;
+    padding-right: 3.25rem;
+  }
+  .workflow-step {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workflow-step-actions {
+    grid-row: auto;
+    grid-column: 1;
+    margin-left: 2.5rem;
+    flex-wrap: wrap;
+  }
+  .reference-uploads {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -16,7 +16,13 @@
     })();
   </script>
   <title>CYOA · Adventure</title>
-  <link rel="icon" href="/favicon.ico">
+  <link rel="icon" href="/favicon.ico?v=signpost" sizes="any">
+  <link rel="icon" type="image/png" sizes="96x96" href="{% static 'icons/favicon-96x96.png' %}">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=signpost">
+  <link rel="manifest" href="/site.webmanifest" crossorigin="use-credentials">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="CYOA">
   {% for stylesheet in frontend_styles %}<link rel="stylesheet" href="{{ stylesheet }}">{% endfor %}
 </head>
 <body>
@@ -35,6 +41,16 @@
   <script type="module" src="/frontend/src/main.tsx"></script>
   {% else %}
   <script type="module" src="{{ frontend_script }}"></script>
+  {% endif %}
+  {% if not frontend_dev %}
+  <script>
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
+          .catch(function (error) { console.error('Service worker registration failed:', error); });
+      });
+    }
+  </script>
   {% endif %}
 </body>
 </html>

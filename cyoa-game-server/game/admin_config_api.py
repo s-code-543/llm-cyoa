@@ -1,4 +1,5 @@
 """Admin JSON API: game configurations with their judge steps and workflow."""
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
@@ -7,7 +8,7 @@ from django.views.decorators.http import require_http_methods
 
 from .admin_api import admin_api, invalid, prompt_summary
 from .chat_api import body, error
-from .models import Configuration, DifficultyProfile, JudgeStep, LLMModel, Prompt, GameSession
+from .models import Configuration, DifficultyProfile, JudgeStep, LLMModel, Prompt, GameSession, ImageReference
 
 CONFIG_INT_FIELDS = {
     'storyteller_timeout': (60, 1),
@@ -77,6 +78,7 @@ def config_summary(config):
 
 
 def config_json(config):
+    from .image_references import reference_json
     data = {
         'id': config.id,
         'name': config.name,
@@ -88,6 +90,7 @@ def config_json(config):
         'enable_refusal_detection': config.enable_refusal_detection,
         'difficulty': config.difficulty_id,
         'workflow': config.workflow or {},
+        'image_references': [reference_json(r) for r in config.image_references.order_by('kind', 'id')],
         'judge_steps': [
             step_json(s) for s in JudgeStep.objects.filter(configuration=config).order_by('order', 'id')
         ],
@@ -195,6 +198,27 @@ def parse_config(data):
                 fields[key] = 'Required when image generation is enabled.'
         if image_model and not image_model.provider.api_key:
             fields['image_model'] = 'Configure an API key for this image model’s provider.'
+    from .image_references import MAX_REFERENCES, reference_limit
+    raw_references = data.get('image_references', [])
+    references = []
+    if not isinstance(raw_references, list) or len(raw_references) > MAX_REFERENCES:
+        fields['image_references'] = f'Choose up to {MAX_REFERENCES} reference images.'
+    else:
+        for raw in raw_references:
+            try:
+                reference = ImageReference.objects.filter(pk=raw.get('id') if isinstance(raw, dict) else raw).first()
+            except (ValueError, TypeError, ValidationError):
+                reference = None
+            if not reference or reference.pk in [r.pk for r in references]:
+                fields['image_references'] = 'Choose valid, distinct uploaded reference images.'
+            else:
+                references.append(reference)
+    if references and image_model:
+        limit = reference_limit(image_model)
+        if limit is not None and len(references) > limit:
+            fields['image_model'] = ('This model does not accept reference images. Choose a model with image input.'
+                                     if not limit else f'This model accepts at most {limit} reference images.')
+    values['image_references'] = references
     values['difficulty'] = lookup(DifficultyProfile, data.get('difficulty'), 'difficulty', fields, 'difficulty')
 
     for key, label in (('adventure_prompt', 'Adventure prompt'), ('game_ending_prompt', 'Game ending prompt'),
@@ -233,9 +257,11 @@ def parse_config(data):
 
 @transaction.atomic
 def save_config(config, values, steps):
+    references = values.pop('image_references', [])
     for key, value in values.items():
         setattr(config, key, value)
     config.save()
+    config.image_references.set(references)
     existing = {s.id: s for s in JudgeStep.objects.filter(configuration=config)}
     keep = set()
     for step_id, step_values in steps:
@@ -253,6 +279,7 @@ def save_config(config, values, steps):
 @admin_api
 @require_http_methods(['GET'])
 def config_options(request):
+    from .image_references import reference_limit
     def prompts(kind):
         return [prompt_summary(p) for p in Prompt.objects.filter(prompt_type=kind).order_by('name', '-version')]
 
@@ -265,7 +292,7 @@ def config_options(request):
         'character_prompts': prompts('character'),
         'image_meta_prompts': prompts('image-meta'),
         'image_models': [
-            {'id': m.id, 'name': m.name, 'available': m.is_available}
+            {'id': m.id, 'name': m.name, 'available': m.is_available, 'reference_limit': reference_limit(m)}
             for m in LLMModel.objects.select_related('provider').filter(
                 provider__provider_type='openrouter', provider__is_active=True,
                 is_available=True, capabilities__image_generation=True).exclude(

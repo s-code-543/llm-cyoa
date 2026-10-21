@@ -225,6 +225,8 @@ def tts_generate(request):
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
         
+        from .billing import record_call
+        record_call(conversation.conversation_id, {}, kind='speech')
         response = client.audio.speech.create(
             model=model,
             voice=voice,

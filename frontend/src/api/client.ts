@@ -30,9 +30,19 @@ export async function apiFetch<T>(
   const response = await fetch(url, {
     method,
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+    headers: {
+      ...(init.payload instanceof FormData
+        ? {}
+        : { "Content-Type": "application/json" }),
+      "X-CSRFToken": csrfToken(),
+    },
     ...(init.payload !== undefined
-      ? { body: JSON.stringify(init.payload) }
+      ? {
+          body:
+            init.payload instanceof FormData
+              ? init.payload
+              : JSON.stringify(init.payload),
+        }
       : {}),
   });
   if (

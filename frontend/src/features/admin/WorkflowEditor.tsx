@@ -1,3 +1,4 @@
+import { Button } from "@heroui/react";
 import { Toggle } from "../../components/Toggle";
 import { useState } from "react";
 import type { Workflow, WorkflowNode } from "../../api/admin";
@@ -43,7 +44,7 @@ type FieldSpec = {
 
 function fieldsFor(type: string): FieldSpec[] {
   const fields: FieldSpec[] = [
-    { key: "name", label: "Step name", kind: "text", fallback: "" },
+    { key: "name", label: "Step name (optional)", kind: "text", fallback: "" },
   ];
   if (type === "GateInventory")
     fields.push(
@@ -191,7 +192,10 @@ export function WorkflowEditor({
   value: Workflow;
   onChange: (next: Workflow) => void;
 }) {
-  const nodes = value.nodes ?? [];
+  const isDefault = !value.nodes?.length;
+  const nodes = isDefault ? DEFAULT_NODES : value.nodes!;
+  const [advanced, setAdvanced] = useState(false);
+  const [jsonMode, setJsonMode] = useState(false);
   const [kind, setKind] = useState("ApplyRandomPrompt");
   const [draft, setDraft] = useState<string | null>(null);
   const [rawError, setRawError] = useState("");
@@ -222,100 +226,172 @@ export function WorkflowEditor({
   const raw = draft ?? JSON.stringify(value, null, 2);
 
   return (
-    <fieldset className="workflow">
-      <legend>Turn workflow</legend>
-      {nodes.length === 0 && (
+    <div className="workflow" role="group" aria-label="Turn workflow">
+      {isDefault && (
         <p>
           Default: difficulty → context → storyteller → refusal repair →
           optional judge → validate → save.
         </p>
       )}
-      {nodes.map((step, index) => (
-        <div className="card" key={index}>
-          <strong>
-            {index + 1}. {String(step.name || step.type)}
-          </strong>
-          <p>{WORKFLOW_HELP[step.type] ?? ""}</p>
-          {fieldsFor(step.type).map((spec) => (
-            <StepField
-              key={spec.key}
-              spec={spec}
-              step={step}
-              onChange={(v) => patch(index, spec.key, v)}
-            />
+      {!advanced && (
+        <ol aria-label="Workflow steps" className="workflow-summary">
+          {(nodes.length ? nodes : DEFAULT_NODES).map((step, index) => (
+            <li key={index}>
+              <strong>{String(step.name || step.type)}</strong> —{" "}
+              {WORKFLOW_HELP[step.type]}
+            </li>
           ))}
-          <div className="toolbar">
-            <button
-              type="button"
-              aria-label={`Move step ${index + 1} up`}
-              disabled={index === 0}
-              onClick={() => move(index, index - 1)}
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              aria-label={`Move step ${index + 1} down`}
-              disabled={index === nodes.length - 1}
-              onClick={() => move(index, index + 1)}
-            >
-              ↓
-            </button>
-            <button
-              type="button"
-              onClick={() => emit(nodes.filter((_, i) => i !== index))}
-            >
-              Remove step {index + 1}
-            </button>
-          </div>
-        </div>
-      ))}
-      <div className="toolbar">
-        <select
-          aria-label="Step type"
-          value={kind}
-          onChange={(e) => setKind(e.target.value)}
-        >
-          {Object.keys(WORKFLOW_HELP).map((k) => (
-            <option key={k} value={k}>
-              {k} — {WORKFLOW_HELP[k]}
-            </option>
-          ))}
-        </select>
-        <button type="button" onClick={add}>
-          Add step
-        </button>
-        {nodes.length > 0 && (
-          <button type="button" onClick={() => emit([])}>
-            Reset to default
-          </button>
-        )}
-      </div>
-      <details>
-        <summary>Advanced (JSON)</summary>
-        <textarea
-          aria-label="Workflow JSON"
-          rows={10}
-          value={raw}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            try {
-              const parsed = e.target.value.trim()
-                ? JSON.parse(e.target.value)
-                : {};
-              setRawError("");
-              onChange(parsed);
-            } catch {
-              setRawError("Invalid JSON");
-            }
-          }}
-        />
-        {rawError && (
-          <span role="alert" className="field-error">
-            {rawError}
-          </span>
-        )}
-      </details>
-    </fieldset>
+        </ol>
+      )}
+      <Toggle checked={advanced} onChange={setAdvanced}>
+        Advanced mode
+      </Toggle>
+      {advanced && (
+        <>
+          <Toggle checked={jsonMode} onChange={setJsonMode}>
+            JSON mode (recommended for robots)
+          </Toggle>
+          {!jsonMode && (
+            <>
+              {isDefault && (
+                <p>Using the default workflow. Add a step to customize it.</p>
+              )}
+              {nodes.map((step, index) => (
+                <div className="workflow-step" key={index}>
+                  <div className="workflow-step-heading">
+                    <span className="workflow-step-number">{index + 1}</span>
+                    <div>
+                      <strong>{String(step.name || step.type)}</strong>
+                      <p>{WORKFLOW_HELP[step.type] ?? ""}</p>
+                    </div>
+                  </div>
+                  <details className="workflow-step-settings">
+                    <summary>Step settings</summary>
+                    {fieldsFor(step.type).map((spec) => (
+                      <StepField
+                        key={spec.key}
+                        spec={spec}
+                        step={step}
+                        onChange={(v) => patch(index, spec.key, v)}
+                      />
+                    ))}
+                  </details>
+                  <div className="workflow-step-actions">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      type="button"
+                      aria-label={`Move step ${index + 1} up`}
+                      isDisabled={index === 0}
+                      onPress={() => move(index, index - 1)}
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      type="button"
+                      aria-label={`Move step ${index + 1} down`}
+                      isDisabled={index === nodes.length - 1}
+                      onPress={() => move(index, index + 1)}
+                    >
+                      ↓
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      type="button"
+                      aria-label={`Remove step ${index + 1}`}
+                      onPress={() => emit(nodes.filter((_, i) => i !== index))}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              <div className="workflow-add">
+                <label>
+                  Add a workflow step
+                  <select
+                    aria-label="Step type"
+                    value={kind}
+                    onChange={(e) => setKind(e.target.value)}
+                  >
+                    {Object.keys(WORKFLOW_HELP).map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button size="sm" type="button" onPress={add}>
+                  Add step
+                </Button>
+                {nodes.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    type="button"
+                    onPress={() => emit([])}
+                  >
+                    Reset to default
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted">{WORKFLOW_HELP[kind]}</p>
+            </>
+          )}
+          {jsonMode && (
+            <>
+              <p>
+                Edit the complete workflow as JSON. An empty object uses the
+                default workflow.
+              </p>
+              <textarea
+                aria-label="Workflow JSON"
+                rows={10}
+                value={raw}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  try {
+                    const parsed = e.target.value.trim()
+                      ? JSON.parse(e.target.value)
+                      : {};
+                    if (
+                      !parsed ||
+                      typeof parsed !== "object" ||
+                      Array.isArray(parsed) ||
+                      (Object.keys(parsed).length > 0 &&
+                        (parsed.version !== 1 ||
+                          !Array.isArray(parsed.nodes) ||
+                          !parsed.nodes.every(
+                            (node: WorkflowNode) =>
+                              node && typeof node.type === "string",
+                          )))
+                    )
+                      throw new Error("Invalid workflow");
+                    e.target.setCustomValidity("");
+                    setRawError("");
+                    onChange(parsed);
+                  } catch {
+                    e.target.setCustomValidity(
+                      "Enter a workflow object with version 1 and a nodes array, or {} for defaults.",
+                    );
+                    setRawError(
+                      "Enter a workflow object with version 1 and a nodes array, or {} for defaults.",
+                    );
+                  }
+                }}
+              />
+              {rawError && (
+                <span role="alert" className="field-error">
+                  {rawError}
+                </span>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
   );
 }

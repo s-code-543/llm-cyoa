@@ -249,7 +249,8 @@ def call_anthropic(messages, system_prompt=None, model="claude-haiku-4-5", api_k
             
             result = '\n'.join(text_parts)
             print(f"[ANTHROPIC] ✓ Got response: {len(result)} chars")
-            return result
+            from .openrouter_utils import MeteredText
+            return MeteredText(result, data)
         
         elif response.status_code == 401:
             error_msg = "Anthropic API authentication failed. Check API key."

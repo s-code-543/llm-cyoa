@@ -161,6 +161,15 @@ test("admin debug toggle opens a trace and closes when disabled", async () => {
   api.mockImplementation(async (path) => {
     if (path === "bootstrap")
       return { configurations: [], debug_allowed: true };
+    if (path.includes("summary=true"))
+      return {
+        cost: {
+          total_usd: "0.123456",
+          calls: 8,
+          estimated_calls: 1,
+          unpriced_calls: 2,
+        },
+      };
     if (path.includes("/debug"))
       return {
         status: "completed",
@@ -187,6 +196,7 @@ test("admin debug toggle opens a trace and closes when disabled", async () => {
     screen.queryByRole("button", { name: "Debug narrator response 1" }),
   ).toBeNull();
   fireEvent.click(screen.getByRole("switch", { name: "Debug mode" }));
+  await screen.findByText("Game API total: $0.123456 USD");
   fireEvent.click(
     screen.getByRole("button", { name: "Debug narrator response 1" }),
   );
@@ -197,6 +207,7 @@ test("admin debug toggle opens a trace and closes when disabled", async () => {
   );
   fireEvent.click(screen.getByRole("switch", { name: "Debug mode" }));
   expect(screen.queryByLabelText("Pipeline debug")).toBeNull();
+  expect(screen.queryByLabelText("Cumulative API cost")).toBeNull();
 });
 
 test("admin inspection shows debug controls without action or rollback controls", async () => {

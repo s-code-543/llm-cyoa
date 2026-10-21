@@ -1,3 +1,4 @@
+import { confirmAction } from "../../components/notifications";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Card, ProgressBar } from "@heroui/react";
@@ -88,8 +89,8 @@ export function HomePage() {
                       variant="danger-soft"
                       className="self-start"
                       isDisabled={remove.isPending}
-                      onPress={() => {
-                        if (window.confirm(`Delete “${game.title}”?`))
+                      onPress={async () => {
+                        if (await confirmAction(`Delete “${game.title}”?`))
                           remove.mutate(game.id);
                       }}
                     >

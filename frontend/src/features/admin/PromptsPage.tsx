@@ -1,3 +1,4 @@
+import { SectionSpy } from "../../components/SectionSpy";
 import { Accordion, Button, Card, buttonVariants } from "@heroui/react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -48,21 +49,13 @@ export function PromptListPage() {
           New prompt
         </Button>
       </div>
-      <nav
-        aria-label="Prompt sections"
-        className="my-5 flex flex-wrap items-center gap-2 rounded-2xl bg-default/50 p-3"
-      >
-        <span className="px-2 text-sm font-medium text-muted">Jump to</span>
-        {populatedTypes.map((type) => (
-          <a
-            key={type.value}
-            href={`#prompt-section-${type.value}`}
-            className={buttonVariants({ variant: "secondary", size: "sm" })}
-          >
-            {type.label}
-          </a>
-        ))}
-      </nav>
+      <SectionSpy
+        title="Prompts"
+        sections={populatedTypes.map((type) => ({
+          id: `prompt-section-${type.value}`,
+          label: type.label,
+        }))}
+      />
       {populatedTypes.map((type) => {
         const byName = new Map<string, PromptSummary[]>();
         all

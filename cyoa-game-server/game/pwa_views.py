@@ -62,11 +62,11 @@ def offline_page(request):
     <title>CYOA - Offline</title>
     <style>
         body { font-family: system-ui, sans-serif; display: flex; align-items: center;
-               justify-content: center; min-height: 100vh; margin: 0; background: #f9fafb; color: #374151; }
+               justify-content: center; min-height: 100vh; margin: 0; background: #172c33; color: #f9fafb; }
         .card { text-align: center; padding: 2rem; }
         h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-        p { color: #6b7280; }
-        button { margin-top: 1rem; padding: 0.5rem 1.5rem; background: #4f46e5; color: white;
+        p { color: #c5d3d8; }
+        button { margin-top: 1rem; padding: 0.5rem 1.5rem; background: #f4b544; color: #172c33;
                  border: none; border-radius: 0.5rem; font-size: 1rem; cursor: pointer; }
     </style>
 </head>

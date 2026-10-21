@@ -84,6 +84,8 @@ class Turn:
             raise
         finally:
             record['elapsed_ms'] = round((time.monotonic() - started) * 1000)
+            from ..billing import record_call
+            record_call(self.conversation.conversation_id, record, model)
 
     def rng(self, name):
         digest = hashlib.sha256(f'{self.seed}:{self.session.turn_number}:{name}'.encode()).hexdigest()
