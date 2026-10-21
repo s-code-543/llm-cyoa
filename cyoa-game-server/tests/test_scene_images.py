@@ -66,6 +66,11 @@ def test_image_failure_preserves_story(illustrated_config):
     message.refresh_from_db()
     assert message.content == 'The story survives.'
     assert message.metadata['scene_image_failed'] is True
+    step = message.metadata['pipeline_debug'][-1]
+    assert step['type'] == 'GenerateImage'
+    assert step['status'] == 'failed'
+    assert step['elapsed_ms'] >= 0
+    assert step['cost_usd'] is None
     cost = game_cost(message.conversation.conversation_id)
     assert cost['calls'] == 1
     assert cost['unpriced_calls'] == 1
@@ -94,3 +99,26 @@ def test_disabled_configuration_never_calls_provider(illustrated_config):
         illustrate_message(message)
     post.assert_not_called()
     assert 'scene_image_failed' not in message.metadata
+
+
+@pytest.mark.django_db
+def test_image_trace_records_duration_cost_and_preserves_workflow(illustrated_config, tmp_path):
+    message = ChatMessageFactory(role='assistant', content='Forest.',
+        conversation__metadata={'config_id': illustrated_config.pk},
+        metadata={'pipeline_debug': [{'index': 0, 'type': 'SaveGame'}]})
+    response = Mock()
+    response.json.return_value = {'data': [{'b64_json': base64.b64encode(b'\x89PNG\r\n\x1a\nimage').decode()}],
+                                  'usage': {'cost': '0.042'}}
+    with override_settings(MEDIA_ROOT=tmp_path), patch('game.scene_images.requests.post', return_value=response), patch('game.scene_images.time.monotonic', side_effect=[10, 12.5]):
+        illustrate_message(message)
+    message.refresh_from_db()
+    steps = message.metadata['pipeline_debug']
+    assert steps[0]['type'] == 'SaveGame'
+    assert steps[1]['type'] == 'GenerateImage'
+    assert steps[1]['index'] == 1
+    assert steps[1]['elapsed_ms'] == 2500
+    assert steps[1]['cost_usd'] == '0.042'
+    assert steps[1]['status'] == 'completed'
+    assert steps[1]['configuration']['model'] == illustrated_config.image_model.model_identifier
+    assert 'image-provider-key' not in str(steps)
+    assert game_cost(message.conversation.conversation_id)['calls'] == 1

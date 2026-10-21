@@ -164,6 +164,17 @@ test("admin debug toggle opens a trace and closes when disabled", async () => {
     if (path.includes("summary=true"))
       return {
         cost: {
+          models: [
+            {
+              model: "Story model",
+              model_identifier: "story-v1",
+              provider: "OpenRouter",
+              total_usd: "0.123456",
+              calls: 8,
+              estimated_calls: 1,
+              unpriced_calls: 2,
+            },
+          ],
           total_usd: "0.123456",
           calls: 8,
           estimated_calls: 1,
@@ -186,6 +197,17 @@ test("admin debug toggle opens a trace and closes when disabled", async () => {
               code: 'state["turn"] = 1\nif True:\n    state["ready"] = True',
             },
           },
+          {
+            index: 1,
+            type: "GenerateImage",
+            status: "completed",
+            elapsed_ms: 2500,
+            cost_usd: "0.042",
+            input: {},
+            output: {},
+            configuration: {},
+            model_requests: [],
+          },
         ],
       };
     return { conversation: game };
@@ -197,10 +219,22 @@ test("admin debug toggle opens a trace and closes when disabled", async () => {
   ).toBeNull();
   fireEvent.click(screen.getByRole("switch", { name: "Debug mode" }));
   await screen.findByText("Game API total: $0.123456 USD");
+  expect(
+    screen.getByRole("table", { name: "API spending by model" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Story model")).toBeInTheDocument();
+  expect(screen.getByText("OpenRouter")).toBeInTheDocument();
+  expect(screen.getByText("$0.123456")).toBeInTheDocument();
   fireEvent.click(
     screen.getByRole("button", { name: "Debug narrator response 1" }),
   );
   await screen.findByText("1. GenerateTurn · completed · 42 ms");
+  expect(
+    screen.getByText("2. GenerateImage · completed · 2500 ms"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("Image generation: 2.50 seconds · Cost: $0.042000 USD"),
+  ).toBeInTheDocument();
   expect(screen.getByLabelText("Pipeline debug")).toBeInTheDocument();
   expect(screen.getByText(/state\["turn"\] = 1/).textContent).toBe(
     'state["turn"] = 1\nif True:\n    state["ready"] = True',

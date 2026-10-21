@@ -53,3 +53,20 @@ def test_cost_endpoint_is_staff_only_and_survives_transcript_deletion(auth_clien
     assert response.status_code == 200
     assert Decimal(response.json()['cost']['total_usd']) == Decimal('0.0042')
     assert response.json()['cost']['calls'] == 1
+
+
+def test_model_breakdown_separates_providers_and_reconciles_total():
+    for provider, price in [('First', '0.012'), ('Second', '0.023')]:
+        model = SimpleNamespace(name='Narrator', model_identifier='story-v1',
+                                provider=SimpleNamespace(name=provider), capabilities={})
+        record_call('game', {'usage': {'cost': price}}, model)
+        record_call('game', {}, model)
+    AuditLog.objects.create(details={'conversation_id': 'game', 'model_requests': [
+        {'model': 'Legacy judge', 'usage': {'cost': '0.005'}}]})
+    result = game_cost('game')
+    assert len(result['models']) == 3
+    assert sum(Decimal(row['total_usd']) for row in result['models']) == Decimal(result['total_usd'])
+    assert sum(row['calls'] for row in result['models']) == result['calls'] == 5
+    assert result['models'][0]['provider'] == 'Second'
+    assert result['models'][0]['model_identifier'] == 'story-v1'
+    assert result['models'][0]['unpriced_calls'] == 1

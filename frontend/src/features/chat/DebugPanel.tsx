@@ -5,6 +5,7 @@ type Step = {
   type: string;
   status: string;
   elapsed_ms?: number;
+  cost_usd?: string | null;
   error?: string;
   reason?: string;
   input: unknown;
@@ -128,6 +129,18 @@ export function DebugPanel({
                 {step.index + 1}. {step.type} · {step.status}
                 {step.elapsed_ms !== undefined && ` · ${step.elapsed_ms} ms`}
               </summary>
+              {step.type === "GenerateImage" && (
+                <p className="my-2 text-sm">
+                  Image generation:{" "}
+                  {step.elapsed_ms === undefined
+                    ? "Timing unavailable"
+                    : `${(step.elapsed_ms / 1000).toFixed(2)} seconds`}{" "}
+                  · Cost:{" "}
+                  {step.cost_usd == null
+                    ? "Unpriced"
+                    : `$${Number(step.cost_usd).toFixed(6)} USD`}
+                </p>
+              )}
               {step.error && <p className="my-2 text-danger">{step.error}</p>}
               {step.reason && <p>{step.reason}</p>}
               {(
